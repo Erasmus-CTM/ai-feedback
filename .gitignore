@@ -3,3 +3,6 @@ _site/
 .quarto/
 test-results/
 playwright-report/
+
+/.quarto/
+**/*.quarto_ipynb
