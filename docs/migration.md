@@ -6,11 +6,11 @@
    capability; retain code-matched checker snapshots, constraints and only
    permitted messages. Preserve Check, Reset and submission behavior. Feedback
    must not execute code, expose hidden tests or use stale checker results.
-4. **Pyodide (deferred)**: preserve three hint levels and cached output. Feedback never
-   executes Python. Move provider transport and settings to shared APIs.
 3. **Mathematics (current integration)**: preserve task/LaTeX source, checker evidence, matrices,
    graphical responses and existing four-step policy. Run existing regression
    tests against the integration before removing old provider logic.
+4. **Pyodide (deferred)**: preserve three hint levels and cached output. Feedback never
+   executes Python. Move provider transport and settings to shared APIs.
 
 The original plan placed Pyodide first because its existing feedback module is
 the smaller extraction. There is no dependency requiring that order. Following

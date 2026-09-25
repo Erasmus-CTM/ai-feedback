@@ -208,6 +208,7 @@ const server = http.createServer((req, res) => {
       assert.ok(request.evidence.length > 0, example.id + ' keeps matching check evidence');
       assert.equal(await page.evaluate(() => window.__feedbackExecutionCount), runs);
       await cell.locator('.math-input').first().fill('999');
+      assert.equal(await cell.locator('.math-input-ok,.math-input-wrong,.math-input-partial,.math-input-dependent').count(), 0, 'Edits must clear old Check colors');
       await feedback.click(); await cell.locator('.ai-feedback-body').waitFor();
       assert.deepEqual(JSON.parse(apiRequest.messages[1].content).evidence, []);
       assert.equal(await page.evaluate(() => window.__feedbackExecutionCount), runs);
