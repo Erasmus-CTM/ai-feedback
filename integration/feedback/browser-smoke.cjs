@@ -31,10 +31,9 @@ const server = http.createServer((req, res) => {
     await page.goto('http://127.0.0.1:' + server.address().port + '/examples.html', {waitUntil: 'domcontentloaded'});
     console.log('Waiting for real Pyodide and Monaco initialization…');
     await page.locator('.py-exercise-check').first().waitFor({state: 'attached'});
-    await page.locator('.qpyodide-button-run').waitFor({state: 'attached'});
     await page.locator('.math-check-btn').waitFor();
     await page.waitForFunction(() => globalThis.monaco?.editor.getModels().some(m => m.getValue().includes('def add')));
-    console.log('All three consumer controls initialized.');
+    console.log('Python and mathematics controls initialized.');
     assert.equal(await page.locator('.ai-feedback-activity .feedback-criteria').count(), 0);
     assert.ok(!/read the handwritten Spanish|Do not rewrite the whole response/i.test(await page.locator('#handwriting').innerText()));
     assert.equal(await page.locator('#handwriting #handwriting-sample-download').count(), 1);
@@ -67,10 +66,6 @@ const server = http.createServer((req, res) => {
     await page.locator('.math-check-btn').click();
     await page.waitForFunction(() => document.querySelector('.math-input').classList.contains('math-input-ok'));
     report.checks.push('Mathematics checker accepts 42');
-    await pythonTab.click();
-    await page.locator('.qpyodide-button-run').click();
-    await page.waitForFunction(() => /\b6\b/.test(document.querySelector('.qpyodide-output-code-area').textContent));
-    report.checks.push('Interactive Python executes and prints 6');
     await nonPythonTab.click();
     await page.locator('#spanish-writing .ai-feedback-button').first().click();
     await page.locator('#spanish-writing pre').waitFor();
@@ -153,15 +148,25 @@ const server = http.createServer((req, res) => {
     await page.locator('dialog.ai-feedback-settings').getByRole('button', {name: 'Cancel', exact: true}).click();
     // Test the real Python button in API mode with a mocked provider response.
     let apiRequest;
+    const mathReply = [
+      String.raw`The area is $\pi \times r^2$, not $\pi \times r$. Also \(x_1 * x_2\).`,
+      '', String.raw`$$\frac{1}{2}$$`, '', String.raw`\[A = \pi r^2\]`, '',
+      'Code: `$literal$`.', '```python', 'print("$not_math$")', '```',
+      '<img src=x onerror=alert(1)>'
+    ].join('\n');
     await page.route('https://feedback-test.invalid/v1/chat/completions', async route => {
       if (route.request().method() === 'POST') apiRequest = route.request().postDataJSON();
-      await route.fulfill({status: 200, contentType: 'application/json', headers: {'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-methods': 'POST, OPTIONS'}, body: JSON.stringify({choices: [{finish_reason: 'stop', message: {content: 'Review your return value.'}}]})});
+      await route.fulfill({status: 200, contentType: 'application/json', headers: {'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-methods': 'POST, OPTIONS'}, body: JSON.stringify({choices: [{finish_reason: 'stop', message: {content: mathReply}}]})});
     });
     await page.evaluate(() => AIFeedback.saveConfig({mode: 'api', storage: 'session', baseUrl: 'https://feedback-test.invalid/v1', model: 'test-model', apiKey: 'test-only'}));
     const executionCount = await page.evaluate(() => window.__feedbackExecutionCount);
     await page.locator('#task-price .py-exercise-feedback').click();
     await page.locator('#task-price .ai-feedback-body').waitFor();
-    assert.match(await page.locator('#task-price .ai-feedback-body').innerText(), /Review your return value/);
+    await page.waitForFunction(() => document.querySelectorAll('#task-price .ai-feedback-body .katex').length === 5);
+    assert.equal(await page.locator('#task-price .ai-feedback-body .katex-display').count(), 2);
+    assert.equal(await page.locator('#task-price .ai-feedback-body code').first().textContent(), '$literal$');
+    assert.equal(await page.locator('#task-price .ai-feedback-body pre code').textContent(), 'print("$not_math$")');
+    assert.equal(await page.locator('#task-price .ai-feedback-body img').count(), 0);
     const sent = JSON.parse(apiRequest.messages[1].content);
     assert.match(sent.task, /price_with_tax/);
     assert.equal(sent.responses[0].language, 'python');
@@ -170,6 +175,7 @@ const server = http.createServer((req, res) => {
     assert.equal(await page.evaluate(() => window.__feedbackExecutionCount), executionCount);
     await page.evaluate(() => AIFeedback.saveConfig({mode: 'copy', storage: 'session'}));
     report.checks.push('Python API feedback uses shared settings and current code without execution or hidden tests (mock provider)');
+    report.checks.push('Feedback renders all four LaTeX delimiters and preserves literal code');
     assert.deepEqual(report.pageErrors, []);
     await page.screenshot({path: path.join(site, 'python-practice-desktop.png'), fullPage: true});
     await page.setViewportSize({width: 390, height: 844});

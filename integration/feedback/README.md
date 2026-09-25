@@ -2,7 +2,7 @@
 
 All common examples and acceptance checks belong to **ai-feedback**.
 The source is the root **`examples.qmd`**: six text/image activities plus
-Python unit-test, mathematics and interactive Python baseline exercises.
+Python unit-test and mathematics exercises.
 The entry page uses topic includes in `examples/` to render one HTML page with
 **Non-Python** and **Python** tabs. The Python tab includes five
 partially completed functions, with separate author notes and learner tasks.
@@ -76,9 +76,9 @@ CI installs Chromium's system dependencies too. `CHROMIUM_EXECUTABLE` can point
 to an existing Chromium binary; `CTM_BROWSER_PROXY` supports a required network
 proxy. Provider credentials are neither needed nor supplied.
 
-The browser check executes real Pyodide, Monaco and SymPy on the combined
+The browser check executes real Python execution via Pyodide, Monaco and SymPy on the combined
 `examples.html`. It checks failing/passing Python responses, forbidden imports,
-Reset, mathematics accepting 42, interactive Python printing 6, and the shared
+Reset, mathematics accepting 42, and the shared
 copy prompt/cogwheel. It fails when those runtimes cannot load. Python execution
 is not mocked. The six standalone activities also retain their existing
 rendered-page/image-transport checks. Live AI replies remain outside CI.
@@ -96,7 +96,9 @@ Python tasks use shared Feedback and settings from the pinned
 `feature/shared-feedback-integration` branch, not the main runtime. Feedback
 reads current code without execution and includes only code-matched checker
 summaries and learner output. Edits and Reset invalidate that evidence.
-Mathematics and Pyodide retain their legacy settings and teaching policies.
+Mathematics retains its legacy settings and teaching policy. The separate
+interactive Pyodide example is removed; its source pin is retained for the future
+integration. Python exercises still use Pyodide internally to execute code.
 
 The adapters must omit stale output and hidden test source, preserve
 Check/Reset/submission, and use the shared API and cogwheel without executing

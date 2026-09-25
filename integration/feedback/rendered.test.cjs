@@ -7,7 +7,7 @@ const site = process.env.CTM_INTEGRATION_SITE;
 assert.ok(site, 'Run scripts/setup-feedback-integration.py --test first.');
 const html = fs.readFileSync(path.join(site, 'examples.html'), 'utf8');
 
-test('common page renders all four extensions and keeps local dependencies resolvable', () => {
+test('common page renders the active extensions and keeps local dependencies resolvable', () => {
   const dom = new JSDOM(html);
   const doc = dom.window.document;
   assert.equal(doc.querySelectorAll('.ai-feedback-activity').length, 6);
@@ -19,13 +19,13 @@ test('common page renders all four extensions and keeps local dependencies resol
   assert.equal(panels[0].querySelectorAll('.ai-feedback-activity').length, 6);
   assert.equal(panels[0].querySelectorAll('.math-exercise-cell').length, 1);
   assert.equal(panels[1].querySelectorAll('.py-exercise-cell').length, 6);
-  assert.equal(panels[1].querySelectorAll('[id^="qpyodide-insertion-location-"]').length, 1);
+  assert.equal(panels[1].querySelectorAll('[id^="qpyodide-insertion-location-"]').length, 0);
   assert.ok(!fs.existsSync(path.join(site, 'py-exercise-examples.html')), 'Python examples must use the same page');
-  assert.equal(doc.querySelectorAll('[id^="qpyodide-insertion-location-"]').length, 1);
+  assert.equal(doc.querySelectorAll('[id^="qpyodide-insertion-location-"]').length, 0);
   for (const name of ['feedback-core.js', 'feedback-dom.js', 'ai-feedback.js']) {
     assert.equal([...doc.scripts].filter(s => s.src.endsWith('/' + name)).length, 1, name + ' must load once');
   }
-  for (const marker of ['var ME_CFG =', 'function setupExercise(exerciseData)', 'const qpyodideWorkerSource =']) {
+  for (const marker of ['var ME_CFG =', 'function setupExercise(exerciseData)']) {
     assert.equal([...doc.scripts].filter(s => s.textContent.includes(marker)).length, 1, marker + ' must initialize once');
   }
   for (const node of doc.querySelectorAll('script[src],link[rel="stylesheet"][href]')) {

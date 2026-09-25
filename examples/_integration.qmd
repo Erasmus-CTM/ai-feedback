@@ -3,9 +3,9 @@
 ::: {.callout-note .example-author-notes}
 ### For course authors
 
-The mathematics and interactive Python examples load the selected consumer branches on this same examples
-page. They establish a working baseline before the shared feedback adapters are
-added here. [Exact source revisions for this build](resolved-repos.json).
+The Python and mathematics examples load the selected consumer branches on this same examples
+page. Python uses the shared feedback adapter; mathematics keeps its existing
+feedback until its adapter is integrated. [Exact source revisions for this build](resolved-repos.json).
 :::
 
 

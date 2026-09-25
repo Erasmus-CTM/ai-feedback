@@ -115,6 +115,14 @@ domains cannot share browser storage. Legacy configurations are offered as
 explicit import choices, never silently combined. Supported initial UI languages: English, German, Norwegian Bokmål
 and Spanish; explanation languages remain unrestricted.
 
+## Feedback rendering
+
+Model replies render safe Markdown and inline/display LaTeX (`$...$`, `$$...$$`,
+`\(...\)` and `\[...\]`). Math is typeset after insertion using a lazy-loaded
+KaTeX module, including on pages without initial mathematical content. Code
+spans/blocks and copy prompts stay literal. If the renderer cannot load, readable
+TeX remains in place. `afterRender` runs after shared typesetting.
+
 ## Quarto authoring
 
 Use a fenced Div with `.ai-feedback` and a unique ID. Supported attributes:

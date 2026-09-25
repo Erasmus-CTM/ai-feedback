@@ -123,7 +123,13 @@
           output.append(node('p', L.prompt));
           const pre = node('pre', reply.text, 'ai-feedback-prompt'); output.append(pre);
           const copy = button(L.copy); copy.onclick = async () => { try { await navigator.clipboard.writeText(reply.text); copy.textContent = L.copied; } catch { pre.setAttribute('tabindex', '0'); pre.focus(); } }; output.append(copy);
-        } else { const body = node('div', undefined, 'ai-feedback-body'); body.innerHTML = F.renderMarkdown(reply.text); output.append(body); options.afterRender?.(body); }
+        } else {
+          const body = node('div', undefined, 'ai-feedback-body');
+          body.innerHTML = F.renderMarkdown(reply.text); output.append(body);
+          try { await F.typesetFeedback(body); }
+          catch (error) { console.warn('ai-feedback: math typesetting unavailable; keeping readable TeX.', error); }
+          if (body.isConnected && !controller.signal.aborted) options.afterRender?.(body);
+        }
       } catch (e) {
         output.textContent = e.code === 'ABORTED' ? L.cancelled : e.message;
         if (e.code === 'CONFIGURATION') { const configure = button(L.settings); configure.onclick = openSettings; output.append(configure); }

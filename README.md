@@ -189,7 +189,7 @@ python -m http.server 8000 --directory .feedback-workspace/site/_site
 ```
 
 The setup script resolves the branches and pins in `integration/feedback/repos.json`,
-then builds this repository's `examples.qmd` and its topic includes with all four extensions.
+then builds this repository's `examples.qmd` and its topic includes with shared feedback, Python exercises and mathematics.
 Its **Non-Python** and **Python** tabs include five partially completed Python exercises. Open
 `http://localhost:8000/examples.html` after starting the server. Development needs
 Python 3.12+, Git, Node 22/npm and Quarto 1.8.27; mathematics tests also need
