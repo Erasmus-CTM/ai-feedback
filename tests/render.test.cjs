@@ -15,7 +15,7 @@ test('rendered examples load the runtime once and produce real copy prompts', { 
   }
   w.AIFeedback.initialize();
   const activities = [...w.document.querySelectorAll('.ai-feedback-activity')];
-  assert.equal(activities.length, 5);
+  assert.equal(activities.length, 6);
   for (const activity of activities) {
     const text = activity.querySelector('textarea');
     text.value ||= 'Esta es mi respuesta.';
@@ -31,5 +31,11 @@ test('rendered examples load the runtime once and produce real copy prompts', { 
   const alias = activities[2].querySelector('pre').textContent;
   assert.match(alias, /agrees in gender/);
   assert.match(alias, /explanations in nb/);
+  const multilingual = w.document.querySelector('#german-to-norwegian pre').textContent;
+  assert.match(multilingual, /Am Samstag/);
+  assert.match(multilingual, /\"role\":\"source\"/);
+  assert.match(multilingual, /\"language\":\"de\"/);
+  assert.match(multilingual, /\"language\":\"nb\"/);
+  assert.match(multilingual, /explanations in en/);
   w.close();
 });

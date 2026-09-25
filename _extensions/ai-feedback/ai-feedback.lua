@@ -29,7 +29,7 @@ local function preserveMath(block)
   end })
 end
 local function isContext(b)
-  return b.t == "Div" and (b.classes:includes("ai-feedback-context") or b.classes:includes("math-exercise-context"))
+  return b.t == "Div" and (b.classes:includes("ai-feedback-context") or b.classes:includes("ai-context") or b.classes:includes("math-exercise-context"))
 end
 local function bounded(blocks)
   local kept, length = {}, 0

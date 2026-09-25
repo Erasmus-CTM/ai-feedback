@@ -127,7 +127,8 @@ Within it, `.feedback-source` supplies visible original text;
 `.feedback-starter` initializes the textarea. Remaining prose is the task.
 
 `context="id1,id2"` references tagged context blocks. The canonical class is
-`.ai-feedback-context`; `.math-exercise-context` is a permanent alias. Duplicate
+`.ai-feedback-context`; `.ai-context` is a short alias and
+`.math-exercise-context` is a permanent compatibility alias. Duplicate
 IDs are included once, in reference order. Both classes on one block do not
 duplicate it. `context="none"` disables learning context; an explicit `source`
 still supplies the source required for the task. Without `context`, recent

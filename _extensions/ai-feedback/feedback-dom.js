@@ -295,7 +295,7 @@
         console.warn('ai-feedback: context "' + id + '" was not found.');
         return;
       }
-      if (!el.matches('.ai-feedback-context, .math-exercise-context')) {
+      if (!el.matches('.ai-feedback-context, .ai-context, .math-exercise-context')) {
         console.warn(
           'math-exercise: element "' + id +
           '" is not a .math-exercise-context and was ignored.'

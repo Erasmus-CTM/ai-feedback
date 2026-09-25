@@ -180,10 +180,12 @@
           if (!response.ok) {
             const error = await response.text().catch(() => '');
             if ([400, 415, 422].includes(response.status)) {
+              if (images && options.imageFallback === 'text') {
+                activeMessages = activeMessages.map(m => ({ ...m, content: Array.isArray(m.content) ? m.content.filter(p => p.type === 'text').map(p => p.text).join('\n') : m.content })); images = false; continue;
+              }
               if (optional) { optional = false; saveCapability('unsupported'); continue; }
               if (images) {
-                if (options.imageFallback !== 'text') throw new FeedbackError('IMAGE_UNSUPPORTED', 'The provider rejected this image request. Choose a vision-capable model.');
-                activeMessages = activeMessages.map(m => ({ ...m, content: Array.isArray(m.content) ? m.content.filter(p => p.type === 'text').map(p => p.text).join('\n') : m.content })); images = false; continue;
+                throw new FeedbackError('IMAGE_UNSUPPORTED', 'The provider rejected this image request. Choose a vision-capable model.');
               }
               if (tokenField === 'max_tokens' && /max_tokens/.test(error)) { tokenField = 'max_completion_tokens'; continue; }
             }

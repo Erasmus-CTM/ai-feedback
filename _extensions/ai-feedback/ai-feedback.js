@@ -29,7 +29,7 @@
   let settings;
   function openSettings() {
     if (!settings) buildSettings();
-    if (!settings.open) { if (settings.showModal) settings.showModal(); else settings.setAttribute('open', ''); }
+    if (!settings.open) { settings.populate?.(loadConfig()); if (settings.showModal) settings.showModal(); else settings.setAttribute('open', ''); }
   }
   function closeSettings() { if (settings?.close) settings.close(); else settings?.removeAttribute('open'); }
   function settingsButton(code) { const L = lang(code); const gear = button('⚙'); gear.classList.add('ai-feedback-gear'); gear.title = L.settings; gear.setAttribute('aria-label', L.settings); gear.onclick = openSettings; return gear; }
@@ -56,6 +56,7 @@
     field('baseUrl', L.url); field('apiKey', L.key, null, 'password'); field('model', L.model);
     field('storage', L.storage, [['session', L.session], ['local', L.local]]);
     function populate(cfg) { for (const [k, v] of Object.entries(cfg)) if (fields[k]) fields[k].value = v; }
+    settings.populate = populate;
     populate(loadConfig());
     const message = node('p'); message.setAttribute('role', 'status');
     // Existing configurations are offered explicitly; never silently choose among providers.

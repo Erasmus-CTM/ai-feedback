@@ -77,6 +77,41 @@ Spanish and whether the description fits the visible picture. Do not invent
 details that cannot be seen.
 :::
 
+## 6. German to Norwegian on an English page
+
+The page and feedback are in English. The original passage is German, and
+the learner's translation must be Norwegian Bokmål. The source block uses
+the short `.ai-context` alias and is explicitly referenced as the source.
+
+::: {#german-original .ai-context}
+Am Samstag fährt Lena mit dem Zug nach Oslo. Sie besucht ihre Schwester,
+die seit zwei Jahren dort wohnt. Wenn das Wetter gut ist, gehen sie am
+Nachmittag am Hafen spazieren. Am Sonntag fährt Lena wieder nach Hause.
+:::
+
+::: {.ai-feedback #german-to-norwegian profile="translation" source="german-original" source-language="de" response-language="nb" feedback-language="en" context="none"}
+Translate the German passage into Norwegian Bokmål. Review the draft below
+or replace it with your own translation. Request feedback on meaning,
+natural Norwegian phrasing and grammar. Explanations should be in English.
+
+::: {.feedback-criteria}
+Check whether the translation preserves the German meaning, tense, relationships
+and sequence of events. Accept valid alternative Norwegian Bokmål translations.
+Explain up to three improvements in English, quoting German or Norwegian where
+useful. Do not supply a complete replacement translation.
+:::
+
+::: {.feedback-starter}
+På lørdag reiser Lena med tog til Oslo. Hun besøker søsteren sin, som bor der
+siden to år. Hvis været er fint, går de en tur ved havnen på ettermiddagen.
+På søndag reiser Lena hjem igjen.
+:::
+:::
+
+The activity references its source with `source="german-original"`.
+`context="none"` excludes unrelated surrounding prose; it does not remove
+the explicitly selected source passage.
+
 ## Adding the next example
 
 Pyodide, mathematics and Python unit-test examples will be added as their
