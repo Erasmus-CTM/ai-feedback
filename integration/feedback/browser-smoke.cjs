@@ -61,7 +61,20 @@ const server = http.createServer((req, res) => {
     assert.equal(await addition.locator('.py-exercise-result').textContent(), '');
     assert.ok(await page.evaluate(() => monaco.editor.getModels().some(m => m.getValue().includes('return a - b'))));
     report.checks.push('Reset restores the starter and clears results');
+    async function assertCompactMathControls() {
+      const rows = await page.locator('.math-exercise-controls').evaluateAll(bars => bars.map(bar => {
+        const check = bar.querySelector('.math-check-btn');
+        const reference = check.cloneNode(true);
+        reference.style.alignSelf = 'center'; reference.style.visibility = 'hidden';
+        bar.append(reference);
+        const normal = reference.getBoundingClientRect().height; reference.remove();
+        return {normal, heights: [...bar.querySelectorAll('button')].map(button => button.getBoundingClientRect().height)};
+      }));
+      assert.ok(rows.every(row => row.normal > 0 && row.heights.every(height => height <= row.normal + 1)), JSON.stringify(rows));
+      report.checks.push('Math controls retain their native compact button height at ' + page.viewportSize().width + 'px');
+    }
     await page.getByRole('tab', {name: 'Mathematics', exact: true}).click();
+    await assertCompactMathControls();
     await page.locator('#task-math-product .math-input').fill('42');
     await page.locator('#task-math-product .math-check-btn').click();
     await page.waitForFunction(() => document.querySelector('.math-input').classList.contains('math-input-ok'));
@@ -152,6 +165,9 @@ const server = http.createServer((req, res) => {
       String.raw`The area is $\pi \times r^2$, not $\pi \times r$. Also \(x_1 * x_2\).`,
       '', String.raw`$$\frac{1}{2}$$`, '', String.raw`\[A = \pi r^2\]`, '',
       'Code: `$literal$`.', '```python', 'print("$not_math$")', '```',
+      String.raw`Variables \\(x\\), \\(y\\).`,
+      String.raw`Gradient \\(\\nabla f = \\left(\\frac{\\partial f}{\\partial x}, \\frac{\\partial f}{\\partial y}\\right)\\).`,
+      '', String.raw`\\[\\begin{pmatrix}a&b\\\\c&d\\end{pmatrix}\\]`, '',
       '<img src=x onerror=alert(1)>'
     ].join('\n');
     await page.route('https://feedback-test.invalid/v1/chat/completions', async route => {
@@ -162,11 +178,12 @@ const server = http.createServer((req, res) => {
     const executionCount = await page.evaluate(() => window.__feedbackExecutionCount);
     await page.locator('#task-price .py-exercise-feedback').click();
     await page.locator('#task-price .ai-feedback-body').waitFor();
-    await page.waitForFunction(() => document.querySelectorAll('#task-price .ai-feedback-body .katex').length === 5);
-    assert.equal(await page.locator('#task-price .ai-feedback-body .katex-display').count(), 2);
+    await page.waitForFunction(() => document.querySelectorAll('#task-price .ai-feedback-body .katex').length === 9);
+    assert.equal(await page.locator('#task-price .ai-feedback-body .katex-display').count(), 3);
     assert.equal(await page.locator('#task-price .ai-feedback-body code').first().textContent(), '$literal$');
     assert.equal(await page.locator('#task-price .ai-feedback-body pre code').textContent(), 'print("$not_math$")');
     assert.equal(await page.locator('#task-price .ai-feedback-body img').count(), 0);
+    assert.equal(await page.locator('#task-price .katex-error').count(), 0);
     const sent = JSON.parse(apiRequest.messages[1].content);
     assert.match(sent.task, /price_with_tax/);
     assert.equal(sent.responses[0].language, 'python');
@@ -188,8 +205,9 @@ const server = http.createServer((req, res) => {
       let runs = await page.evaluate(() => window.__feedbackExecutionCount);
       await feedback.click();
       await cell.locator('.ai-feedback-body').waitFor();
-      await page.waitForFunction(id => document.querySelectorAll('#' + id + ' .ai-feedback-body .katex').length === 5, example.id);
+      await page.waitForFunction(id => document.querySelectorAll('#' + id + ' .ai-feedback-body .katex').length === 9, example.id);
       assert.equal(await page.evaluate(() => window.__feedbackExecutionCount), runs);
+      assert.equal(await cell.locator('.katex-error').count(), 0);
       let request = JSON.parse(apiRequest.messages[1].content);
       assert.doesNotMatch(JSON.stringify(apiRequest), /For course authors|def check|assess_basis|data-answer|test-only/);
       if (example.id !== 'task-math-product') assert.deepEqual(request.evidence, []);
@@ -237,6 +255,9 @@ const server = http.createServer((req, res) => {
       });
     })), 'Python controls must fit on mobile without squeezing or overflowing labels');
     await page.screenshot({path: path.join(site, 'python-practice-mobile.png'), fullPage: true});
+    await page.getByRole('tab', {name: 'Mathematics', exact: true}).click();
+    await assertCompactMathControls();
+    await page.screenshot({path: path.join(site, 'mathematics-practice-mobile.png'), fullPage: true});
     console.log(JSON.stringify(report, null, 2));
   } finally {
     fs.writeFileSync(path.join(site, 'browser-smoke.json'), JSON.stringify(report, null, 2) + '\n');

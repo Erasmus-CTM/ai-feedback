@@ -136,7 +136,7 @@ test('standalone math and both shared-filter orders load one usable runtime', as
         // Simulate the previously released explicit dependency and callback contract.
         for (const name of ['ai-feedback.lua', 'feedback-core.js', 'ai-feedback.js']) {
           const file = path.join(dir, '_extensions/ai-feedback', name);
-          fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replaceAll('0.2.0', '0.1.0').replace('await getRequest({ hintLevel })', 'await getRequest()'));
+          fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replaceAll('0.2.1', '0.1.0').replace('await getRequest({ hintLevel })', 'await getRequest()'));
         }
       }
       fs.writeFileSync(path.join(dir, `order-${i}.qmd`), `---\nformat: html\nfilters: [${filters.join(', ')}]\n---\n\n::: {#context .ai-context}\nUse $x^2$.\n:::\n\n\x60\x60\x60{math-exercise}\n#| label: order\n#| context: context\nCompute $2+2$: _[SECRET_ANSWER]\n\x60\x60\x60\n`);
@@ -149,7 +149,7 @@ test('standalone math and both shared-filter orders load one usable runtime', as
         assert.equal(scripts.length, 1, `${filters}: ${name}`);
         w.eval(fs.readFileSync(path.join(dir, scripts[0].getAttribute('src')), 'utf8'));
       }
-      if (i < 3) assert.equal(w.AIFeedback.version, '0.2.0');
+      if (i < 3) assert.equal(w.AIFeedback.version, '0.2.1');
       w.AIFeedback.initialize();
       const math = [...w.document.scripts].find(s => s.textContent.includes('var ME_CFG ='));
       w.eval(math.textContent);
