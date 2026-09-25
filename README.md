@@ -178,11 +178,19 @@ Source: [NTNU LLM API instructions](https://www.hpc.ntnu.no/idun/documentation/a
 ## Development
 
 ```sh
-npm ci
-npm test
-quarto render
-npm run test:render
+python scripts/setup-feedback-integration.py --test
+python -m http.server 8000 --directory .feedback-workspace/site/_site
 ```
+
+The setup script resolves the branches and pins in `integration/feedback/repos.json`,
+then builds this repository's `examples.qmd` with all four extensions. Open
+`http://localhost:8000/examples.html` after starting the server. Development needs
+Python 3.12+, Git, Node 22/npm and Quarto 1.8.27; mathematics tests also need
+`pip install sympy==1.14.0 networkx==3.4.2`.
+
+See [the shared integration workbench](integration/feedback/README.md) for local
+branch overrides, exact revision records and real browser tests. Shared adapters
+are developed and validated here before consumer PRs are opened.
 
 CI runs the tests and renders the examples on pull requests. A successful main
 build deploys the examples through GitHub Pages. Set the repository's Pages
