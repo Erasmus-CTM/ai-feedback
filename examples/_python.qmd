@@ -216,24 +216,3 @@ assert add(1, 2) == 3, "add(1, 2) should return 3"
 assert add(0, 0) == 0, "add(0, 0) should return 0"
 assert add(-1, 1) == 0, "add(-1, 1) should return 0"
 ```
-
-### 7. Interactive Python
-
-::: {.callout-note .example-author-notes}
-### For course authors
-
-**Feature:** pyodide-interaktiv running on the same page as the checkers and
-shared feedback. Its legacy three-stage feedback remains in place until the
-shared adapter is developed and tested here.
-:::
-
-**Your task**
-
-Run the code and check that the output is **6**. Change the numbers and run it
-again, or use **Reset** to restore the original code.
-
-```{pyodide-python}
-#| label: integration-python
-values = [1, 2, 3]
-print(sum(values))
-```

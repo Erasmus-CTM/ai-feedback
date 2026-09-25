@@ -22,6 +22,46 @@ test('Markdown rendering never activates model HTML', () => {
   const el = w.document.createElement('div'); el.innerHTML = F.renderMarkdown('<img src=x onerror=alert(1)> **word**');
   assert.equal(el.querySelector('img'), null); assert.equal(el.querySelector('strong').textContent, 'word'); w.close();
 });
+test('feedback preserves inline/display TeX through Markdown and leaves code literal', () => {
+  const {F, w} = page();
+  const el = w.document.createElement('div');
+  el.innerHTML = F.renderMarkdown(String.raw`Area $\pi \times r^2$, not $\pi \times r$. Also \(x_1 * x_2\).
+
+$$
+\begin{aligned}a &= b \\ c &= d\end{aligned}
+$$
+
+\[y = |x|\]
+
+Code: \`$literal$\`.
+
+\`\`\`python
+print("$not_math$")
+\`\`\`
+
+**Keep prose bold.** <img src=x onerror=alert(1)>`.replace(/\\`/g, '`'));
+  const math = [...el.querySelectorAll('.ai-feedback-math')];
+  assert.equal(math.length, 5);
+  assert.equal(math[0].dataset.tex, String.raw`\pi \times r^2`);
+  assert.equal(math[2].dataset.tex, 'x_1 * x_2');
+  assert.equal(math[3].dataset.display, 'true');
+  assert.match(math[3].dataset.tex, /begin\{aligned\}/);
+  assert.equal(math[4].dataset.tex, 'y = |x|');
+  assert.equal(el.querySelector('code').textContent, '$literal$');
+  assert.equal(el.querySelector('pre code').textContent, 'print("$not_math$")');
+  assert.equal(el.querySelector('strong').textContent, 'Keep prose bold.');
+  assert.equal(el.querySelector('img'), null);
+  w.close();
+});
+test('shared attach typesets feedback after insertion but never typesets copy prompts', async () => {
+  const {F, w} = page('<button>Feedback</button><div id="out"></div>');
+  let calls = 0;
+  F.typesetFeedback = async body => { calls++; assert.ok(body.isConnected); assert.equal(body.querySelector('.ai-feedback-math').dataset.tex, 'r^2'); };
+  const options = {button: w.document.querySelector('button'), output: w.document.querySelector('#out'), getRequest: () => fixtures.writing};
+  const api = F.attach({...options, client: {request: async () => ({text: '$r^2$', format: 'markdown'})}});
+  await api.request(); assert.equal(calls, 1); api.dispose();
+  const copy = F.attach(options); await copy.request(); assert.equal(calls, 1); copy.dispose(); w.close();
+});
 test('attach discards responses for edited work and failed requests do not advance hints', async () => {
   const { F, w } = page('<button>Feedback</button><div id="out"></div>');
   let request = structuredClone(fixtures.mathematics), finish;

@@ -24,11 +24,6 @@ filters:
 ai-feedback:
   mode: copy
   storage: local
-pyodide:
-  packages: []
-  show-startup-message: false
-  feedback: true
-  feedback-storage: session
 py-exercise:
   feedback: true
   show-test-hints: true

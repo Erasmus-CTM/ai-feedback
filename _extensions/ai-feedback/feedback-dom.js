@@ -63,7 +63,29 @@
   }
 
   function simpleMarkdown(text) {
-    var lines = escHtml(String(text).replace(/\r\n?/g, '\n')).split('\n');
+    text = String(text).replace(/\r\n?/g, '\n');
+    // Protect TeX and code before Markdown interprets stars, pipes or newlines.
+    var prefix = '\uE000AI';
+    while (text.includes(prefix)) prefix += 'X';
+    var tokens = new Map();
+    text = text.replace(/^```[^\n]*\n[\s\S]*?^```[ \t]*$|`[^`\n]+`|\\\[[\s\S]*?\\\]|\$\$[\s\S]*?\$\$|\\\([^\n]*?\\\)|(?<!\\)\$(?![\s$])(?:\\.|[^\\$\n])+?(?<!\s)\$(?!\d)/gm, function (value) {
+      var key = prefix + tokens.size + '\uE001', html, block = false;
+      if (value.startsWith('```')) {
+        block = true;
+        html = '<pre><code>' + escHtml(value.slice(value.indexOf('\n') + 1).replace(/\n?```[ \t]*$/, '')) + '</code></pre>';
+      } else if (value.startsWith('`')) {
+        html = '<code>' + escHtml(value.slice(1, -1)) + '</code>';
+      } else {
+        block = value.startsWith('$$') || value.startsWith('\\[');
+        var size = value.startsWith('$') && !block ? 1 : 2;
+        var tex = value.slice(size, -size);
+        var tag = block ? 'div' : 'span';
+        html = '<' + tag + ' class="ai-feedback-math" data-display="' + block + '" data-tex="' + escHtml(tex) + '">' + escHtml(value) + '</' + tag + '>';
+      }
+      tokens.set(key, {html, block});
+      return key;
+    });
+    var lines = escHtml(text).split('\n');
     var out = [], paragraph = [], listType = null, listItems = [];
 
     function flushParagraph() {
@@ -82,6 +104,9 @@
 
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i], trimmed = line.trim(), match;
+      if (tokens.get(trimmed)?.block) {
+        flushParagraph(); flushList(); out.push(trimmed); continue;
+      }
       if (!trimmed) {
         flushParagraph();
         if (listType) {
@@ -138,7 +163,29 @@
     }
     flushParagraph();
     flushList();
-    return out.join('');
+    var html = out.join('');
+    for (const [key, token] of tokens) html = html.split(key).join(token.html);
+    return html;
+  }
+
+  var katexPromise;
+  async function typesetFeedback(body) {
+    const nodes = [...body.querySelectorAll('.ai-feedback-math')];
+    if (!nodes.length) return;
+    if (!katexPromise) {
+      const base = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/';
+      if (![...document.querySelectorAll('link[rel="stylesheet"]')].some(link => link.href === base + 'dist/katex.min.css')) {
+        const style = document.createElement('link');
+        style.rel = 'stylesheet'; style.href = base + 'dist/katex.min.css'; document.head.append(style);
+      }
+      // ES modules avoid collisions with Monaco's AMD loader.
+      katexPromise = import(base + '+esm').then(module => module.default).catch(error => { katexPromise = null; throw error; });
+    }
+    const katex = await katexPromise;
+    if (!body.isConnected) return;
+    for (const el of nodes) {
+      katex.render(el.dataset.tex, el, {displayMode: el.dataset.display === 'true', throwOnError: false, trust: false, maxExpand: 1000, maxSize: 10, macros: {}});
+    }
   }
 
   function contextText(root, fieldLabels) {
@@ -325,5 +372,5 @@
   }
 
 
-  Object.assign(root.AIFeedback, { renderMarkdown: simpleMarkdown, contextText, sourceText, questionText, collectExplicitContexts });
+  Object.assign(root.AIFeedback, { renderMarkdown: simpleMarkdown, typesetFeedback, contextText, sourceText, questionText, collectExplicitContexts });
 })(globalThis);

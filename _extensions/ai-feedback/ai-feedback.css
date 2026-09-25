@@ -21,3 +21,5 @@
 .ai-feedback-hint { font-size: .85rem; font-weight: 600; }
 .ai-feedback-body table { width: 100%; border-collapse: collapse; }
 .ai-feedback-body td, .ai-feedback-body th { border: 1px solid #c9d8e2; padding: .3rem; }
+
+.ai-feedback-body .katex-display { overflow-x: auto; overflow-y: hidden; }

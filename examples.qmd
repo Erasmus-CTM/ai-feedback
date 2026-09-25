@@ -2,7 +2,6 @@
 title: "Working feedback examples"
 filters:
   - ai-feedback
-  - pyodide-interaktiv
   - math-exercise
   - py-exercise
 ---

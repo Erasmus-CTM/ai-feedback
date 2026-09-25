@@ -21,7 +21,7 @@ early. This ordering does not begin or authorize any consumer migration here.
 See [the phase 1 record](phase-1.md) for the recovered scope and verification.
 
 Develop each shared adapter and its acceptance checks in this repository first.
-`examples.qmd` is the common page for all four extensions, built from explicit
+`examples.qmd` is the common page for the active integrations, built from explicit
 branch revisions by `scripts/setup-feedback-integration.py`.
 Its **Non-Python** and **Python** tabs contain all examples, including the
 partially completed Python tasks. Topic sources live in `examples/` and are included in
