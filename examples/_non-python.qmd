@@ -1,0 +1,225 @@
+### How to try activities 1–6
+
+1. Read **Your task**, then edit the sample response or enter your own. Some
+   sample responses contain deliberate beginner mistakes.
+2. Choose **Feedback**. On a first visit, **Copy prompt** mode shows a prompt to
+   paste into your chosen AI chat.
+3. For a reply on this page, open the **⚙ Feedback settings** cogwheel, select
+   **Direct API**, and enter your institution's base URL, model and personal key.
+   Their cogwheels open the same settings, shared across this website. Saved
+   settings are reused on later visits.
+
+For image activities, choose a model that accepts images. In **Copy prompt** mode,
+attach the original image separately in your AI chat. In **Direct API** mode, your
+response, selected source/context and uploaded images go to the configured
+provider. Images are kept in memory, not saved in browser storage.
+
+### 1. Beginner Spanish writing
+
+::: {.callout-note .example-author-notes}
+### For course authors
+
+**Feature:** a plain textarea activity, without a checker or Python runtime.
+The `language-quality` profile reviews Spanish at the author-defined level
+"Spanish course 1" and explains improvements in English. The starting text
+contains verb-agreement mistakes; learners may edit it or write their own text.
+`context="none"` keeps these demonstration notes out of the prompt.
+:::
+
+::: {.ai-feedback #spanish-writing profile="language-quality" response-language="es" feedback-language="en" learner-level="Spanish course 1" context="none"}
+**Your task**
+
+Write three to five simple Spanish sentences about where you live and what you
+do in the morning. Use the draft below as a starting point, or replace it with
+your own text. Choose **Feedback** when you are ready for advice in English.
+
+::: {.feedback-criteria}
+Review vocabulary and present-tense grammar appropriate to Spanish
+course 1.
+:::
+
+::: {.feedback-criteria}
+Suggest up to three useful improvements while preserving the learner's
+meaning and simple style; do not replace the whole response.
+:::
+
+::: {.feedback-starter}
+Yo vive en Trondheim. Cada mañana yo come pan y bebo café.
+:::
+:::
+
+### 2. English to Spanish translation
+
+::: {.callout-note .example-author-notes}
+### For course authors
+
+**Feature:** an original text nested inside the activity as `.feedback-source`.
+The `translation` profile receives the English source separately from the
+Spanish response and gives feedback in English. The starting translation is
+valid: try changing a detail to see how meaning and grammar are reviewed.
+:::
+
+::: {.ai-feedback #translation profile="translation" source-language="en" response-language="es" feedback-language="en" learner-level="Spanish course 1" context="none"}
+**Your task**
+
+Translate the English text below into Spanish using simple language. Review the
+draft in the response field, or replace it with your own translation, then
+choose **Feedback** for advice in English.
+
+::: {.feedback-source}
+Every morning, Maria walks to school with her brother. They like studying languages.
+:::
+
+::: {.feedback-starter}
+Cada mañana, María camina a la escuela con su hermano. Les gusta estudiar idiomas.
+:::
+:::
+
+### 3. Spanish adjective agreement
+
+::: {.callout-note .example-author-notes}
+### For course authors
+
+**Feature:** a reusable lesson block selected with `context="agreement"`.
+The legacy `.math-exercise-context` class works for language learning too;
+`.ai-feedback-context` and `.ai-context` are aliases. Only the tagged lesson is
+included as context. The interface stays in English, while feedback is in
+Norwegian Bokmål.
+:::
+
+**Lesson reminder**
+
+::: {#agreement .math-exercise-context}
+An adjective agrees in gender and number with the noun it describes.
+:::
+
+::: {.ai-feedback #context-alias profile="language-quality" response-language="es" feedback-language="nb" learner-level="Spanish course 1" context="agreement"}
+**Your task**
+
+Write one Spanish sentence describing two red houses. Use the lesson reminder
+above to check your adjective endings. Edit the draft, then choose **Feedback**;
+the explanation will be in Norwegian Bokmål.
+
+::: {.feedback-starter}
+Las casas son rojo.
+:::
+:::
+
+### 4. Feedback on handwritten Spanish
+
+::: {.callout-note .example-author-notes}
+### For course authors
+
+**Feature:** `image-upload="true" image-role="response"` treats an uploaded image
+as the learner's work, so typed text is optional. Use a vision-capable model for
+direct feedback. The downloadable, AI-generated handwriting sample contains
+two deliberate beginner mistakes for testing; feedback wording will vary by model.
+
+To test image reading, leave **Your response** empty. Look for feedback on the
+verb forms in the second and third sentences. The sample is not attached automatically.
+:::
+
+::: {.ai-feedback #handwriting profile="language-quality" response-language="es" feedback-language="en" learner-level="Spanish course 1" image-upload="true" image-role="response" context="none"}
+**Your task**
+
+Write three short Spanish sentences introducing yourself, saying where you live,
+and mentioning something you like. Photograph your handwriting and select the
+photo with **Upload images**, or use the sample below to try the activity.
+You may leave **Your response** empty. Choose **Feedback** for advice in English.
+
+[Download the Spanish handwriting sample (PNG)](assets/spanish-handwriting.png){#handwriting-sample-download download="spanish-handwriting.png"}
+Save the image, then select it with **Upload images**.
+
+::: {.feedback-criteria}
+Read the handwritten Spanish and identify up to three useful
+improvements to vocabulary, grammar or spelling at Spanish course 1 level. If a
+word is unreadable, say so instead of guessing. Do not rewrite the whole response.
+:::
+:::
+
+### 5. Describe a picture in Spanish
+
+::: {.callout-note .example-author-notes}
+### For course authors
+
+**Feature:** `image-role="source"` makes the picture supporting material, while
+the typed Spanish description is the response being reviewed. Unlike the
+handwriting activity, an image alone is not a learner response. Try a photo of a
+room or a landscape and use a vision-capable model for direct feedback.
+:::
+
+::: {.ai-feedback #describe-picture profile="language-quality" response-language="es" feedback-language="en" learner-level="Spanish course 1" image-upload="true" image-role="source" context="none"}
+**Your task**
+
+Upload a picture of a room or a landscape. In **Your response**, write three simple
+Spanish sentences describing things you can see in it. Choose **Feedback** for
+advice in English about your Spanish and how well the description fits the picture.
+
+::: {.feedback-criteria}
+Review vocabulary and grammar appropriate to Spanish course 1, and
+whether the description matches the visible picture. Do not invent details that
+cannot be seen, and do not supply a complete replacement description.
+:::
+:::
+
+### 6. German to Norwegian on an English page
+
+::: {.callout-note .example-author-notes}
+### For course authors
+
+**Feature:** independent source, response and feedback languages. This page and
+its interface are English; the original is German, the response is Norwegian
+Bokmål, and the feedback is English. The reusable source block is marked
+`.ai-context`. The activity gives it its role with `source="german-original"`.
+`context="none"` excludes these notes without removing the explicit source.
+The draft includes an unnatural time expression for the learner to improve.
+:::
+
+**Original text — German**
+
+::: {#german-original .ai-context}
+Am Samstag fährt Lena mit dem Zug nach Oslo. Sie besucht ihre Schwester,
+die seit zwei Jahren dort wohnt. Wenn das Wetter gut ist, gehen sie am
+Nachmittag am Hafen spazieren. Am Sonntag fährt Lena wieder nach Hause.
+:::
+
+::: {.ai-feedback #german-to-norwegian profile="translation" source="german-original" source-language="de" response-language="nb" feedback-language="en" context="none"}
+**Your task**
+
+Translate the German passage above into Norwegian Bokmål. Edit the draft below,
+or replace it with your own translation. Choose **Feedback** for advice in
+English about meaning, natural Norwegian phrasing and grammar.
+
+::: {.feedback-criteria}
+Preserve the German meaning, tense, relationships and sequence
+of events. Accept valid alternative Norwegian Bokmål translations. Explain up to
+three improvements in English, quoting German or Norwegian where useful. Do not
+supply a complete replacement translation.
+:::
+
+::: {.feedback-starter}
+På lørdag reiser Lena med tog til Oslo. Hun besøker søsteren sin, som bor der
+siden to år. Hvis været er fint, går de en tur ved havnen på ettermiddagen.
+På søndag reiser Lena hjem igjen.
+:::
+:::
+
+### 7. Mathematics
+
+::: {.callout-note .example-author-notes}
+### For course authors
+
+**Feature:** math-exercise checking alongside the other extensions. Its current
+Feedback button still uses legacy settings and the four-step teaching policy;
+the shared adapter will be validated here before propagation.
+:::
+
+**Your task**
+
+Enter the numerical answer and choose **Check**.
+
+```{math-exercise}
+#| label: integration-math
+#| context: none
+What is $6\cdot7$? _[42]
+```

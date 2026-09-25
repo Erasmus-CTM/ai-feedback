@@ -91,6 +91,15 @@ const server = http.createServer((req, res) => {
     };
     const exercises = await page.evaluate(() => window.__pyExercises.filter(x => x.label.startsWith('practice-')));
     assert.equal(exercises.length, 5);
+    assert.equal(await page.locator('.py-exercise-feedback').count(), 6, 'Every Python task needs a Feedback button');
+    await page.evaluate(() => {
+      const run = mainPyodide.runPythonAsync;
+      window.__feedbackExecutionCount = 0;
+      mainPyodide.runPythonAsync = function (...args) {
+        window.__feedbackExecutionCount++;
+        return run.apply(this, args);
+      };
+    });
     for (const exercise of exercises) {
       const cell = page.locator('#py-exercise-' + exercise.id);
       const bounds = await cell.locator('.monaco-editor').boundingBox();
@@ -103,14 +112,31 @@ const server = http.createServer((req, res) => {
         await cell.locator('.py-exercise-check').click();
         await page.waitForFunction(id => !document.querySelector('#py-exercise-' + id + ' .py-exercise-check').disabled, exercise.id);
       };
+      const feedback = async () => {
+        const before = await page.evaluate(() => window.__feedbackExecutionCount);
+        await cell.locator('.py-exercise-feedback').click();
+        await cell.locator('.py-exercise-feedback-output pre').waitFor();
+        assert.equal(await page.evaluate(() => window.__feedbackExecutionCount), before, 'Feedback must not execute code');
+        const prompt = await cell.locator('.py-exercise-feedback-output pre').textContent();
+        assert.ok(prompt.includes(JSON.stringify(exercise.task)));
+        assert.ok(!prompt.includes(exercise.tests));
+        assert.doesNotMatch(prompt, /For course authors|Feature:|## TESTS ##|submissionKey/);
+        return prompt;
+      };
+      assert.match(await feedback(), /"evidence":\[\]/);
       await runCheck();
       assert.equal(await result.locator('.py-exercise-error').count(), 0, exercise.label + ': starter must run');
       assert.ok(await result.locator('.py-test-fail').count() > 0, exercise.label + ': starter must need work');
       if (exercise.label === 'practice-greet') assert.match(await result.locator('.py-exercise-stdout').innerText(), /Hello, Ada!/);
       if (!exercise.showTestHints) assert.ok(!(await result.innerText()).includes('Ignore differences in letter case'));
+      const checkedPrompt = await feedback();
+      assert.match(checkedPrompt, /Checks passed/);
+      assert.doesNotMatch(checkedPrompt, /Ignore differences in letter case|Return the greeting as well as printing it/);
       await replace(solutions[exercise.label]);
+      assert.match(await feedback(), /"evidence":\[\]/, 'Editing must discard the earlier checker evidence');
       await runCheck();
       assert.equal(await result.locator('.py-exercise-all-passed').count(), 1, exercise.label + ': corrected solution must pass');
+      assert.match(await feedback(), /Checks passed/);
       if (exercise.label === 'practice-total' || exercise.label === 'practice-circle') {
         await replace(exercise.label === 'practice-total' ? 'def total(values):\n    return sum(values)' : 'import math\ndef circle_area(radius):\n    return math.pi * radius ** 2');
         await runCheck();
@@ -118,9 +144,32 @@ const server = http.createServer((req, res) => {
       }
       await cell.locator('.py-exercise-reset').click();
       assert.equal(await result.textContent(), '');
+      assert.equal(await cell.locator('.py-exercise-feedback-output').textContent(), '');
       assert.equal(await page.evaluate(id => monaco.editor.getModels().find(m => m.uri.toString() === id).getValue(), modelId), exercise.starter);
-      report.checks.push(exercise.label + ': runnable incomplete starter, passing correction and exact Reset');
+      report.checks.push(exercise.label + ': Feedback without execution, fresh checker evidence, passing correction and exact Reset');
     }
+    await page.locator('#task-price .ai-feedback-gear').click();
+    assert.equal(await page.locator('dialog.ai-feedback-settings[open]').count(), 1);
+    await page.locator('dialog.ai-feedback-settings').getByRole('button', {name: 'Cancel', exact: true}).click();
+    // Test the real Python button in API mode with a mocked provider response.
+    let apiRequest;
+    await page.route('https://feedback-test.invalid/v1/chat/completions', async route => {
+      if (route.request().method() === 'POST') apiRequest = route.request().postDataJSON();
+      await route.fulfill({status: 200, contentType: 'application/json', headers: {'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-methods': 'POST, OPTIONS'}, body: JSON.stringify({choices: [{finish_reason: 'stop', message: {content: 'Review your return value.'}}]})});
+    });
+    await page.evaluate(() => AIFeedback.saveConfig({mode: 'api', storage: 'session', baseUrl: 'https://feedback-test.invalid/v1', model: 'test-model', apiKey: 'test-only'}));
+    const executionCount = await page.evaluate(() => window.__feedbackExecutionCount);
+    await page.locator('#task-price .py-exercise-feedback').click();
+    await page.locator('#task-price .ai-feedback-body').waitFor();
+    assert.match(await page.locator('#task-price .ai-feedback-body').innerText(), /Review your return value/);
+    const sent = JSON.parse(apiRequest.messages[1].content);
+    assert.match(sent.task, /price_with_tax/);
+    assert.equal(sent.responses[0].language, 'python');
+    assert.deepEqual(sent.evidence, []);
+    assert.doesNotMatch(JSON.stringify(apiRequest), /assert price_with_tax|submissionKey|test-only/);
+    assert.equal(await page.evaluate(() => window.__feedbackExecutionCount), executionCount);
+    await page.evaluate(() => AIFeedback.saveConfig({mode: 'copy', storage: 'session'}));
+    report.checks.push('Python API feedback uses shared settings and current code without execution or hidden tests (mock provider)');
     assert.deepEqual(report.pageErrors, []);
     await page.screenshot({path: path.join(site, 'python-practice-desktop.png'), fullPage: true});
     await page.setViewportSize({width: 390, height: 844});

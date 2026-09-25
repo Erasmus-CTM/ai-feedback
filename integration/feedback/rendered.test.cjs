@@ -35,6 +35,13 @@ test('common page renders all four extensions and keeps local dependencies resol
   }
   const record = JSON.parse(fs.readFileSync(path.join(site, 'resolved-repos.json'), 'utf8'));
   assert.deepEqual(Object.keys(record.repositories).sort(), ['ai-feedback', 'math-exercise', 'py-exercise', 'pyodide-interaktiv']);
+  const python = record.repositories['py-exercise'];
+  assert.equal(python.branch, 'feature/shared-feedback-integration');
+  if (!python.local_override && !record.refresh) {
+    const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, 'repos.json'), 'utf8'));
+    assert.equal(python.commit, manifest.repositories['py-exercise'].commit);
+  }
+  assert.ok(record.extension_sha256['py-exercise']['py-exercise-feedback.js']);
   for (const [name, source] of Object.entries(record.repositories)) {
     assert.match(source.commit, /^[0-9a-f]{40}$/);
     assert.ok(Object.keys(record.extension_sha256[name]).length > 0);
@@ -101,6 +108,7 @@ test('Python practice keeps five incomplete starters and their tasks separate fr
     assert.doesNotMatch(prose.textContent, /For course authors|Feature:|shared.feedback adapter|assert /);
   }
   for (const data of practice) {
+    assert.ok(data.task.length > 30, 'Feedback needs the actual assignment');
     assert.match(data.starter, /def \w+\(/);
     assert.match(data.starter, /TODO/);
     assert.doesNotMatch(data.starter, /## TESTS ##|assert /);

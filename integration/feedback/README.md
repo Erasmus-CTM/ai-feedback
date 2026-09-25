@@ -3,9 +3,10 @@
 All common examples and acceptance checks belong to **ai-feedback**.
 The source is the root **`examples.qmd`**: six text/image activities plus
 Python unit-test, mathematics and interactive Python baseline exercises.
-The same file has **Non-Python** and **Python** tabs. The Python tab includes five
+The entry page uses topic includes in `examples/` to render one HTML page with
+**Non-Python** and **Python** tabs. The Python tab includes five
 partially completed functions, with separate author notes and learner tasks.
-Add a sibling tab in this file for each new integration; do not create another examples page.
+Add a sibling tab and topic include for each new integration.
 Develop and validate each shared adapter here first; only then open consumer PRs.
 The first adapter is py-exercise, followed by Pyodide and mathematics.
 
@@ -91,13 +92,12 @@ with GitHub Pages. Feature branches retain a `rendered-examples` artifact.
 
 ## Migration boundary
 
-These three consumer examples establish coexistence before adapter changes.
-py-exercise has no shared-feedback button yet, while mathematics and Pyodide
-still have their legacy settings and teaching policies. Passing the baseline
-does not imply those implementations have already migrated.
+Python tasks use shared Feedback and settings from the pinned
+`feature/shared-feedback-integration` branch, not the main runtime. Feedback
+reads current code without execution and includes only code-matched checker
+summaries and learner output. Edits and Reset invalidate that evidence.
+Mathematics and Pyodide retain their legacy settings and teaching policies.
 
-The next adapter must use code-matched checker snapshots, omit stale output and
-hidden test source, preserve Check/Reset/submission, and use the shared API and
-cogwheel without executing code for feedback. Add its checks here before opening
-a consumer PR. The early py-exercise scaffold PR was closed unmerged and its
-branch returned to the original runtime tree, ready for that later work.
+The adapters must omit stale output and hidden test source, preserve
+Check/Reset/submission, and use the shared API and cogwheel without executing
+code for feedback. Validate them here before opening a consumer PR.

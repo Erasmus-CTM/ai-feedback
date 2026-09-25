@@ -30,5 +30,6 @@ pyodide:
   feedback: true
   feedback-storage: session
 py-exercise:
+  feedback: true
   show-test-hints: true
   submission: false
