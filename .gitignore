@@ -3,6 +3,8 @@ _site/
 .quarto/
 test-results/
 playwright-report/
+.feedback-workspace/
+__pycache__/
 
 /.quarto/
 **/*.quarto_ipynb

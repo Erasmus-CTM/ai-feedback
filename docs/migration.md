@@ -20,8 +20,10 @@ early. This ordering does not begin or authorize any consumer migration here.
 
 See [the phase 1 record](phase-1.md) for the recovered scope and verification.
 
-Every migration is a separate reviewable commit/PR. Add its example to
-`examples.qmd` in the same stage. The live example site is deployed only after
+Develop each shared adapter and its acceptance checks in this repository first.
+`examples.qmd` is the common page for all four extensions, built from explicit
+branch revisions by `scripts/setup-feedback-integration.py`. Only after the
+integration works here should a separate consumer PR propagate it. The live example site is deployed only after
 tests and actual Quarto rendering succeed. PRs retain rendered artifacts for
 review without deploying over the working site. Automatic tests use mocked
 provider replies; they never claim to verify a live model or NTNU VPN access.

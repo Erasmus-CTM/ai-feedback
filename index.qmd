@@ -21,5 +21,6 @@ Your institution supplies the API base URL and model. The extension bundles
 no provider presets. For images in copy mode, attach the original files in
 your chat as well.
 
-These examples grow as each exercise integration migrates. A feature is added
-to this page only with a working example and automated checks.
+The same examples page also hosts the Python, mathematics and Pyodide integration
+workbench. Shared adapters are developed and tested here first, then propagated
+to consumer repositories through separate pull requests.

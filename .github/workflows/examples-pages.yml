@@ -22,21 +22,29 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - run: npm ci
-      - run: npm test
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install sympy==1.14.0 networkx==3.4.2
       - uses: quarto-dev/quarto-actions/setup@v2
         with:
           version: '1.8.27'
       - name: Render and exercise the examples
-        run: npm run test:render
+        run: python scripts/setup-feedback-integration.py --test
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Test all consumers on examples.qmd
+        env:
+          CTM_INTEGRATION_SITE: ${{ github.workspace }}/.feedback-workspace/site/_site
+        run: npm run test:browser
       - uses: actions/upload-artifact@v4
         with:
           name: rendered-examples
-          path: _site
+          path: .feedback-workspace/site/_site
       - uses: actions/upload-pages-artifact@v3
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         with:
-          path: _site
+          path: .feedback-workspace/site/_site
 
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'

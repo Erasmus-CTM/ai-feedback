@@ -2,6 +2,8 @@ lang: en
 project:
   type: website
   output-dir: _site
+  resources:
+    - resolved-repos.json
   render:
     - index.qmd
     - examples.qmd
@@ -22,3 +24,11 @@ filters:
 ai-feedback:
   mode: copy
   storage: local
+pyodide:
+  packages: []
+  show-startup-message: false
+  feedback: true
+  feedback-storage: session
+py-exercise:
+  show-test-hints: true
+  submission: false

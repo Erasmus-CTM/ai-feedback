@@ -1,5 +1,10 @@
 ---
 title: "Working feedback examples"
+filters:
+  - ai-feedback
+  - pyodide-interaktiv
+  - math-exercise
+  - py-exercise
 ---
 
 This page is both a demonstration for course authors and a set of activities you
@@ -209,12 +214,85 @@ På søndag reiser Lena hjem igjen.
 :::
 :::
 
-## Adding the next example
+## Consumer integration workbench
 
-Phase 1 supplies the shared API and these standalone activities. Pyodide,
-mathematics and Python unit-test examples will be added one integration at a
-time, with regression checks, as described in the
-[migration plan](https://github.com/Erasmus-CTM/ai-feedback/blob/main/docs/migration.md).
+The activities below load the selected consumer branches on this same examples
+page. They establish a working baseline before the shared feedback adapters are
+added here. [Exact source revisions for this build](resolved-repos.json).
+
+## 7. Python unit-test exercise
+
+::: {.callout-note .example-author-notes}
+### For course authors
+
+**Feature:** a py-exercise cell with its existing checker and Reset behavior.
+This is the first consumer to gain a shared-feedback adapter. That adapter will
+be developed and tested on this page before a consumer PR is opened.
+:::
+
+**Your task**
+
+Implement addition, then choose **Check**. The starter deliberately subtracts.
+Use **Reset** to restore the starter. This baseline has no AI Feedback button yet.
+
+```{py-exercise}
+#| label: integration-add
+#| forbidden-imports: os
+#| show-test-hints: true
+def add(a, b):
+    return a - b
+
+## TESTS ##
+assert add(1, 2) == 3, "add(1, 2) should return 3"
+assert add(0, 0) == 0, "add(0, 0) should return 0"
+assert add(-1, 1) == 0, "add(-1, 1) should return 0"
+```
+
+## 8. Mathematics
+
+::: {.callout-note .example-author-notes}
+### For course authors
+
+**Feature:** math-exercise checking alongside the other extensions. Its current
+Feedback button still uses legacy settings and the four-step teaching policy;
+the shared adapter will be validated here before propagation.
+:::
+
+**Your task**
+
+Enter the numerical answer and choose **Check**.
+
+```{math-exercise}
+#| label: integration-math
+What is $6\cdot7$? _[42]
+```
+
+## 9. Interactive Python
+
+::: {.callout-note .example-author-notes}
+### For course authors
+
+**Feature:** pyodide-interaktiv running on the same page as the checkers and
+shared feedback. Its legacy three-stage feedback remains in place until the
+shared adapter is developed and tested here.
+:::
+
+**Your task**
+
+Run the code and check that the output is **6**. Change the numbers and run it
+again, or use **Reset** to restore the original code.
+
+```{pyodide-python}
+#| label: integration-python
+values = [1, 2, 3]
+print(sum(values))
+```
+
+## Next integration steps
+
+All shared-feedback development and acceptance checks live in this repository's
+`examples.qmd`. Once an adapter works here, its changes can be propagated in a
+separate consumer PR. The order is py-exercise, Pyodide, then mathematics.
 
 For installation and copyable authoring examples, see the
 [README and API guide](https://github.com/Erasmus-CTM/ai-feedback#api-quick-start).

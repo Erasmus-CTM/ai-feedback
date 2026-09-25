@@ -1,0 +1,25 @@
+{
+  "quarto": "1.8.27",
+  "repositories": {
+    "ai-feedback": {
+      "repository": "Erasmus-CTM/ai-feedback",
+      "branch": "feature/integration-examples",
+      "commit": "self"
+    },
+    "py-exercise": {
+      "repository": "Erasmus-CTM/py-exercise",
+      "branch": "feature/shared-feedback-integration",
+      "commit": "2484556ae8f53d5779944ff54972a4a40547155f"
+    },
+    "math-exercise": {
+      "repository": "Erasmus-CTM/math-exercise",
+      "branch": "main",
+      "commit": "fc549d25121abb24bba4a9096f2328f54d3675c7"
+    },
+    "pyodide-interaktiv": {
+      "repository": "Erasmus-CTM/pyodide-interaktiv",
+      "branch": "main",
+      "commit": "f815bc2b145f3e4e4132101cb274a65893780874"
+    }
+  }
+}

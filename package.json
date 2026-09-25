@@ -5,7 +5,12 @@
   "description": "Shared browser feedback and Quarto extension",
   "scripts": {
     "test": "node --test tests/*.test.cjs",
-    "test:render": "quarto render && node --test tests/render.test.cjs"
+    "test:render": "python scripts/setup-feedback-integration.py --test",
+    "test:integration": "node --test integration/feedback/rendered.test.cjs",
+    "test:browser": "node integration/feedback/browser-smoke.cjs"
   },
-  "devDependencies": { "jsdom": "26.1.0" }
+  "devDependencies": {
+    "jsdom": "26.1.0",
+    "playwright": "1.55.1"
+  }
 }

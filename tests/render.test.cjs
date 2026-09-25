@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { JSDOM } = require('jsdom');
-const target = path.join(__dirname, '../_site/examples.html');
+const target = path.join(process.env.CTM_INTEGRATION_SITE || path.join(__dirname, '../.feedback-workspace/site/_site'), 'examples.html');
 test('rendered examples load the runtime once and produce real copy prompts', { skip: !fs.existsSync(target) }, async () => {
   const dom = new JSDOM(fs.readFileSync(target, 'utf8'), { url: 'https://example.invalid/examples.html', runScripts: 'outside-only' });
   const w = dom.window; w.AbortController = AbortController;
@@ -17,7 +17,7 @@ test('rendered examples load the runtime once and produce real copy prompts', { 
   const activities = [...w.document.querySelectorAll('.ai-feedback-activity')];
   assert.equal(activities.length, 6);
   const notes = [...w.document.querySelectorAll('.example-author-notes')];
-  assert.equal(notes.length, 6);
+  assert.equal(notes.length, 9);
   assert.ok(notes.every(note => !note.closest('.ai-feedback-activity')));
   const download = w.document.querySelector('#handwriting-sample-download');
   assert.ok(download.hasAttribute('download'));
