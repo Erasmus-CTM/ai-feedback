@@ -1,0 +1,32 @@
+# Migration sequence and verification
+
+1. **API and shared extension**: headless client, prompt builder, context aliases,
+   settings, text activities, image input, API and rendered-example tests.
+2. **Pyodide**: preserve three hint levels and cached output. Feedback never
+   executes Python. Move provider transport and settings to shared APIs.
+3. **Mathematics**: preserve task/LaTeX source, checker evidence, matrices,
+   graphical responses and existing four-step policy. Run existing regression
+   tests against the integration before removing old provider logic.
+4. **py-exercise**: retain code-matched checker snapshots, constraints and only
+   permitted messages. Preserve Check, Reset and submission behavior.
+
+Every migration is a separate reviewable commit/PR. Add its example to
+`examples.qmd` in the same stage. The live example site is deployed only after
+tests and actual Quarto rendering succeed. PRs retain rendered artifacts for
+review without deploying over the working site. Automatic tests use mocked
+provider replies; they never claim to verify a live model or NTNU VPN access.
+
+Initial upstream references:
+
+| Repository | Commit |
+|---|---|
+| math-exercise | fc549d25121abb24bba4a9096f2328f54d3675c7 |
+| pyodide-interaktiv | f815bc2b145f3e4e4132101cb274a65893780874 |
+| py-exercise | aea03115e2b8ae1e404a13c00dcef8b4df09118b |
+
+Existing documents keep working through the migrations. When the shared
+extension is installed explicitly, all consumers use its single runtime.
+For unchanged documents, migration adapters may bundle the identical versioned
+runtime as a compatibility dependency. Such copies are generated from this
+repository and must never be edited independently. Release updates must verify
+the bundled files match the pinned shared release.

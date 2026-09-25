@@ -1,0 +1,119 @@
+---
+title: "Working feedback examples"
+---
+
+Enter your own response, then choose **Feedback**. By default, you get a prompt
+to paste into an AI chat. Open **Feedback settings** to choose direct API
+feedback instead. No API key is included in this document.
+
+## 1. Spanish writing
+
+This course practises simple vocabulary, present-tense verbs and agreement.
+The explanation language can differ from the language being practised.
+
+::: {.ai-feedback #spanish-writing profile="language-quality" response-language="es" feedback-language="en" learner-level="Spanish course 1"}
+Write five short sentences about your daily routine.
+
+::: {.feedback-criteria}
+Focus on present-tense verbs, articles and adjective agreement. Preserve the
+learner's simple writing style. Discuss at most three useful improvements.
+:::
+
+::: {.feedback-starter}
+Yo vive en Trondheim. Cada mañana yo come pan y bebo café.
+:::
+:::
+
+## 2. Translation
+
+::: {.ai-feedback #translation profile="translation" source-language="en" response-language="es" feedback-language="en" learner-level="Spanish course 1" context="none"}
+Translate the following text into Spanish. Preserve its meaning using simple language.
+
+::: {.feedback-source}
+Every morning, Maria walks to school with her brother. They like studying languages.
+:::
+
+::: {.feedback-starter}
+Cada mañana, María camina a la escuela con su hermano. Les gusta estudiar idiomas.
+:::
+:::
+
+## 3. Shared context and the legacy alias
+
+The old mathematics context class and the shared class identify the same
+kind of material. Here the legacy class provides language-course context.
+
+::: {#agreement .math-exercise-context}
+An adjective agrees in gender and number with the noun it describes.
+:::
+
+::: {.ai-feedback #context-alias profile="language-quality" response-language="es" feedback-language="nb" learner-level="Spanish course 1" context="agreement"}
+Write a sentence describing two red houses. Explain improvements in Norwegian Bokmål.
+
+::: {.feedback-starter}
+Las casas son rojo.
+:::
+:::
+
+## 4. Feedback on handwritten Spanish
+
+Upload a photo of a few sentences you wrote in Spanish. A typed response is
+optional when the image contains your work. Direct feedback needs a model
+that accepts images, such as Kimi K2.6 through NTNU IDUN.
+
+::: {.ai-feedback #handwriting profile="language-quality" response-language="es" feedback-language="en" learner-level="Spanish course 1" image-upload="true" image-role="response" context="none"}
+Read the learner's handwritten Spanish. Say when a word is unreadable rather
+than guessing. Give up to three improvements to vocabulary, grammar or spelling.
+:::
+
+## 5. Describe a picture in Spanish
+
+Upload a picture as the source, then type your description. The picture is
+supporting material; your Spanish text is the response being reviewed.
+
+::: {.ai-feedback #describe-picture profile="language-quality" response-language="es" feedback-language="en" learner-level="Spanish course 1" image-upload="true" image-role="source" context="none"}
+Describe the uploaded picture in three simple Spanish sentences. Review the
+Spanish and whether the description fits the visible picture. Do not invent
+details that cannot be seen.
+:::
+
+## 6. German to Norwegian on an English page
+
+The page and feedback are in English. The original passage is German, and
+the learner's translation must be Norwegian Bokmål. The source block uses
+the short `.ai-context` alias and is explicitly referenced as the source.
+
+::: {#german-original .ai-context}
+Am Samstag fährt Lena mit dem Zug nach Oslo. Sie besucht ihre Schwester,
+die seit zwei Jahren dort wohnt. Wenn das Wetter gut ist, gehen sie am
+Nachmittag am Hafen spazieren. Am Sonntag fährt Lena wieder nach Hause.
+:::
+
+::: {.ai-feedback #german-to-norwegian profile="translation" source="german-original" source-language="de" response-language="nb" feedback-language="en" context="none"}
+Translate the German passage into Norwegian Bokmål. Review the draft below
+or replace it with your own translation. Request feedback on meaning,
+natural Norwegian phrasing and grammar. Explanations should be in English.
+
+::: {.feedback-criteria}
+Check whether the translation preserves the German meaning, tense, relationships
+and sequence of events. Accept valid alternative Norwegian Bokmål translations.
+Explain up to three improvements in English, quoting German or Norwegian where
+useful. Do not supply a complete replacement translation.
+:::
+
+::: {.feedback-starter}
+På lørdag reiser Lena med tog til Oslo. Hun besøker søsteren sin, som bor der
+siden to år. Hvis været er fint, går de en tur ved havnen på ettermiddagen.
+På søndag reiser Lena hjem igjen.
+:::
+:::
+
+The activity references its source with `source="german-original"`.
+`context="none"` excludes unrelated surrounding prose; it does not remove
+the explicitly selected source passage.
+
+## Adding the next example
+
+Pyodide, mathematics and Python unit-test examples will be added as their
+integrations migrate to the shared API. Their existing implementations remain
+the reference for compatibility until each migration passes its checks.

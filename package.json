@@ -1,0 +1,11 @@
+{
+  "name": "@erasmus-ctm/ai-feedback",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared browser feedback and Quarto extension",
+  "scripts": {
+    "test": "node --test tests/*.test.cjs",
+    "test:render": "quarto render && node --test tests/render.test.cjs"
+  },
+  "devDependencies": { "jsdom": "26.1.0" }
+}

@@ -1,0 +1,24 @@
+lang: en
+project:
+  type: website
+  output-dir: _site
+  render:
+    - index.qmd
+    - examples.qmd
+website:
+  title: AI Feedback
+  navbar:
+    left:
+      - href: index.qmd
+        text: Overview
+      - href: examples.qmd
+        text: Working examples
+format:
+  html:
+    toc: true
+    theme: cosmo
+filters:
+  - ai-feedback
+ai-feedback:
+  mode: copy
+  storage: local
