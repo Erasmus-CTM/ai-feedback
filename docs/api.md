@@ -129,7 +129,7 @@ Within it, `.feedback-source` supplies visible original text;
 `context="id1,id2"` references tagged context blocks. The canonical class is
 `.ai-feedback-context`; `.ai-context` is a short alias and
 `.math-exercise-context` is a permanent compatibility alias. Duplicate
-IDs are included once, in reference order. Both classes on one block do not
+IDs are included once, in reference order. Multiple alias classes on one block do not
 duplicate it. `context="none"` disables learning context; an explicit `source`
 still supplies the source required for the task. Without `context`, recent
 section prose is collected at render time, capped at 1,500 Unicode characters
