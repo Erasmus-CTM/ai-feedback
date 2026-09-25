@@ -1,13 +1,10 @@
----
-title: "Python practice examples"
-filters:
-  - py-exercise
----
-
 Each exercise starts with a partially completed function. Read **Your task**,
 finish the code in the editor, then choose **Check** (or press **Shift+Enter**).
 You can check your work more than once. **Reset** restores the original draft
-and clears the results.
+and clears the results. Choose **Feedback** for guidance on your current code,
+before or after checking it. Its cogwheel opens the same feedback settings as
+the Non-Python activities. In **Copy prompt** mode, paste the prompt into your AI
+chat; select **Direct API** in settings for a reply on this page.
 
 ::: {.callout-note .example-author-notes}
 ### For course authors
@@ -15,12 +12,13 @@ and clears the results.
 These examples use the selected py-exercise revision inside ai-feedback's
 integration workbench. Each starter runs but needs a small correction or addition;
 none is a complete solution. The tests exercise ordinary cases and edge cases.
-The learner's code runs locally in the browser. This page currently demonstrates
-the existing checker; the shared AI Feedback adapter will be developed here
-before a consumer PR is opened. [Source revisions](resolved-repos.json).
+The learner's code runs locally in the browser when **Check** is used. **Feedback**
+uses the shared adapter from the selected py-exercise feature branch without
+running code. Only a check of the unchanged code contributes a summary and
+learner output; hidden test source and assertion messages are excluded. [Source revisions](resolved-repos.json).
 :::
 
-## 1. A price including tax
+### 1. A price including tax
 
 ::: {.callout-note .example-author-notes}
 ### For course authors
@@ -38,6 +36,7 @@ Keep the existing tax calculation and finish the return value. Do not round it.
 
 ```{py-exercise}
 #| label: practice-price
+#| task: Complete price_with_tax(price, rate) to return price plus tax. The rate is a decimal (0.25 means 25%). Keep the tax calculation and do not round the result.
 def price_with_tax(price, rate):
     tax = price * rate
     return price  # TODO: include the tax
@@ -49,7 +48,7 @@ assert abs(price_with_tax(19.5, 0.2) - 23.4) < 1e-9, "Check a decimal price and 
 ```
 :::
 
-## 2. Add values with a loop
+### 2. Add values with a loop
 
 ::: {.callout-note .example-author-notes}
 ### For course authors
@@ -68,6 +67,7 @@ An empty list should return `0`.
 
 ```{py-exercise}
 #| label: practice-total
+#| task: Complete total(values) using the existing loop to sum the values. Do not use the built-in sum(). An empty list returns 0.
 #| forbidden-keywords: sum
 def total(values):
     result = 0
@@ -82,7 +82,7 @@ assert total([-4, 1, 2]) == -1, "Include negative values in the total"
 ```
 :::
 
-## 3. Print and return a greeting
+### 3. Print and return a greeting
 
 ::: {.callout-note .example-author-notes}
 ### For course authors
@@ -101,6 +101,7 @@ Keep the example call below the function to see the output when you choose **Che
 
 ```{py-exercise}
 #| label: practice-greet
+#| task: Complete greet(name) so it prints and returns Hello, <name>! Keep the example call greet("Ada") to show output.
 def greet(name):
     message = f"Hello, {name}!"
     print(message)
@@ -117,7 +118,7 @@ with __import__("contextlib").redirect_stdout(__import__("io").StringIO()) as ou
 ```
 :::
 
-## 4. The area of a circle
+### 4. The area of a circle
 
 ::: {.callout-note .example-author-notes}
 ### For course authors
@@ -136,6 +137,7 @@ Correct the return expression. A radius of zero should give an area of zero.
 
 ```{py-exercise}
 #| label: practice-circle
+#| task: Complete circle_area(radius) for a nonnegative radius using area = pi * radius squared. Use pi = 3.14159 and do not import math. Zero radius gives zero area.
 #| forbidden-imports: math
 def circle_area(radius):
     pi = 3.14159
@@ -148,7 +150,7 @@ assert circle_area(0) == 0, "Zero radius should give zero area"
 ```
 :::
 
-## 5. A case-insensitive palindrome
+### 5. A case-insensitive palindrome
 
 ::: {.callout-note .example-author-notes}
 ### For course authors
@@ -171,6 +173,7 @@ This exercise shows which checks pass without detailed hints.
 
 ```{py-exercise}
 #| label: practice-palindrome
+#| task: Complete is_palindrome(text) to test whether text reads the same forwards and backwards, ignoring letter case only. Keep spaces and punctuation. The empty string is a palindrome.
 #| show-test-hints: false
 def is_palindrome(text):
     normalized = text.lower()
@@ -185,4 +188,52 @@ assert is_palindrome("a!") is False, "Keep punctuation in the comparison"
 ```
 :::
 
-[Back to the text, image and integration examples](examples.qmd).
+### 6. Addition
+
+::: {.callout-note .example-author-notes}
+### For course authors
+
+**Feature:** a py-exercise cell with its existing checker and Reset behavior.
+The shared adapter adds Feedback and the common settings cogwheel. It is
+validated on this page before a consumer PR is opened.
+:::
+
+**Your task**
+
+Implement addition, then choose **Check**. The starter deliberately subtracts.
+Use **Reset** to restore the starter.
+
+```{py-exercise}
+#| label: integration-add
+#| task: Implement add(a, b) to return the sum of a and b. The starter subtracts. Do not import os.
+#| forbidden-imports: os
+#| show-test-hints: true
+def add(a, b):
+    return a - b
+
+## TESTS ##
+assert add(1, 2) == 3, "add(1, 2) should return 3"
+assert add(0, 0) == 0, "add(0, 0) should return 0"
+assert add(-1, 1) == 0, "add(-1, 1) should return 0"
+```
+
+### 7. Interactive Python
+
+::: {.callout-note .example-author-notes}
+### For course authors
+
+**Feature:** pyodide-interaktiv running on the same page as the checkers and
+shared feedback. Its legacy three-stage feedback remains in place until the
+shared adapter is developed and tested here.
+:::
+
+**Your task**
+
+Run the code and check that the output is **6**. Change the numbers and run it
+again, or use **Reset** to restore the original code.
+
+```{pyodide-python}
+#| label: integration-python
+values = [1, 2, 3]
+print(sum(values))
+```

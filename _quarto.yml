@@ -7,7 +7,6 @@ project:
   render:
     - index.qmd
     - examples.qmd
-    - py-exercise-examples.qmd
 website:
   title: AI Feedback
   navbar:
@@ -16,8 +15,6 @@ website:
         text: Overview
       - href: examples.qmd
         text: Working examples
-      - href: py-exercise-examples.qmd
-        text: Python practice
 format:
   html:
     toc: true
@@ -33,5 +30,6 @@ pyodide:
   feedback: true
   feedback-storage: session
 py-exercise:
+  feedback: true
   show-test-hints: true
   submission: false

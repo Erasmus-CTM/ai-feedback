@@ -1,0 +1,24 @@
+## Integration development
+
+::: {.callout-note .example-author-notes}
+### For course authors
+
+The mathematics and interactive Python examples load the selected consumer branches on this same examples
+page. They establish a working baseline before the shared feedback adapters are
+added here. [Exact source revisions for this build](resolved-repos.json).
+:::
+
+
+
+::: {.callout-note .example-author-notes}
+### For course authors
+
+All shared-feedback development and acceptance checks live in this repository's
+`examples.qmd` entry page and its topic includes. Add a new tab and topic include
+for each subsequent integration.
+Once an adapter works here, its changes can be propagated in a
+separate consumer PR. The order is py-exercise, Pyodide, then mathematics.
+
+For installation and copyable authoring examples, see the
+[README and API guide](https://github.com/Erasmus-CTM/ai-feedback#api-quick-start).
+:::

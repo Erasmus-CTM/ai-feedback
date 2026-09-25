@@ -12,7 +12,15 @@ test('common page renders all four extensions and keeps local dependencies resol
   const doc = dom.window.document;
   assert.equal(doc.querySelectorAll('.ai-feedback-activity').length, 6);
   assert.equal(doc.querySelectorAll('.math-exercise-cell').length, 1);
-  assert.equal(doc.querySelectorAll('.py-exercise-cell').length, 1);
+  assert.equal(doc.querySelectorAll('.py-exercise-cell').length, 6);
+  assert.deepEqual([...doc.querySelectorAll('.panel-tabset > ul [role=tab]')].map(n => n.textContent.trim()), ['Non-Python', 'Python']);
+  const panels = doc.querySelectorAll('.panel-tabset > .tab-content > .tab-pane');
+  assert.equal(panels.length, 2);
+  assert.equal(panels[0].querySelectorAll('.ai-feedback-activity').length, 6);
+  assert.equal(panels[0].querySelectorAll('.math-exercise-cell').length, 1);
+  assert.equal(panels[1].querySelectorAll('.py-exercise-cell').length, 6);
+  assert.equal(panels[1].querySelectorAll('[id^="qpyodide-insertion-location-"]').length, 1);
+  assert.ok(!fs.existsSync(path.join(site, 'py-exercise-examples.html')), 'Python examples must use the same page');
   assert.equal(doc.querySelectorAll('[id^="qpyodide-insertion-location-"]').length, 1);
   for (const name of ['feedback-core.js', 'feedback-dom.js', 'ai-feedback.js']) {
     assert.equal([...doc.scripts].filter(s => s.src.endsWith('/' + name)).length, 1, name + ' must load once');
@@ -27,6 +35,13 @@ test('common page renders all four extensions and keeps local dependencies resol
   }
   const record = JSON.parse(fs.readFileSync(path.join(site, 'resolved-repos.json'), 'utf8'));
   assert.deepEqual(Object.keys(record.repositories).sort(), ['ai-feedback', 'math-exercise', 'py-exercise', 'pyodide-interaktiv']);
+  const python = record.repositories['py-exercise'];
+  assert.equal(python.branch, 'feature/shared-feedback-integration');
+  if (!python.local_override && !record.refresh) {
+    const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, 'repos.json'), 'utf8'));
+    assert.equal(python.commit, manifest.repositories['py-exercise'].commit);
+  }
+  assert.ok(record.extension_sha256['py-exercise']['py-exercise-feedback.js']);
   for (const [name, source] of Object.entries(record.repositories)) {
     assert.match(source.commit, /^[0-9a-f]{40}$/);
     assert.ok(Object.keys(record.extension_sha256[name]).length > 0);
@@ -74,14 +89,16 @@ test('mathematics feedback excludes the author note from learning context', () =
 });
 
 test('Python practice keeps five incomplete starters and their tasks separate from author notes', () => {
-  const dom = new JSDOM(fs.readFileSync(path.join(site, 'py-exercise-examples.html'), 'utf8'), {runScripts: 'outside-only'});
+  const dom = new JSDOM(html, {runScripts: 'outside-only'});
   const w = dom.window;
   // Only the declarative exercise data is evaluated, not the Python runtime.
   for (const script of w.document.scripts) {
     if (script.textContent.trim().startsWith('(window.__pyExercises =')) w.eval(script.textContent);
   }
-  assert.equal(w.__pyExercises.length, 5);
-  assert.equal(new Set(w.__pyExercises.map(x => x.label)).size, 5);
+  assert.equal(w.__pyExercises.length, 6);
+  const practice = w.__pyExercises.filter(x => x.label.startsWith('practice-'));
+  assert.equal(practice.length, 5);
+  assert.equal(new Set(w.__pyExercises.map(x => x.label)).size, 6);
   assert.equal(w.document.querySelectorAll('.example-learner-task').length, 5);
   for (const task of w.document.querySelectorAll('.example-learner-task')) {
     assert.equal(task.querySelectorAll('.py-exercise-cell').length, 1);
@@ -90,7 +107,8 @@ test('Python practice keeps five incomplete starters and their tasks separate fr
     prose.querySelectorAll('script').forEach(s => s.remove());
     assert.doesNotMatch(prose.textContent, /For course authors|Feature:|shared.feedback adapter|assert /);
   }
-  for (const data of w.__pyExercises) {
+  for (const data of practice) {
+    assert.ok(data.task.length > 30, 'Feedback needs the actual assignment');
     assert.match(data.starter, /def \w+\(/);
     assert.match(data.starter, /TODO/);
     assert.doesNotMatch(data.starter, /## TESTS ##|assert /);

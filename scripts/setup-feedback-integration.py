@@ -102,16 +102,17 @@ def main():
     if site.exists():
         shutil.rmtree(site)  # Generated site inside the marked workspace only.
     site.mkdir()
-    for name in ['_quarto.yml', 'index.qmd', 'examples.qmd', 'py-exercise-examples.qmd']:
+    for name in ['_quarto.yml', 'index.qmd', 'examples.qmd']:
         shutil.copy2(ROOT / name, site / name)
     shutil.copytree(ROOT / 'assets', site / 'assets')
+    shutil.copytree(ROOT / 'examples', site / 'examples')
     hashes = {}
     for name, source in sources.items():
         extension = source / '_extensions' / name
         destination = site / '_extensions' / name
         shutil.copytree(extension, destination)
         hashes[name] = {str(p.relative_to(extension)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(extension.rglob('*')) if p.is_file()}
-    result = {'quarto': config['quarto'], 'repositories': revisions, 'extension_sha256': hashes}
+    result = {'quarto': config['quarto'], 'refresh': args.refresh, 'repositories': revisions, 'extension_sha256': hashes}
     (workspace / 'resolved-repos.json').write_text(json.dumps(result, indent=2) + '\n')
     shutil.copy2(workspace / 'resolved-repos.json', site / 'resolved-repos.json')
     run(['quarto', 'render'], cwd=site, env=base_env)
