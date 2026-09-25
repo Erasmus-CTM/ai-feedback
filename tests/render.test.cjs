@@ -37,5 +37,17 @@ test('rendered examples load the runtime once and produce real copy prompts', { 
   assert.match(multilingual, /\"language\":\"de\"/);
   assert.match(multilingual, /\"language\":\"nb\"/);
   assert.match(multilingual, /explanations in en/);
+  const handwriting = w.document.querySelector('#handwriting');
+  const upload = handwriting.querySelector('input[type=file]');
+  const bytes = Buffer.from(require('./fixtures.cjs').png.split(',')[1], 'base64');
+  Object.defineProperty(upload, 'files', { configurable: true, value: [new w.File([bytes], 'spanish.png', { type: 'image/png' })] });
+  upload.dispatchEvent(new w.Event('change'));
+  handwriting.querySelector('textarea').value = '';
+  const imageTrigger = [...handwriting.querySelectorAll('button')].find(b => b.textContent === 'Feedback');
+  imageTrigger.click();
+  for (let i = 0; i < 40 && imageTrigger.disabled; i++) await new Promise(resolve => setTimeout(resolve, 5));
+  assert.match(handwriting.querySelector('pre').textContent, /ATTACH THE ORIGINAL IMAGES/);
+  assert.equal(handwriting.querySelectorAll('.ai-feedback-images img').length, 1);
+  assert.equal(w.document.querySelectorAll('.ai-feedback-gear').length, 6);
   w.close();
 });

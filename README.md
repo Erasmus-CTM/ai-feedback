@@ -43,6 +43,106 @@ See [examples.qmd](examples.qmd), [the API contract](docs/api.md), and
 example and a regression test. Examples use copy mode initially so they work
 without credentials; live provider replies are never simulated.
 
+## API quick start
+
+### Quarto: German source, Norwegian translation, English feedback
+
+The source block is reusable. The short `.ai-context` class, canonical
+`.ai-feedback-context`, and legacy `.math-exercise-context` are aliases.
+`source="german-original"` gives the referenced block its role in this task.
+
+````markdown
+---
+lang: en
+filters:
+  - ai-feedback
+---
+
+::: {#german-original .ai-context}
+Am Samstag fährt Lena mit dem Zug nach Oslo.
+:::
+
+::: {.ai-feedback #translation profile="translation" source="german-original" source-language="de" response-language="nb" feedback-language="en" context="none"}
+Translate the German passage into Norwegian Bokmål. Explain improvements
+to meaning, phrasing and grammar in English.
+:::
+````
+
+Use `context="id1,id2"` for additional learning context. `context="none"`
+disables automatic context without removing the explicitly selected source.
+
+### Images
+
+Add `image-upload="true" image-role="response"` to an activity for images of
+learner work, such as handwritten Spanish. Use `image-role="source"` for a
+picture the learner must describe. A response image can replace typed text;
+a source image still needs a learner response. Direct feedback requires a
+vision-capable model and never silently discards a required image.
+
+### JavaScript: request feedback
+
+When the Quarto extension is enabled, `AIFeedback` is available in the browser:
+
+```js
+const request = {
+  version: 1,
+  profile: 'translation',
+  task: 'Translate the German passage into Norwegian Bokmål.',
+  materials: [{
+    id: 'original', role: 'source', language: 'de',
+    text: 'Am Samstag fährt Lena mit dem Zug nach Oslo.'
+  }],
+  responses: [{
+    id: 'translation', format: 'text', language: 'nb',
+    value: textarea.value
+  }],
+  feedback: { language: 'en', mode: 'review', maxIssues: 3,
+    allowFullRewrite: false }
+};
+
+// Use the website's saved endpoint, model and personal key.
+const result = await AIFeedback.getClient().request(request);
+// result: { text: '...', format: 'markdown' }
+
+// Or prepare a prompt without making any API request:
+const prompt = AIFeedback.buildPrompt(request);
+```
+
+`learner: {level}`, `criteria: [string, ...]`, `evidence: [{label, text}, ...]`
+and `attachments: [{id, role, label, dataUrl}, ...]` are optional. Image data
+URLs must be PNG/JPEG/WebP. Do not include hidden test source, submission
+identifiers or credentials in the request. The API does not run code or assign
+grades. See [API v1](docs/api.md) for validation limits, hints and error codes.
+
+### Attach an existing editor and button
+
+```js
+const adapter = AIFeedback.attach({
+  id: 'my-activity',
+  button: feedbackButton,
+  output: feedbackArea,
+  getRequest: () => ({ ...request,
+    responses: [{ id: 'translation', format: 'text', language: 'nb',
+      value: textarea.value }]
+  })
+});
+buttonBar.append(AIFeedback.settingsButton());
+// adapter.cancel(); adapter.dispose();
+```
+
+`getRequest()` collects a current snapshot; it must not run learner code.
+The adapter handles copy/API mode, cancellation, errors and responses that
+became stale during a request. It safely renders feedback Markdown.
+
+### One cogwheel and one setup across the website
+
+Every activity's cogwheel opens the same settings dialog.
+`AIFeedback.openSettings()` opens it programmatically. By default one
+localStorage record shares base URL, model, personal key and mode across all
+pages and tabs on the same origin. Browser storage cannot span different
+domains. Per-tab storage remains an optional user choice. Institutions can
+provide defaults as shown below; keys are entered only in the browser.
+
 ## Institution configuration
 
 No provider presets are bundled. Institutions can prefill their own endpoint
