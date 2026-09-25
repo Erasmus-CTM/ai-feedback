@@ -5,6 +5,12 @@ The first release provides text activities and a stable adapter API. Existing
 exercise integrations are migrated incrementally, with examples added alongside
 each integration. No Python runtime is needed for the text activities.
 
+[Rendered examples](https://erasmus-ctm.github.io/ai-feedback/examples.html)
+· [Examples source](examples.qmd) · [API documentation](docs/api.md)
+
+The rendered examples are published by GitHub Actions after Pages is enabled
+in the repository settings (see Development below).
+
 ## Install
 
 ```sh
