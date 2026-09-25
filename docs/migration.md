@@ -2,13 +2,23 @@
 
 1. **API and shared extension**: headless client, prompt builder, context aliases,
    settings, text activities, image input, API and rendered-example tests.
-2. **Pyodide**: preserve three hint levels and cached output. Feedback never
+2. **py-exercise (recommended first integration)**: add the missing feedback
+   capability; retain code-matched checker snapshots, constraints and only
+   permitted messages. Preserve Check, Reset and submission behavior. Feedback
+   must not execute code, expose hidden tests or use stale checker results.
+3. **Pyodide**: preserve three hint levels and cached output. Feedback never
    executes Python. Move provider transport and settings to shared APIs.
-3. **Mathematics**: preserve task/LaTeX source, checker evidence, matrices,
+4. **Mathematics**: preserve task/LaTeX source, checker evidence, matrices,
    graphical responses and existing four-step policy. Run existing regression
    tests against the integration before removing old provider logic.
-4. **py-exercise**: retain code-matched checker snapshots, constraints and only
-   permitted messages. Preserve Check, Reset and submission behavior.
+
+The original plan placed Pyodide first because its existing feedback module is
+the smaller extraction. There is no dependency requiring that order. Following
+the phase 1 recovery discussion on 2026-09-25, the recommendation is to start with
+py-exercise to deliver the missing capability and validate checker evidence
+early. This ordering does not begin or authorize any consumer migration here.
+
+See [the phase 1 record](phase-1.md) for the recovered scope and verification.
 
 Every migration is a separate reviewable commit/PR. Add its example to
 `examples.qmd` in the same stage. The live example site is deployed only after

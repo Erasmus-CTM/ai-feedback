@@ -8,8 +8,9 @@ each integration. No Python runtime is needed for the text activities.
 [Rendered examples](https://erasmus-ctm.github.io/ai-feedback/examples.html)
 · [Examples source](examples.qmd) · [API documentation](docs/api.md)
 
-The rendered examples are published by GitHub Actions after Pages is enabled
-in the repository settings (see Development below).
+The examples are live on GitHub Pages. Each example separates course-author
+notes from the learner's task; the handwriting activity includes a downloadable
+PNG sample. GitHub Actions tests and renders the site before publishing it.
 
 ## Install
 
@@ -48,6 +49,10 @@ See [examples.qmd](examples.qmd), [the API contract](docs/api.md), and
 [the migration plan](docs/migration.md). New features must bring a working
 example and a regression test. Examples use copy mode initially so they work
 without credentials; live provider replies are never simulated.
+
+Phase 1 is the standalone extension and its examples. See the
+[phase 1 recovery and verification record](docs/phase-1.md) for the recovered
+scope, validation, and the boundary before consumer migrations.
 
 ## API quick start
 

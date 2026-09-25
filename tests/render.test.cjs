@@ -16,7 +16,21 @@ test('rendered examples load the runtime once and produce real copy prompts', { 
   w.AIFeedback.initialize();
   const activities = [...w.document.querySelectorAll('.ai-feedback-activity')];
   assert.equal(activities.length, 6);
+  const notes = [...w.document.querySelectorAll('.example-author-notes')];
+  assert.equal(notes.length, 6);
+  assert.ok(notes.every(note => !note.closest('.ai-feedback-activity')));
+  const download = w.document.querySelector('#handwriting-sample-download');
+  assert.ok(download.hasAttribute('download'));
+  const samplePath = path.resolve(path.dirname(target), download.getAttribute('href'));
+  const sample = fs.readFileSync(samplePath);
+  assert.deepEqual(sample, fs.readFileSync(path.join(__dirname, '../assets/spanish-handwriting.png')));
+  assert.equal(sample.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+  assert.ok(sample.length < 8 * 1024 * 1024);
   for (const activity of activities) {
+    const data = JSON.parse(activity.querySelector('script.ai-feedback-data').textContent);
+    assert.match(data.task, /^Your task/);
+    assert.doesNotMatch(data.task, /Feedback focus/);
+    assert.notEqual(data.contextMode, 'auto', activity.id + ': author notes must not become automatic context');
     const text = activity.querySelector('textarea');
     text.value ||= 'Esta es mi respuesta.';
     const trigger = [...activity.querySelectorAll('button')].find(b => b.textContent === 'Feedback');
@@ -25,6 +39,13 @@ test('rendered examples load the runtime once and produce real copy prompts', { 
     const prompt = activity.querySelector('pre');
     assert.ok(prompt, activity.id + ': ' + activity.querySelector('.ai-feedback-output').textContent);
     assert.match(prompt.textContent, /USER/);
+    assert.doesNotMatch(prompt.textContent, /For course authors|Feature:|deliberate beginner|downloadable|two deliberate/);
+    for (const note of notes) {
+      for (const paragraph of note.querySelectorAll('p')) {
+        const prose = paragraph.textContent.trim().replace(/\s+/g, ' ');
+        if (prose.length > 30) assert.ok(!prompt.textContent.replace(/\s+/g, ' ').includes(prose), activity.id + ': author explanation leaked');
+      }
+    }
   }
   const translated = activities[1].querySelector('pre').textContent;
   assert.match(translated, /Maria walks/);
@@ -39,8 +60,7 @@ test('rendered examples load the runtime once and produce real copy prompts', { 
   assert.match(multilingual, /explanations in en/);
   const handwriting = w.document.querySelector('#handwriting');
   const upload = handwriting.querySelector('input[type=file]');
-  const bytes = Buffer.from(require('./fixtures.cjs').png.split(',')[1], 'base64');
-  Object.defineProperty(upload, 'files', { configurable: true, value: [new w.File([bytes], 'spanish.png', { type: 'image/png' })] });
+  Object.defineProperty(upload, 'files', { configurable: true, value: [new w.File([sample], 'spanish-handwriting.png', { type: 'image/png' })] });
   upload.dispatchEvent(new w.Event('change'));
   handwriting.querySelector('textarea').value = '';
   const imageTrigger = [...handwriting.querySelectorAll('button')].find(b => b.textContent === 'Feedback');
@@ -48,6 +68,20 @@ test('rendered examples load the runtime once and produce real copy prompts', { 
   for (let i = 0; i < 40 && imageTrigger.disabled; i++) await new Promise(resolve => setTimeout(resolve, 5));
   assert.match(handwriting.querySelector('pre').textContent, /ATTACH THE ORIGINAL IMAGES/);
   assert.equal(handwriting.querySelectorAll('.ai-feedback-images img').length, 1);
+  // Exercise the same public button in API mode and inspect the outgoing image.
+  let sent;
+  w.fetch = async (url, init) => {
+    sent = { url, body: JSON.parse(init.body) };
+    return { ok: true, json: async () => ({ choices: [{ finish_reason: 'stop', message: { content: 'Check the verb endings.' } }] }) };
+  };
+  w.AIFeedback.saveConfig({ mode: 'api', storage: 'session', baseUrl: 'https://provider.invalid/v1', model: 'vision-test', apiKey: 'test-only' });
+  imageTrigger.click();
+  for (let i = 0; i < 40 && imageTrigger.disabled; i++) await new Promise(resolve => setTimeout(resolve, 5));
+  assert.equal(sent.url, 'https://provider.invalid/v1/chat/completions');
+  const content = sent.body.messages[1].content;
+  assert.equal(content.find(part => part.type === 'image_url').image_url.url, 'data:image/png;base64,' + sample.toString('base64'));
+  assert.doesNotMatch(content.find(part => part.type === 'text').text, /For course authors|two deliberate|Me llamo Ana|Yo vive en Trondheim|Me gusta los libros/);
+  assert.match(handwriting.querySelector('.ai-feedback-body').textContent, /Check the verb endings/);
   assert.equal(w.document.querySelectorAll('.ai-feedback-gear').length, 6);
   w.close();
 });

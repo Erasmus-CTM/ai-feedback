@@ -8,7 +8,11 @@ handles provider settings, prompts and feedback display.
 
 [Try the working examples](examples.qmd){.btn .btn-primary}
 
-The examples start in **Copy prompt** mode. Enter a response and click
+Each example separates **For course authors** notes from a learner's **Your task**
+card. The handwriting activity includes a downloadable Spanish sample to upload.
+
+The examples initially use **Copy prompt** mode, unless you have saved settings.
+Enter a response and click
 **Feedback**, then paste the generated prompt into your preferred AI chat.
 You can also use **Feedback settings** to enter your own API endpoint, model
 and personal key for replies directly on the page.
