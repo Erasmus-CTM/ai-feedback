@@ -123,7 +123,9 @@ Use a fenced Div with `.ai-feedback` and a unique ID. Supported attributes:
 `image-upload="true"`, and `image-role`.
 
 Within it, `.feedback-source` supplies visible original text;
-`.feedback-criteria` supplies author-selected criteria;
+`.feedback-criteria` supplies author-selected criteria to the feedback request
+without displaying them in the learner's task. Multiple criteria blocks are
+collected in order. These are client-side configuration, not confidential data;
 `.feedback-starter` initializes the textarea. Remaining prose is the task.
 
 `context="id1,id2"` references tagged context blocks. The canonical class is

@@ -35,6 +35,10 @@ const server = http.createServer((req, res) => {
     await page.locator('.math-check-btn').waitFor();
     await page.waitForFunction(() => globalThis.monaco?.editor.getModels().some(m => m.getValue().includes('def add')));
     console.log('All three consumer controls initialized.');
+    assert.equal(await page.locator('.ai-feedback-activity .feedback-criteria').count(), 0);
+    assert.ok(!/read the handwritten Spanish|Do not rewrite the whole response/i.test(await page.locator('#handwriting').innerText()));
+    assert.equal(await page.locator('#handwriting #handwriting-sample-download').count(), 1);
+    report.checks.push('Learner cards omit reviewer instructions and expose the handwriting download');
     // The Python and mathematical checkers really execute in the Pyodide worker.
     await page.locator('.py-exercise-check').click();
     await page.waitForFunction(() => document.querySelector('.py-exercise-result .py-test-fail'));
@@ -67,6 +71,50 @@ const server = http.createServer((req, res) => {
     report.checks.push('Shared feedback copy prompt and cogwheel work beside all consumers');
     assert.deepEqual(report.pageErrors, []);
     await page.screenshot({path: path.join(site, 'integration-desktop.png'), fullPage: true});
+    await page.goto('http://127.0.0.1:' + server.address().port + '/py-exercise-examples.html', {waitUntil: 'domcontentloaded'});
+    await page.waitForFunction(() => globalThis.monaco?.editor.getModels().length === 5);
+    const solutions = {
+      'practice-price': 'def price_with_tax(price, rate):\n    tax = price * rate\n    return price + tax',
+      'practice-total': 'def total(values):\n    result = 0\n    for value in values:\n        result += value\n    return result',
+      'practice-greet': 'def greet(name):\n    message = f"Hello, {name}!"\n    print(message)\n    return message\n\ngreet("Ada")',
+      'practice-circle': 'def circle_area(radius):\n    pi = 3.14159\n    return pi * radius ** 2',
+      'practice-palindrome': 'def is_palindrome(text):\n    normalized = text.lower()\n    return normalized == normalized[::-1]'
+    };
+    const exercises = await page.evaluate(() => window.__pyExercises);
+    assert.equal(exercises.length, 5);
+    for (const exercise of exercises) {
+      const cell = page.locator('#py-exercise-' + exercise.id);
+      const result = cell.locator('.py-exercise-result');
+      const fn = /def (\w+)\(/.exec(exercise.starter)[1];
+      const modelId = await page.evaluate(fn => monaco.editor.getModels().find(m => m.getValue().includes('def ' + fn + '(')).uri.toString(), fn);
+      const replace = code => page.evaluate(({modelId, code}) => monaco.editor.getModels().find(m => m.uri.toString() === modelId).setValue(code), {modelId, code});
+      const runCheck = async () => {
+        await cell.locator('.py-exercise-check').click();
+        await page.waitForFunction(id => !document.querySelector('#py-exercise-' + id + ' .py-exercise-check').disabled, exercise.id);
+      };
+      await runCheck();
+      assert.equal(await result.locator('.py-exercise-error').count(), 0, exercise.label + ': starter must run');
+      assert.ok(await result.locator('.py-test-fail').count() > 0, exercise.label + ': starter must need work');
+      if (exercise.label === 'practice-greet') assert.match(await result.locator('.py-exercise-stdout').innerText(), /Hello, Ada!/);
+      if (!exercise.showTestHints) assert.ok(!(await result.innerText()).includes('Ignore differences in letter case'));
+      await replace(solutions[exercise.label]);
+      await runCheck();
+      assert.equal(await result.locator('.py-exercise-all-passed').count(), 1, exercise.label + ': corrected solution must pass');
+      if (exercise.label === 'practice-total' || exercise.label === 'practice-circle') {
+        await replace(exercise.label === 'practice-total' ? 'def total(values):\n    return sum(values)' : 'import math\ndef circle_area(radius):\n    return math.pi * radius ** 2');
+        await runCheck();
+        assert.equal(await result.locator('.py-exercise-violations').count(), 1, exercise.label + ': task restriction must be enforced');
+      }
+      await cell.locator('.py-exercise-reset').click();
+      assert.equal(await result.textContent(), '');
+      assert.equal(await page.evaluate(id => monaco.editor.getModels().find(m => m.uri.toString() === id).getValue(), modelId), exercise.starter);
+      report.checks.push(exercise.label + ': runnable incomplete starter, passing correction and exact Reset');
+    }
+    assert.deepEqual(report.pageErrors, []);
+    await page.screenshot({path: path.join(site, 'python-practice-desktop.png'), fullPage: true});
+    await page.setViewportSize({width: 390, height: 844});
+    await page.locator('#task-price').scrollIntoViewIfNeeded();
+    await page.screenshot({path: path.join(site, 'python-practice-mobile.png'), fullPage: true});
     console.log(JSON.stringify(report, null, 2));
   } finally {
     fs.writeFileSync(path.join(site, 'browser-smoke.json'), JSON.stringify(report, null, 2) + '\n');

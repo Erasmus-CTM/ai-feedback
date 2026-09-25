@@ -3,7 +3,7 @@
   "repositories": {
     "ai-feedback": {
       "repository": "Erasmus-CTM/ai-feedback",
-      "branch": "feature/integration-examples",
+      "branch": "main",
       "commit": "self"
     },
     "py-exercise": {
