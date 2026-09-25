@@ -112,6 +112,10 @@ def main():
         destination = site / '_extensions' / name
         shutil.copytree(extension, destination)
         hashes[name] = {str(p.relative_to(extension)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(extension.rglob('*')) if p.is_file()}
+    for filename, digest in hashes['ai-feedback'].items():
+        if filename in ('feedback-core.js', 'feedback-dom.js', 'ai-feedback.js', 'ai-feedback.css'):
+            if hashes['math-exercise'].get('ai-feedback/' + filename) != digest:
+                raise SystemExit('Math shared runtime differs: ' + filename + '. Run math-exercise/scripts/sync-ai-feedback.py with this checkout.')
     result = {'quarto': config['quarto'], 'refresh': args.refresh, 'repositories': revisions, 'extension_sha256': hashes}
     (workspace / 'resolved-repos.json').write_text(json.dumps(result, indent=2) + '\n')
     shutil.copy2(workspace / 'resolved-repos.json', site / 'resolved-repos.json')

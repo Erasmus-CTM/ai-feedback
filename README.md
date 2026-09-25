@@ -211,3 +211,18 @@ tests explicitly use mocked HTTP responses.
 AGPL-3.0-or-later. Shared rendering, context serialization and model-policy code
 are derived from Erasmus-CTM/math-exercise (fc549d2) and feedback interface ideas
 from Erasmus-CTM/pyodide-interaktiv (f815bc2), under the same license.
+
+### Mathematics integration workbench
+
+The Mathematics tab in `examples.html` is included from
+`examples/_mathematics.qmd`. The builder pins math-exercise's
+`feature/shared-feedback-integration` branch to an exact commit, alongside the
+Python integration branch. Five partial-answer examples cover scalars, multiple
+fields, vectors, matrices and an adjustable basis.
+
+Math Feedback uses the shared settings and renderer, without executing a checker.
+Only unchanged previous Check results contribute allowlisted evidence. Its four
+localized teaching steps remain explicit; a worked solution is permitted only
+at the fourth step. The standalone math fallback must match this checkout's four
+shared runtime files byte for byte, verified by the builder. Consumer PRs remain
+separate from acceptance on this page.

@@ -31,7 +31,7 @@ const server = http.createServer((req, res) => {
     await page.goto('http://127.0.0.1:' + server.address().port + '/examples.html', {waitUntil: 'domcontentloaded'});
     console.log('Waiting for real Pyodide and Monaco initialization…');
     await page.locator('.py-exercise-check').first().waitFor({state: 'attached'});
-    await page.locator('.math-check-btn').waitFor();
+    await page.locator('.math-check-btn').first().waitFor({state: 'attached'});
     await page.waitForFunction(() => globalThis.monaco?.editor.getModels().some(m => m.getValue().includes('def add')));
     console.log('Python and mathematics controls initialized.');
     assert.equal(await page.locator('.ai-feedback-activity .feedback-criteria').count(), 0);
@@ -61,9 +61,9 @@ const server = http.createServer((req, res) => {
     assert.equal(await addition.locator('.py-exercise-result').textContent(), '');
     assert.ok(await page.evaluate(() => monaco.editor.getModels().some(m => m.getValue().includes('return a - b'))));
     report.checks.push('Reset restores the starter and clears results');
-    await nonPythonTab.click();
-    await page.locator('.math-input').fill('42');
-    await page.locator('.math-check-btn').click();
+    await page.getByRole('tab', {name: 'Mathematics', exact: true}).click();
+    await page.locator('#task-math-product .math-input').fill('42');
+    await page.locator('#task-math-product .math-check-btn').click();
     await page.waitForFunction(() => document.querySelector('.math-input').classList.contains('math-input-ok'));
     report.checks.push('Mathematics checker accepts 42');
     await nonPythonTab.click();
@@ -173,6 +173,54 @@ const server = http.createServer((req, res) => {
     assert.deepEqual(sent.evidence, []);
     assert.doesNotMatch(JSON.stringify(apiRequest), /assert price_with_tax|submissionKey|test-only/);
     assert.equal(await page.evaluate(() => window.__feedbackExecutionCount), executionCount);
+    await page.getByRole('tab', {name: 'Mathematics', exact: true}).click();
+    const mathCases = [
+      {id: 'task-math-product', draft: ['42'], correct: ['42']},
+      {id: 'task-math-fields', draft: ['5', ''], correct: ['5', '3']},
+      {id: 'task-math-vector', draft: ['2*x', ''], correct: ['2*x+y', 'x']},
+      {id: 'task-math-matrix', draft: ['1', '', '', '4'], correct: ['1', '3', '2', '4']},
+      {id: 'task-math-basis', draft: ['1', '-1', ''], correct: ['1', '1', '-1', '0', '0', '-1'], dynamic: true}
+    ];
+    for (const example of mathCases) {
+      const cell = page.locator('#' + example.id);
+      const feedback = cell.locator('.math-feedback-btn');
+      assert.deepEqual(await cell.locator('.math-input').evaluateAll(fields => fields.map(f => f.value)), example.draft);
+      let runs = await page.evaluate(() => window.__feedbackExecutionCount);
+      await feedback.click();
+      await cell.locator('.ai-feedback-body').waitFor();
+      await page.waitForFunction(id => document.querySelectorAll('#' + id + ' .ai-feedback-body .katex').length === 5, example.id);
+      assert.equal(await page.evaluate(() => window.__feedbackExecutionCount), runs);
+      let request = JSON.parse(apiRequest.messages[1].content);
+      assert.doesNotMatch(JSON.stringify(apiRequest), /For course authors|def check|assess_basis|data-answer|test-only/);
+      if (example.id !== 'task-math-product') assert.deepEqual(request.evidence, []);
+      if (example.dynamic) {
+        await cell.locator('[data-dynamic-action="add-col"]').click();
+        assert.equal(await cell.locator('.ai-feedback-output').textContent(), '');
+      }
+      for (let i = 0; i < example.correct.length; i++) await cell.locator('.math-input').nth(i).fill(example.correct[i]);
+      await cell.locator('.math-check-btn').click();
+      await page.waitForFunction(id => !document.querySelector('#' + id + ' .math-check-btn').disabled, example.id);
+      assert.equal(await cell.locator('.math-input-wrong,.math-input-err,.math-input-partial').count(), 0);
+      assert.ok(await cell.locator('.math-fb-ok').count(), example.id + ' must pass its actual checker');
+      runs = await page.evaluate(() => window.__feedbackExecutionCount);
+      await feedback.click(); await cell.locator('.ai-feedback-body').waitFor();
+      request = JSON.parse(apiRequest.messages[1].content);
+      assert.ok(request.evidence.length > 0, example.id + ' keeps matching check evidence');
+      assert.equal(await page.evaluate(() => window.__feedbackExecutionCount), runs);
+      await cell.locator('.math-input').first().fill('999');
+      await feedback.click(); await cell.locator('.ai-feedback-body').waitFor();
+      assert.deepEqual(JSON.parse(apiRequest.messages[1].content).evidence, []);
+      assert.equal(await page.evaluate(() => window.__feedbackExecutionCount), runs);
+      await feedback.click(); await cell.locator('.ai-feedback-body').waitFor();
+      assert.match(apiRequest.messages[0].content, /CURRENT HINT LEVEL: 4 OF 4/);
+      assert.match(apiRequest.messages[0].content, /A complete rewrite or solution is permitted/);
+      report.checks.push(example.id + ': partial draft, real Check, four feedback steps, matching evidence, no feedback execution and LaTeX');
+    }
+    await page.locator('#task-math-product .ai-feedback-gear').click();
+    assert.equal(await page.locator('dialog.ai-feedback-settings[open]').count(), 1);
+    await page.locator('dialog.ai-feedback-settings').getByRole('button', {name: 'Cancel', exact: true}).click();
+    await page.screenshot({path: path.join(site, 'mathematics-practice-desktop.png'), fullPage: true});
+    await pythonTab.click();
     await page.evaluate(() => AIFeedback.saveConfig({mode: 'copy', storage: 'session'}));
     report.checks.push('Python API feedback uses shared settings and current code without execution or hidden tests (mock provider)');
     report.checks.push('Feedback renders all four LaTeX delimiters and preserves literal code');

@@ -1,0 +1,122 @@
+Each activity contains a draft answer with something to finish or correct.
+Edit the fields, then choose **Check**. **Feedback** offers progressively more
+help: a guiding question, a conceptual hint, a method, and finally a worked
+solution. It uses your current response without running the checker. The cogwheel
+opens the shared settings; **Copy prompt** works without an API account.
+
+::: {.callout-note .example-author-notes}
+### For course authors
+
+This tab loads the math-exercise integration branch. Only a previous Check of
+unchanged work supplies private status and score evidence. Hidden answers,
+checker code and checker messages are excluded. All examples explicitly opt out
+of surrounding author notes as learning context. [Exact revisions](resolved-repos.json).
+:::
+
+### 1. Multiplication
+
+::: {.example-learner-task #task-math-product}
+**Your task**
+
+A draft answer is already entered. Correct it and check your result.
+
+```{math-exercise}
+#| label: integration-math
+#| context: none
+What is $6\cdot7$? _[42]
+```
+:::
+
+### 2. Two stages of a calculation
+
+::: {.example-learner-task #task-math-fields}
+**Your task**
+
+The first step has been started. Complete both fields.
+
+```{math-exercise}
+#| label: practice-math-fields
+#| context: none
+For $3(x+2)=15$, first divide by $3$: $x+2=$ _[5]. Then $x=$ _[3].
+```
+:::
+
+### 3. A gradient vector
+
+::: {.example-learner-task #task-math-vector}
+**Your task**
+
+Review the first component and finish the second component.
+
+```{math-exercise}
+#| label: practice-math-vector
+#| context: none
+#| vars: x,y
+For $f(x,y)=x^2+xy$, enter the gradient: $\nabla f=$ vec[2*x+y,x].
+```
+:::
+
+### 4. A matrix transpose
+
+::: {.example-learner-task #task-math-matrix}
+**Your task**
+
+Two entries are filled. Complete the transpose and check all four entries.
+
+```{math-exercise}
+#| label: practice-math-matrix
+#| context: none
+For $A=\begin{pmatrix}1&2\\3&4\end{pmatrix}$, enter $A^T=$ mat[1,3;2,4].
+```
+:::
+
+### 5. A basis with an adjustable number of vectors
+
+::: {.example-learner-task #task-math-basis}
+**Your task**
+
+One proposed vector is started. Complete it, then add or remove columns until
+the columns form a basis. Check your work more than once if needed.
+
+```{math-exercise}
+#| label: practice-math-basis
+#| context: none
+#| mode: custom
+#| checker: |
+#|   def check(response, symbols):
+#|       B = response["inputs"]["B"]["matrix"]
+#|       return assess_basis(B, axis="columns", target_dimension=2,
+#|           belongs=lambda v: v[0] + v[1] + v[2] == 0,
+#|           name="B", space_name="the plane")
+Find a basis for the plane $x+y+z=0$ in $\mathbb{R}^3$.
+Enter basis vectors as columns: mat{name=B,rows=3,cols=auto,min-cols=0,max-cols=3,initial-cols=1}
+```
+:::
+
+```{=html}
+<script>
+// Demo drafts only: no answer keys or reviewer instructions are added here.
+document.addEventListener('DOMContentLoaded', function () {
+  const drafts = {
+    'integration-math': ['40'],
+    'practice-math-fields': ['5', ''],
+    'practice-math-vector': ['2*x', ''],
+    'practice-math-matrix': ['1', '', '', '4'],
+    'practice-math-basis': ['1', '-1', '']
+  };
+  function fillDrafts() {
+    for (const [label, values] of Object.entries(drafts)) {
+      const cell = document.querySelector('[data-label="' + label + '"]');
+      const fields = cell && cell.querySelectorAll('.math-input');
+      if (!fields || fields.length !== values.length || cell.dataset.draftLoaded) continue;
+      fields.forEach((field, i) => { field.value = values[i]; });
+      cell.dataset.draftLoaded = 'true';
+    }
+    if (Object.keys(drafts).every(label => document.querySelector('[data-label="' + label + '"]')?.dataset.draftLoaded)) observer.disconnect();
+  }
+  const observer = new MutationObserver(fillDrafts);
+  observer.observe(document.querySelector('#task-math-basis'), {childList: true, subtree: true});
+  fillDrafts();
+});
+</script>
+```
