@@ -68,7 +68,7 @@
     var prefix = '\uE000AI';
     while (text.includes(prefix)) prefix += 'X';
     var tokens = new Map();
-    text = text.replace(/^```[^\n]*\n[\s\S]*?^```[ \t]*$|`[^`\n]+`|\\\[[\s\S]*?\\\]|\$\$[\s\S]*?\$\$|\\\([^\n]*?\\\)|(?<!\\)\$(?![\s$])(?:\\.|[^\\$\n])+?(?<!\s)\$(?!\d)/gm, function (value) {
+    text = text.replace(/^```[^\n]*\n[\s\S]*?^```[ \t]*$|`[^`\n]+`|\\\\\[[\s\S]*?\\\\\]|\\\\\([^\n]*?\\\\\)|\\\[[\s\S]*?\\\]|\$\$[\s\S]*?\$\$|\\\([^\n]*?\\\)|(?<!\\)\$(?![\s$])(?:\\.|[^\\$\n])+?(?<!\s)\$(?!\d)/gm, function (value) {
       var key = prefix + tokens.size + '\uE001', html, block = false;
       if (value.startsWith('```')) {
         block = true;
@@ -76,9 +76,15 @@
       } else if (value.startsWith('`')) {
         html = '<code>' + escHtml(value.slice(1, -1)) + '</code>';
       } else {
-        block = value.startsWith('$$') || value.startsWith('\\[');
-        var size = value.startsWith('$') && !block ? 1 : 2;
+        // Some providers reproduce JSON-style escaping in visible math. Match
+        // the complete doubled delimiter before the ordinary one, then remove
+        // one escaping layer only inside that explicitly doubled math span.
+        // Ordinary TeX (including matrix row breaks), prose and code stay literal.
+        var doubled = value.startsWith(String.raw`\\(`) || value.startsWith(String.raw`\\[`);
+        block = value.startsWith('$$') || value.startsWith('\\[') || value.startsWith(String.raw`\\[`);
+        var size = doubled ? 3 : (value.startsWith('$') && !block ? 1 : 2);
         var tex = value.slice(size, -size);
+        if (doubled && !/(^|[^\\])\\[A-Za-z]/.test(tex)) tex = tex.replace(/\\\\/g, '\\');
         var tag = block ? 'div' : 'span';
         html = '<' + tag + ' class="ai-feedback-math" data-display="' + block + '" data-tex="' + escHtml(tex) + '">' + escHtml(value) + '</' + tag + '>';
       }

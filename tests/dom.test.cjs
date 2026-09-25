@@ -140,3 +140,37 @@ test('cancelling while math is typesetting does not consume a hint', async () =>
   assert.equal(w.document.querySelector('#out .ai-feedback-body'), null);
   adapter.dispose(); w.close();
 });
+
+test('over-escaped provider math renders while ordinary matrix row breaks and code stay intact', () => {
+  const {F, w} = page();
+  const katex = require('katex');
+  const el = w.document.createElement('div');
+  const gradient = String.raw`\nabla f = \left(\frac{\partial f}{\partial x}, \frac{\partial f}{\partial y}\right)`;
+  const matrix = String.raw`\begin{pmatrix}a&b\\c&d\end{pmatrix}`;
+  const escaped = value => value.replaceAll('\\', '\\\\');
+  const fixtures = [String.raw`\\(x\\)`, String.raw`\\(x^2\\)`, String.raw`\\(` + escaped(gradient) + String.raw`\\)`,
+    String.raw`\\[` + escaped(matrix) + String.raw`\\]`,
+    String.raw`\[` + matrix + String.raw`\]`,
+    String.raw`\\[` + matrix + String.raw`\\]`];
+  el.innerHTML = F.renderMarkdown(fixtures.join('\n\n') + '\n\n`' + fixtures[2] + '`\n\n```tex\n' + fixtures[3] + '\n```');
+  const nodes = [...el.querySelectorAll('.ai-feedback-math')];
+  assert.deepEqual(nodes.map(node => node.dataset.tex), ['x', 'x^2', gradient, matrix, matrix, matrix]);
+  for (const node of nodes) node.innerHTML = katex.renderToString(node.dataset.tex, {throwOnError: true, trust: false, displayMode: node.dataset.display === 'true'});
+  assert.equal(el.querySelectorAll('.katex').length, 6);
+  assert.equal(el.querySelectorAll('.katex-error').length, 0);
+  assert.equal(el.querySelector('code').textContent, fixtures[2]);
+  assert.equal(el.querySelector('pre code').textContent, fixtures[3]);
+  // The old parser left a backslash before each partially matched math token.
+  assert.equal([...el.querySelectorAll('p')].flatMap(p => [...p.childNodes]).filter(n => n.nodeType === 3).map(n => n.textContent).join('').trim(), '');
+  w.close();
+});
+
+test('teaching criteria show literal TeX delimiters rather than JSON-escaped instructions', () => {
+  const {F, w} = page();
+  const criterion = String.raw`Use \(x\) or \[x^2\], preserving \frac{a}{b}.`;
+  const messages = F.buildMessages({...fixtures.mathematics, criteria: [criterion]});
+  assert.ok(messages[0].content.includes(criterion));
+  assert.ok(!messages[0].content.includes(criterion.replaceAll('\\', '\\\\')));
+  assert.ok(F.buildPrompt({...fixtures.mathematics, criteria: [criterion]}).includes(criterion));
+  w.close();
+});
