@@ -102,7 +102,7 @@ def main():
     if site.exists():
         shutil.rmtree(site)  # Generated site inside the marked workspace only.
     site.mkdir()
-    for name in ['_quarto.yml', 'index.qmd', 'examples.qmd', 'py-exercise-examples.qmd']:
+    for name in ['_quarto.yml', 'index.qmd', 'examples.qmd']:
         shutil.copy2(ROOT / name, site / name)
     shutil.copytree(ROOT / 'assets', site / 'assets')
     hashes = {}

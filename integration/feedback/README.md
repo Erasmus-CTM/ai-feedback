@@ -1,10 +1,11 @@
 # Shared integration workbench
 
 All common examples and acceptance checks belong to **ai-feedback**.
-The source is the root **`examples.qmd`**: six text/image activities followed by
+The source is the root **`examples.qmd`**: six text/image activities plus
 Python unit-test, mathematics and interactive Python baseline exercises.
-The companion `py-exercise-examples.qmd` page has five partially completed Python
-functions, with separate author notes and learner tasks.
+The same file has **Non-Python** and **Python** tabs. The Python tab includes five
+partially completed functions, with separate author notes and learner tasks.
+Add a sibling tab in this file for each new integration; do not create another examples page.
 Develop and validate each shared adapter here first; only then open consumer PRs.
 The first adapter is py-exercise, followed by Pyodide and mathematics.
 
@@ -80,7 +81,7 @@ Reset, mathematics accepting 42, interactive Python printing 6, and the shared
 copy prompt/cogwheel. It fails when those runtimes cannot load. Python execution
 is not mocked. The six standalone activities also retain their existing
 rendered-page/image-transport checks. Live AI replies remain outside CI.
-The browser check also opens `py-exercise-examples.html`: every starter must run
+The browser check also switches to the **Python** tab: every starter must run
 and fail at least one check, a corrected version must pass, and Reset must restore
 the exact starter. It verifies printed output, code restrictions and hidden hints.
 

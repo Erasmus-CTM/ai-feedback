@@ -30,8 +30,8 @@ const server = http.createServer((req, res) => {
     page.on('requestfailed', request => report.failedRequests.push({url: request.url(), error: request.failure()?.errorText}));
     await page.goto('http://127.0.0.1:' + server.address().port + '/examples.html', {waitUntil: 'domcontentloaded'});
     console.log('Waiting for real Pyodide and Monaco initialization…');
-    await page.locator('.py-exercise-check').waitFor();
-    await page.locator('.qpyodide-button-run').waitFor();
+    await page.locator('.py-exercise-check').first().waitFor({state: 'attached'});
+    await page.locator('.qpyodide-button-run').waitFor({state: 'attached'});
     await page.locator('.math-check-btn').waitFor();
     await page.waitForFunction(() => globalThis.monaco?.editor.getModels().some(m => m.getValue().includes('def add')));
     console.log('All three consumer controls initialized.');
@@ -39,30 +39,39 @@ const server = http.createServer((req, res) => {
     assert.ok(!/read the handwritten Spanish|Do not rewrite the whole response/i.test(await page.locator('#handwriting').innerText()));
     assert.equal(await page.locator('#handwriting #handwriting-sample-download').count(), 1);
     report.checks.push('Learner cards omit reviewer instructions and expose the handwriting download');
-    // The Python and mathematical checkers really execute in the Pyodide worker.
-    await page.locator('.py-exercise-check').click();
-    await page.waitForFunction(() => document.querySelector('.py-exercise-result .py-test-fail'));
+    // Switch tabs before interacting with the real consumer controls.
+    const pythonTab = page.getByRole('tab', {name: 'Python', exact: true});
+    const nonPythonTab = page.getByRole('tab', {name: 'Non-Python', exact: true});
+    await pythonTab.click();
+    assert.equal(await page.locator('[role=tab][aria-selected="true"]').innerText(), 'Python');
+    const additionId = await page.evaluate(() => window.__pyExercises.find(x => x.label === 'integration-add').id);
+    const addition = page.locator('#py-exercise-' + additionId);
+    await addition.locator('.py-exercise-check').click();
+    await addition.locator('.py-test-fail').first().waitFor();
     report.checks.push('Python starter fails its tests');
     const setCode = code => page.evaluate(code => monaco.editor.getModels().find(m => m.getValue().includes('def add')).setValue(code), code);
     await setCode('def add(a, b):\n    return a + b');
-    await page.locator('.py-exercise-check').click();
-    await page.waitForFunction(() => document.querySelectorAll('.py-exercise-result .py-test-pass').length === 3);
+    await addition.locator('.py-exercise-check').click();
+    await page.waitForFunction(id => document.querySelectorAll('#py-exercise-' + id + ' .py-test-pass').length === 3, additionId);
     report.checks.push('Python corrected response passes all three checks');
     await setCode('import os\ndef add(a, b):\n    return a + b');
-    await page.locator('.py-exercise-check').click();
-    await page.waitForFunction(() => /forbidden|not allowed/i.test(document.querySelector('.py-exercise-result').textContent));
+    await addition.locator('.py-exercise-check').click();
+    await addition.locator('.py-exercise-violations').waitFor();
     report.checks.push('Forbidden imports are rejected');
-    await page.locator('.py-exercise-reset').click();
-    assert.equal(await page.locator('.py-exercise-result').textContent(), '');
+    await addition.locator('.py-exercise-reset').click();
+    assert.equal(await addition.locator('.py-exercise-result').textContent(), '');
     assert.ok(await page.evaluate(() => monaco.editor.getModels().some(m => m.getValue().includes('return a - b'))));
     report.checks.push('Reset restores the starter and clears results');
+    await nonPythonTab.click();
     await page.locator('.math-input').fill('42');
     await page.locator('.math-check-btn').click();
     await page.waitForFunction(() => document.querySelector('.math-input').classList.contains('math-input-ok'));
     report.checks.push('Mathematics checker accepts 42');
+    await pythonTab.click();
     await page.locator('.qpyodide-button-run').click();
     await page.waitForFunction(() => /\b6\b/.test(document.querySelector('.qpyodide-output-code-area').textContent));
     report.checks.push('Interactive Python executes and prints 6');
+    await nonPythonTab.click();
     await page.locator('#spanish-writing .ai-feedback-button').first().click();
     await page.locator('#spanish-writing pre').waitFor();
     assert.match(await page.locator('#spanish-writing pre').textContent(), /Yo vive en Trondheim/);
@@ -71,8 +80,8 @@ const server = http.createServer((req, res) => {
     report.checks.push('Shared feedback copy prompt and cogwheel work beside all consumers');
     assert.deepEqual(report.pageErrors, []);
     await page.screenshot({path: path.join(site, 'integration-desktop.png'), fullPage: true});
-    await page.goto('http://127.0.0.1:' + server.address().port + '/py-exercise-examples.html', {waitUntil: 'domcontentloaded'});
-    await page.waitForFunction(() => globalThis.monaco?.editor.getModels().length === 5);
+    await page.locator('dialog.ai-feedback-settings').getByRole('button', {name: 'Cancel', exact: true}).click();
+    await pythonTab.click();
     const solutions = {
       'practice-price': 'def price_with_tax(price, rate):\n    tax = price * rate\n    return price + tax',
       'practice-total': 'def total(values):\n    result = 0\n    for value in values:\n        result += value\n    return result',
@@ -80,10 +89,12 @@ const server = http.createServer((req, res) => {
       'practice-circle': 'def circle_area(radius):\n    pi = 3.14159\n    return pi * radius ** 2',
       'practice-palindrome': 'def is_palindrome(text):\n    normalized = text.lower()\n    return normalized == normalized[::-1]'
     };
-    const exercises = await page.evaluate(() => window.__pyExercises);
+    const exercises = await page.evaluate(() => window.__pyExercises.filter(x => x.label.startsWith('practice-')));
     assert.equal(exercises.length, 5);
     for (const exercise of exercises) {
       const cell = page.locator('#py-exercise-' + exercise.id);
+      const bounds = await cell.locator('.monaco-editor').boundingBox();
+      assert.ok(bounds && bounds.width > 100 && bounds.height > 40, exercise.label + ': editor must lay out after opening its tab');
       const result = cell.locator('.py-exercise-result');
       const fn = /def (\w+)\(/.exec(exercise.starter)[1];
       const modelId = await page.evaluate(fn => monaco.editor.getModels().find(m => m.getValue().includes('def ' + fn + '(')).uri.toString(), fn);
