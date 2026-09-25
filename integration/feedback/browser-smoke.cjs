@@ -174,6 +174,13 @@ const server = http.createServer((req, res) => {
     await page.screenshot({path: path.join(site, 'python-practice-desktop.png'), fullPage: true});
     await page.setViewportSize({width: 390, height: 844});
     await page.locator('#task-price').scrollIntoViewIfNeeded();
+    assert.ok(await page.locator('.py-exercise-buttons').evaluateAll(bars => bars.every(bar => {
+      const bounds = bar.getBoundingClientRect();
+      return [...bar.children].every(button => {
+        const rect = button.getBoundingClientRect();
+        return rect.left >= bounds.left - 1 && rect.right <= bounds.right + 1 && button.scrollWidth <= button.clientWidth + 1;
+      });
+    })), 'Python controls must fit on mobile without squeezing or overflowing labels');
     await page.screenshot({path: path.join(site, 'python-practice-mobile.png'), fullPage: true});
     console.log(JSON.stringify(report, null, 2));
   } finally {
