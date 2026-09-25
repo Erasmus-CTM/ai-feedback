@@ -9,18 +9,19 @@ filters:
 
 This page is both a demonstration for course authors and a set of activities you
 can try as a learner. Each **For course authors** note explains the feature being
-demonstrated. The bordered **Your task** card contains the learner's instructions,
+demonstrated. In activities 1–6, the bordered **Your task** card contains the learner's instructions,
 response field and Feedback button. Author notes are not sent for feedback.
+Reviewer guidance is configured separately from the learner's task.
 
-## How to try an activity
+## How to try activities 1–6
 
 1. Read **Your task**, then edit the sample response or enter your own. Some
    sample responses contain deliberate beginner mistakes.
 2. Choose **Feedback**. On a first visit, **Copy prompt** mode shows a prompt to
-   paste into your chosen AI chat; it does not display a simulated model reply.
+   paste into your chosen AI chat.
 3. For a reply on this page, open the **⚙ Feedback settings** cogwheel, select
    **Direct API**, and enter your institution's base URL, model and personal key.
-   Every cogwheel opens the same settings, shared across this website. Saved
+   Their cogwheels open the same settings, shared across this website. Saved
    settings are reused on later visits.
 
 For image activities, choose a model that accepts images. In **Copy prompt** mode,
@@ -48,8 +49,12 @@ do in the morning. Use the draft below as a starting point, or replace it with
 your own text. Choose **Feedback** when you are ready for advice in English.
 
 ::: {.feedback-criteria}
-**Feedback focus:** vocabulary and present-tense grammar appropriate to Spanish
-course 1. Suggest up to three useful improvements while preserving the learner's
+Review vocabulary and present-tense grammar appropriate to Spanish
+course 1.
+:::
+
+::: {.feedback-criteria}
+Suggest up to three useful improvements while preserving the learner's
 meaning and simple style; do not replace the whole response.
 :::
 
@@ -85,7 +90,7 @@ Cada mañana, María camina a la escuela con su hermano. Les gusta estudiar idio
 :::
 :::
 
-## 3. Shared context and the legacy alias
+## 3. Spanish adjective agreement
 
 ::: {.callout-note .example-author-notes}
 ### For course authors
@@ -125,11 +130,8 @@ as the learner's work, so typed text is optional. Use a vision-capable model for
 direct feedback. The downloadable, AI-generated handwriting sample contains
 two deliberate beginner mistakes for testing; feedback wording will vary by model.
 
-[Download the Spanish handwriting sample (PNG)](assets/spanish-handwriting.png){#handwriting-sample-download download="spanish-handwriting.png"}
-
-Save the image, then select it with **Upload images** in the task below. The
-sample is not attached automatically. To test image reading, leave **Your response**
-empty. Look for feedback on the verb forms in the second and third sentences.
+To test image reading, leave **Your response** empty. Look for feedback on the
+verb forms in the second and third sentences. The sample is not attached automatically.
 :::
 
 ::: {.ai-feedback #handwriting profile="language-quality" response-language="es" feedback-language="en" learner-level="Spanish course 1" image-upload="true" image-role="response" context="none"}
@@ -137,11 +139,14 @@ empty. Look for feedback on the verb forms in the second and third sentences.
 
 Write three short Spanish sentences introducing yourself, saying where you live,
 and mentioning something you like. Photograph your handwriting and select the
-photo with **Upload images**, or upload the sample linked above to try the activity.
+photo with **Upload images**, or use the sample below to try the activity.
 You may leave **Your response** empty. Choose **Feedback** for advice in English.
 
+[Download the Spanish handwriting sample (PNG)](assets/spanish-handwriting.png){#handwriting-sample-download download="spanish-handwriting.png"}
+Save the image, then select it with **Upload images**.
+
 ::: {.feedback-criteria}
-**Feedback focus:** read the handwritten Spanish and identify up to three useful
+Read the handwritten Spanish and identify up to three useful
 improvements to vocabulary, grammar or spelling at Spanish course 1 level. If a
 word is unreadable, say so instead of guessing. Do not rewrite the whole response.
 :::
@@ -166,7 +171,7 @@ Spanish sentences describing things you can see in it. Choose **Feedback** for
 advice in English about your Spanish and how well the description fits the picture.
 
 ::: {.feedback-criteria}
-**Feedback focus:** vocabulary and grammar appropriate to Spanish course 1, and
+Review vocabulary and grammar appropriate to Spanish course 1, and
 whether the description matches the visible picture. Do not invent details that
 cannot be seen, and do not supply a complete replacement description.
 :::
@@ -201,7 +206,7 @@ or replace it with your own translation. Choose **Feedback** for advice in
 English about meaning, natural Norwegian phrasing and grammar.
 
 ::: {.feedback-criteria}
-**Feedback focus:** preserve the German meaning, tense, relationships and sequence
+Preserve the German meaning, tense, relationships and sequence
 of events. Accept valid alternative Norwegian Bokmål translations. Explain up to
 three improvements in English, quoting German or Norwegian where useful. Do not
 supply a complete replacement translation.
@@ -216,9 +221,16 @@ På søndag reiser Lena hjem igjen.
 
 ## Consumer integration workbench
 
+::: {.callout-note .example-author-notes}
+### For course authors
+
 The activities below load the selected consumer branches on this same examples
 page. They establish a working baseline before the shared feedback adapters are
 added here. [Exact source revisions for this build](resolved-repos.json).
+:::
+
+Try the activities below, or open the [Python practice examples](py-exercise-examples.qmd)
+for more partially completed exercises.
 
 ## 7. Python unit-test exercise
 
@@ -228,12 +240,13 @@ added here. [Exact source revisions for this build](resolved-repos.json).
 **Feature:** a py-exercise cell with its existing checker and Reset behavior.
 This is the first consumer to gain a shared-feedback adapter. That adapter will
 be developed and tested on this page before a consumer PR is opened.
+This baseline has no AI Feedback button yet.
 :::
 
 **Your task**
 
 Implement addition, then choose **Check**. The starter deliberately subtracts.
-Use **Reset** to restore the starter. This baseline has no AI Feedback button yet.
+Use **Reset** to restore the starter.
 
 ```{py-exercise}
 #| label: integration-add
@@ -264,6 +277,7 @@ Enter the numerical answer and choose **Check**.
 
 ```{math-exercise}
 #| label: integration-math
+#| context: none
 What is $6\cdot7$? _[42]
 ```
 
@@ -290,9 +304,13 @@ print(sum(values))
 
 ## Next integration steps
 
+::: {.callout-note .example-author-notes}
+### For course authors
+
 All shared-feedback development and acceptance checks live in this repository's
-`examples.qmd`. Once an adapter works here, its changes can be propagated in a
+examples pages. Once an adapter works here, its changes can be propagated in a
 separate consumer PR. The order is py-exercise, Pyodide, then mathematics.
 
 For installation and copyable authoring examples, see the
 [README and API guide](https://github.com/Erasmus-CTM/ai-feedback#api-quick-start).
+:::

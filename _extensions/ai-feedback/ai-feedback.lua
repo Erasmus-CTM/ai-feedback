@@ -53,14 +53,18 @@ local function activity(block, context)
       table.insert(materials, { id = child.identifier ~= "" and child.identifier or id .. "-source", role = "source", language = attrs["source-language"] or "", text = sourceText(child) })
       visible:insert(preserveMath(child))
     elseif child.t == "Div" and child.classes:includes("feedback-criteria") then
-      criteria = {sourceText(child)}; visible:insert(child)
+      -- Criteria configure the reviewer; they are not instructions to the learner.
+      criteria = criteria or {}
+      table.insert(criteria, sourceText(child))
     elseif child.t == "Div" and child.classes:includes("feedback-starter") then
       starter = sourceText(child)
     else
       visible:insert(child); taskBlocks:insert(child)
     end
   end
-  local task = sourceText(pandoc.Div(taskBlocks))
+  local taskParts = {}
+  for _, child in ipairs(taskBlocks) do table.insert(taskParts, sourceText(child)) end
+  local task = table.concat(taskParts, "\n\n")
   if task == "" then task = profile == "translation" and "Translate the supplied source into the response language." or "Give feedback on the learner's response." end
   local contextMode = attrs["context"] == "none" and "none" or (attrs["context"] and "explicit" or "auto")
   local data = {

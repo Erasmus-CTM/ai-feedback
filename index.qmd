@@ -8,6 +8,8 @@ handles provider settings, prompts and feedback display.
 
 [Try the working examples](examples.qmd){.btn .btn-primary}
 
+[Practice Python with partially completed functions](py-exercise-examples.qmd).
+
 Each example separates **For course authors** notes from a learner's **Your task**
 card. The handwriting activity includes a downloadable Spanish sample to upload.
 

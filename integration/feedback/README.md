@@ -3,6 +3,8 @@
 All common examples and acceptance checks belong to **ai-feedback**.
 The source is the root **`examples.qmd`**: six text/image activities followed by
 Python unit-test, mathematics and interactive Python baseline exercises.
+The companion `py-exercise-examples.qmd` page has five partially completed Python
+functions, with separate author notes and learner tasks.
 Develop and validate each shared adapter here first; only then open consumer PRs.
 The first adapter is py-exercise, followed by Pyodide and mathematics.
 
@@ -28,7 +30,7 @@ Use an HTTP origin: Monaco and Pyodide workers do not work reliably with `file:/
 
 | Repository | Branch | Default source |
 |---|---|---|
-| ai-feedback | `feature/integration-examples` | This checkout, including local edits |
+| ai-feedback | `main` | This checkout, including local edits |
 | py-exercise | `feature/shared-feedback-integration` | Pinned branch commit |
 | math-exercise | `main` | Pinned pre-migration commit |
 | pyodide-interaktiv | `main` | Pinned pre-migration commit |
@@ -78,6 +80,9 @@ Reset, mathematics accepting 42, interactive Python printing 6, and the shared
 copy prompt/cogwheel. It fails when those runtimes cannot load. Python execution
 is not mocked. The six standalone activities also retain their existing
 rendered-page/image-transport checks. Live AI replies remain outside CI.
+The browser check also opens `py-exercise-examples.html`: every starter must run
+and fail at least one check, a corrected version must pass, and Reset must restore
+the exact starter. It verifies printed output, code restrictions and hidden hints.
 
 The existing examples workflow runs all checks before uploading the rendered
 site and revision/browser reports. Successful main builds deploy the same site

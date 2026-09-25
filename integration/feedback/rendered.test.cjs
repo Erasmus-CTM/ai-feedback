@@ -52,3 +52,54 @@ test('shared text feedback works on the combined page without running Python or 
   assert.equal(w.document.querySelectorAll('dialog.ai-feedback-settings').length, 1);
   dom.window.close();
 });
+
+test('mathematics feedback excludes the author note from learning context', () => {
+  const dom = new JSDOM(html, {url: 'https://integration.invalid/', runScripts: 'outside-only'});
+  const w = dom.window;
+  w.__mathExerciseTestMode = true;
+  // Exercise the real resolver/prompt builder without starting consumer runtimes.
+  w.document.addEventListener = () => {};
+  const bundle = [...w.document.scripts].find(s => s.textContent.includes('var ME_CFG ='));
+  w.eval(bundle.textContent);
+  const cell = w.document.querySelector('.math-exercise-cell');
+  const api = w.__mathExerciseTestApi;
+  assert.equal(cell.dataset.contextMode, 'none');
+  assert.equal(api.resolveContexts(cell).length, 0);
+  const question = api.questionText(cell, [], () => 'Answer');
+  const prompt = api.buildUserPrompt(question, '42', '', api.resolveContexts(cell));
+  assert.match(prompt, /6.*7/);
+  assert.match(prompt, /42/);
+  assert.doesNotMatch(prompt, /For course authors|Feature:|shared adapter|legacy settings|learning_context/);
+  dom.window.close();
+});
+
+test('Python practice keeps five incomplete starters and their tasks separate from author notes', () => {
+  const dom = new JSDOM(fs.readFileSync(path.join(site, 'py-exercise-examples.html'), 'utf8'), {runScripts: 'outside-only'});
+  const w = dom.window;
+  // Only the declarative exercise data is evaluated, not the Python runtime.
+  for (const script of w.document.scripts) {
+    if (script.textContent.trim().startsWith('(window.__pyExercises =')) w.eval(script.textContent);
+  }
+  assert.equal(w.__pyExercises.length, 5);
+  assert.equal(new Set(w.__pyExercises.map(x => x.label)).size, 5);
+  assert.equal(w.document.querySelectorAll('.example-learner-task').length, 5);
+  for (const task of w.document.querySelectorAll('.example-learner-task')) {
+    assert.equal(task.querySelectorAll('.py-exercise-cell').length, 1);
+    assert.equal(task.querySelectorAll('.example-author-notes').length, 0);
+    const prose = task.cloneNode(true);
+    prose.querySelectorAll('script').forEach(s => s.remove());
+    assert.doesNotMatch(prose.textContent, /For course authors|Feature:|shared.feedback adapter|assert /);
+  }
+  for (const data of w.__pyExercises) {
+    assert.match(data.starter, /def \w+\(/);
+    assert.match(data.starter, /TODO/);
+    assert.doesNotMatch(data.starter, /## TESTS ##|assert /);
+    assert.match(data.tests, /assert /);
+  }
+  for (const node of w.document.querySelectorAll('a[href$=".html"]')) {
+    const href = node.getAttribute('href');
+    if (/^https?:/.test(href)) continue;
+    assert.ok(fs.existsSync(path.resolve(site, href)), 'Missing page: ' + href);
+  }
+  dom.window.close();
+});
