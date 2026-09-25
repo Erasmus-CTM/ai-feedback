@@ -159,6 +159,13 @@ test('standalone math and both shared-filter orders load one usable runtime', as
         assert.ok(cell.querySelector('.math-feedback-btn').disabled);
         assert.match(cell.querySelector('.ai-feedback-output').textContent, /Update.*ai-feedback/);
         assert.equal(cell.querySelector('.math-check-btn').disabled, false);
+        w.mainPyodide = {loadPackage: async () => {}, globals: {set() {}}, runPythonAsync: async () => JSON.stringify({status: 'correct', score: 1})};
+        cell.querySelector('.math-input').dispatchEvent(new w.Event('input', {bubbles: true}));
+        const check = cell.querySelector('.math-check-btn'); check.click();
+        for (let n = 0; n < 30 && check.disabled; n++) await new Promise(resolve => setImmediate(resolve));
+        assert.equal(check.disabled, false); assert.ok(cell.querySelector('.math-fb-ok'));
+        assert.ok(cell.querySelector('.math-feedback-btn').disabled);
+        assert.match(cell.querySelector('.ai-feedback-output').textContent, /Update.*ai-feedback/);
         dom.window.close(); continue;
       }
       cell.querySelector('.math-feedback-btn').click();
