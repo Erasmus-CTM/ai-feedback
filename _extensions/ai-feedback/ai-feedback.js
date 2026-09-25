@@ -89,7 +89,7 @@
     return settings;
   }
   function getClient() { return F.createClient(loadConfig(), { storage: store(loadConfig().storage) }); }
-  function signature(request) { const { feedback, ...rest } = request; return JSON.stringify(rest); }
+  function signature(request) { return JSON.stringify(request); }
   function attach(options) {
     const { button: trigger, output, getRequest } = options;
     const L = lang(options.uiLanguage);
@@ -105,20 +105,23 @@
       controller = new AbortController();
       const cancel = button(L.cancel); cancel.onclick = () => controller?.abort(); output.append(cancel);
       try {
-        let request = await getRequest();
+        const hintLevel = count + 1;
+        async function collect() {
+          const request = await getRequest({ hintLevel });
+          if (request.feedback?.mode === 'hints') return { ...request, feedback: { ...request.feedback, level: Math.min(hintLevel, request.feedback.steps.length) } };
+          return request;
+        }
+        const request = await collect();
         const snapshot = signature(request);
-        if (request.feedback?.mode === 'hints') request = { ...request, feedback: { ...request.feedback, level: Math.min(count + 1, request.feedback.steps.length) } };
         const cfg = loadConfig();
         let reply;
         if (options.client || cfg.mode === 'api') reply = await (options.client || getClient()).request(request, { signal: controller.signal });
         else reply = { text: F.buildPrompt(request), format: 'prompt' };
         if (controller.signal.aborted) throw new F.FeedbackError('ABORTED', L.cancelled);
-        if (snapshot !== signature(await getRequest())) { output.textContent = L.stale; return; }
+        const current = signature(await collect());
+        if (controller.signal.aborted || disposed) throw new F.FeedbackError('ABORTED', L.cancelled);
+        if (snapshot !== current) { output.textContent = L.stale; return; }
         output.replaceChildren();
-        if (request.feedback?.mode === 'hints') {
-          count++; try { if (counterKey) store('session')?.setItem(counterKey, String(count)); } catch {}
-          output.append(node('p', L.hint + ' ' + Math.min(count, request.feedback.steps.length), 'ai-feedback-hint'));
-        }
         if (reply.format === 'prompt') {
           output.append(node('p', L.prompt));
           const pre = node('pre', reply.text, 'ai-feedback-prompt'); output.append(pre);
@@ -130,6 +133,12 @@
           catch (error) { console.warn('ai-feedback: math typesetting unavailable; keeping readable TeX.', error); }
           if (body.isConnected && !controller.signal.aborted) options.afterRender?.(body);
         }
+        if (controller.signal.aborted || disposed) throw new F.FeedbackError('ABORTED', L.cancelled);
+        if (request.feedback?.mode === 'hints') {
+          count++; try { if (counterKey) store('session')?.setItem(counterKey, String(count)); } catch {}
+          output.prepend(node('p', L.hint + ' ' + Math.min(count, request.feedback.steps.length), 'ai-feedback-hint'));
+        }
+
       } catch (e) {
         output.textContent = e.code === 'ABORTED' ? L.cancelled : e.message;
         if (e.code === 'CONFIGURATION') { const configure = button(L.settings); configure.onclick = openSettings; output.append(configure); }

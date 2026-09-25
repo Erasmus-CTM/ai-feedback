@@ -24,6 +24,10 @@ Choose a tab below. All examples share this page.
 
 {{< include examples/_python.qmd >}}
 
+## Mathematics {#mathematics}
+
+{{< include examples/_mathematics.qmd >}}
+
 ::::::
 
 {{< include examples/_integration.qmd >}}

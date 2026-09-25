@@ -203,23 +203,3 @@ siden to år. Hvis været er fint, går de en tur ved havnen på ettermiddagen.
 På søndag reiser Lena hjem igjen.
 :::
 :::
-
-### 7. Mathematics
-
-::: {.callout-note .example-author-notes}
-### For course authors
-
-**Feature:** math-exercise checking alongside the other extensions. Its current
-Feedback button still uses legacy settings and the four-step teaching policy;
-the shared adapter will be validated here before propagation.
-:::
-
-**Your task**
-
-Enter the numerical answer and choose **Check**.
-
-```{math-exercise}
-#| label: integration-math
-#| context: none
-What is $6\cdot7$? _[42]
-```

@@ -152,3 +152,9 @@ legacy math metadata and supported MathJax/KaTeX source. UI controls, hidden
 content and previous feedback are excluded. Material roles belong to each
 reference, so the same tagged block may be context in one task and source in
 another.
+
+Adapters using `attach` may define `getRequest({hintLevel})`. The hint level is
+frozen for a request and its final stale-response check. Use it to coordinate
+step-dependent policy such as allowing a worked solution on step four. The
+adapter compares the complete request, including feedback policy, before
+rendering; cancellation during either asynchronous collection prevents success.
