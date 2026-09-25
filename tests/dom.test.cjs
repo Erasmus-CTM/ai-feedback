@@ -100,3 +100,43 @@ test('all cogwheels open one shared dialog and saved settings are website-wide',
   assert.equal(F.loadConfig().model, 'changed-in-another-tab');
   w.close();
 });
+
+test('cancel during the final async snapshot prevents rendering and hint advancement', async () => {
+  const {F, w} = page('<button>Feedback</button><div id="out"></div>');
+  let calls = 0, finish;
+  const request = structuredClone(fixtures.mathematics);
+  const adapter = F.attach({id: 'cancel-snapshot', button: w.document.querySelector('button'), output: w.document.querySelector('#out'),
+    getRequest: () => ++calls === 1 ? request : new Promise(resolve => {finish = resolve;}),
+    client: {request: async () => ({text: 'OLD FEEDBACK', format: 'markdown'})}});
+  const pending = adapter.request(); await new Promise(resolve => setImmediate(resolve));
+  adapter.cancel(); finish(request); await pending;
+  assert.doesNotMatch(w.document.querySelector('#out').textContent, /OLD FEEDBACK/);
+  assert.equal(w.sessionStorage.getItem('ai-feedback-hints|/course|cancel-snapshot'), null);
+  adapter.dispose(); w.close();
+});
+
+test('feedback policy changes make a pending response stale', async () => {
+  const {F, w} = page('<button>Feedback</button><div id="out"></div>');
+  let request = structuredClone(fixtures.mathematics), finish;
+  const adapter = F.attach({id: 'policy', button: w.document.querySelector('button'), output: w.document.querySelector('#out'), getRequest: () => request,
+    client: {request: () => new Promise(resolve => {finish = resolve;})}});
+  const pending = adapter.request(); await new Promise(resolve => setImmediate(resolve));
+  request = {...request, feedback: {...request.feedback, language: 'en'}};
+  finish({text: 'OLD FEEDBACK', format: 'markdown'}); await pending;
+  assert.match(w.document.querySelector('#out').textContent, /changed/);
+  assert.equal(w.sessionStorage.getItem('ai-feedback-hints|/course|policy'), null);
+  adapter.dispose(); w.close();
+});
+
+test('cancelling while math is typesetting does not consume a hint', async () => {
+  const {F, w} = page('<button>Feedback</button><div id="out"></div>');
+  let finish;
+  F.typesetFeedback = () => new Promise(resolve => {finish = resolve;});
+  const adapter = F.attach({id: 'typeset', button: w.document.querySelector('button'), output: w.document.querySelector('#out'), getRequest: () => fixtures.mathematics,
+    client: {request: async () => ({text: '$x^2$', format: 'markdown'})}});
+  const pending = adapter.request(); await new Promise(resolve => setImmediate(resolve));
+  adapter.cancel(); finish(); await pending;
+  assert.equal(w.sessionStorage.getItem('ai-feedback-hints|/course|typeset'), null);
+  assert.equal(w.document.querySelector('#out .ai-feedback-body'), null);
+  adapter.dispose(); w.close();
+});
