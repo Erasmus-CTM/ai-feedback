@@ -223,7 +223,16 @@ fields, vectors, matrices and an adjustable basis.
 
 Math Feedback uses the shared settings and renderer, without executing a checker.
 Only unchanged previous Check results contribute allowlisted evidence. Its four
-localized teaching steps remain explicit; a worked solution is permitted only
-at the fourth step. The standalone math fallback must match this checkout's four
-shared runtime files byte for byte, verified by the builder. Consumer PRs remain
+teaching steps use central English policy instructions while feedback follows
+the selected language; a worked solution is permitted only at the fourth step.
+The standalone math fallback must match this checkout's six shared runtime and
+policy files byte for byte, verified by the builder. Consumer PRs remain
 separate from acceptance on this page.
+
+## Configurable feedback steps
+
+Shipped defaults preserve the four integrations’ teaching approaches. Override
+them with one YAML file or an ordered `ai-feedback.policy-files` list. Configure
+prompts, step counts, solution permissions, word limits and `reset-on-run`.
+Run/Check restarts hints by default; set `reset-on-run: false` to preserve them.
+See [Teaching policies](docs/feedback-policies.md) for the complete format.

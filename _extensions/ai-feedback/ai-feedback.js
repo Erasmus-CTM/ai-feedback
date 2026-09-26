@@ -95,8 +95,22 @@
     const L = lang(options.uiLanguage);
     let controller, disposed = false, quietCancellation = false;
     let count = 0;
-    const counterKey = options.id ? 'ai-feedback-hints|' + location.pathname + '|' + options.id : null;
+    const counterKey = options.id ? 'ai-feedback-hints-v2|' + location.pathname + '|' + options.id : null;
     try { count = Number(store('session')?.getItem(counterKey)) || 0; } catch {}
+    let policyFingerprint;
+    function syncPolicy() {
+      if (!options.integration) return;
+      const fingerprint = JSON.stringify(F.resolvePolicy(options.integration, options.uiLanguage, options.policyDefaults));
+      if (fingerprint === policyFingerprint) return;
+      const changed = policyFingerprint !== undefined;
+      policyFingerprint = fingerprint;
+      try {
+        if (changed || store('session')?.getItem(counterKey + '|policy') !== fingerprint) {
+          count = 0; store('session')?.removeItem(counterKey);
+          store('session')?.setItem(counterKey + '|policy', fingerprint);
+        }
+      } catch { if (changed) count = 0; }
+    }
     async function run() {
       if (controller || disposed) return;
       const original = trigger.textContent;
@@ -106,9 +120,11 @@
       controller = new AbortController();
       const cancel = button(L.cancel); cancel.onclick = () => controller?.abort(); output.append(cancel);
       try {
+        syncPolicy();
         const hintLevel = count + 1;
         async function collect() {
-          const request = await getRequest({ hintLevel });
+          let request = await getRequest({ hintLevel });
+          if (options.integration) request = F.applyPolicy(options.integration, request, hintLevel, options.policyDefaults);
           if (request.feedback?.mode === 'hints') return { ...request, feedback: { ...request.feedback, level: Math.min(hintLevel, request.feedback.steps.length) } };
           return request;
         }
@@ -136,7 +152,7 @@
         }
         if (controller.signal.aborted || disposed) throw new F.FeedbackError('ABORTED', L.cancelled);
         if (request.feedback?.mode === 'hints') {
-          count++; try { if (counterKey) store('session')?.setItem(counterKey, String(count)); } catch {}
+          count = Math.min(count + 1, request.feedback.steps.length); try { if (counterKey) store('session')?.setItem(counterKey, String(count)); } catch {}
           output.prepend(node('p', L.hint + ' ' + Math.min(count, request.feedback.steps.length), 'ai-feedback-hint'));
         }
 
@@ -147,7 +163,12 @@
       } finally { controller = null; trigger.disabled = false; trigger.textContent = original; output.setAttribute('aria-busy', 'false'); }
     }
     trigger.addEventListener('click', run);
-    return { request: run, cancel({clearOutput = false} = {}) { quietCancellation ||= clearOutput; controller?.abort(); if (clearOutput) output.replaceChildren(); }, dispose() { disposed = true; controller?.abort(); trigger.removeEventListener('click', run); } };
+    return { request: run, reset(reason = 'reset') {
+      quietCancellation = true; controller?.abort(); output.replaceChildren();
+      if (reason !== 'run' || !options.integration || F.resolvePolicy(options.integration, options.uiLanguage, options.policyDefaults)['reset-on-run']) {
+        count = 0; try { if (counterKey) store('session')?.removeItem(counterKey); } catch {}
+      }
+    }, cancel({clearOutput = false} = {}) { quietCancellation ||= clearOutput; controller?.abort(); if (clearOutput) output.replaceChildren(); }, dispose() { disposed = true; controller?.abort(); trigger.removeEventListener('click', run); } };
   }
   function readFile(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error('Could not read image.')); reader.readAsDataURL(file); }); }
   function initActivity(el) {
@@ -179,7 +200,7 @@
     }
     const trigger = button(L.button); const output = node('div', undefined, 'ai-feedback-output'); output.setAttribute('aria-live', 'polite');
     el.append(trigger, settingsButton(data.uiLanguage), output);
-    attach({ id: data.id, button: trigger, output, uiLanguage: data.uiLanguage, getRequest: async () => {
+    attach({ integration: 'non-python', id: data.id, button: trigger, output, uiLanguage: data.uiLanguage, getRequest: async () => {
       if (loadingImages) await loadingImages;
       let materials = (data.materials || []).slice();
       if (data.contextMode === 'explicit') materials.push(...F.collectExplicitContexts(data.contextRefs || '').map(c => ({ id: c.id, role: 'context', text: c.content })));
@@ -191,7 +212,7 @@
       }
       return { task: data.task, profile: data.profile, materials, responses: [{ id: 'response', value: input.value, format: 'text', language: data.responseLanguage }], attachments,
         learner: { level: data.learnerLevel || '' }, criteria: data.criteria,
-        feedback: { language: data.feedbackLanguage, mode: 'review', maxIssues: data.maxIssues || 3, allowFullRewrite: false } };
+        feedback: { language: data.feedbackLanguage, mode: 'review', maxIssues: data.maxIssues, allowFullRewrite: false } };
     } });
   }
   function initialize() { if (document.querySelector('.ai-feedback-activity')) { buildSettings(); document.querySelectorAll('.ai-feedback-activity').forEach(initActivity); } }

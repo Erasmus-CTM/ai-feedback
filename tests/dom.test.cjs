@@ -70,7 +70,7 @@ test('attach discards responses for edited work and failed requests do not advan
   const pending = adapter.request(); await new Promise(resolve => setImmediate(resolve));
   request = { ...request, task: 'Changed task' }; finish({ text: 'Old feedback.', format: 'markdown' }); await pending;
   assert.match(w.document.querySelector('#out').textContent, /changed/);
-  assert.equal(w.sessionStorage.getItem('ai-feedback-hints|/course|exercise'), null);
+  assert.equal(w.sessionStorage.getItem('ai-feedback-hints-v2|/course|exercise'), null);
   adapter.dispose(); w.close();
 });
 test('copy-mode attachment needs no API call and advances hints only after display', async () => {
@@ -79,7 +79,7 @@ test('copy-mode attachment needs no API call and advances hints only after displ
   const adapter = F.attach({ id: 'exercise', button: w.document.querySelector('button'), output: w.document.querySelector('#out'), getRequest: () => fixtures.mathematics });
   await adapter.request();
   assert.match(w.document.querySelector('pre').textContent, /diagnostic question/);
-  assert.equal(w.sessionStorage.getItem('ai-feedback-hints|/course|exercise'), '1');
+  assert.equal(w.sessionStorage.getItem('ai-feedback-hints-v2|/course|exercise'), '1');
   adapter.dispose(); w.close();
 });
 test('saved credentials stay out of prompts and legacy configs require explicit migration', () => {
@@ -111,7 +111,7 @@ test('cancel during the final async snapshot prevents rendering and hint advance
   const pending = adapter.request(); await new Promise(resolve => setImmediate(resolve));
   adapter.cancel(); finish(request); await pending;
   assert.doesNotMatch(w.document.querySelector('#out').textContent, /OLD FEEDBACK/);
-  assert.equal(w.sessionStorage.getItem('ai-feedback-hints|/course|cancel-snapshot'), null);
+  assert.equal(w.sessionStorage.getItem('ai-feedback-hints-v2|/course|cancel-snapshot'), null);
   adapter.dispose(); w.close();
 });
 
@@ -124,7 +124,7 @@ test('feedback policy changes make a pending response stale', async () => {
   request = {...request, feedback: {...request.feedback, language: 'en'}};
   finish({text: 'OLD FEEDBACK', format: 'markdown'}); await pending;
   assert.match(w.document.querySelector('#out').textContent, /changed/);
-  assert.equal(w.sessionStorage.getItem('ai-feedback-hints|/course|policy'), null);
+  assert.equal(w.sessionStorage.getItem('ai-feedback-hints-v2|/course|policy'), null);
   adapter.dispose(); w.close();
 });
 
@@ -136,7 +136,7 @@ test('cancelling while math is typesetting does not consume a hint', async () =>
     client: {request: async () => ({text: '$x^2$', format: 'markdown'})}});
   const pending = adapter.request(); await new Promise(resolve => setImmediate(resolve));
   adapter.cancel(); finish(); await pending;
-  assert.equal(w.sessionStorage.getItem('ai-feedback-hints|/course|typeset'), null);
+  assert.equal(w.sessionStorage.getItem('ai-feedback-hints-v2|/course|typeset'), null);
   assert.equal(w.document.querySelector('#out .ai-feedback-body'), null);
   adapter.dispose(); w.close();
 });
@@ -188,7 +188,7 @@ for (const stage of ['network', 'snapshot', 'typeset']) test('quiet cancellation
   const pending = handle.request(); await new Promise(resolve => setImmediate(resolve));
   handle.cancel({clearOutput: true}); finish(stage === 'network' ? reply : request); await pending;
   assert.equal(w.document.querySelector('#out').textContent, '');
-  assert.equal(w.sessionStorage.getItem('ai-feedback-hints|/course|' + stage), null);
+  assert.equal(w.sessionStorage.getItem('ai-feedback-hints-v2|/course|' + stage), null);
   assert.equal(w.document.querySelector('button').disabled, false);
   handle.dispose(); w.close();
 });
