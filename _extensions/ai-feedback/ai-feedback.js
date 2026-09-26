@@ -132,7 +132,7 @@
         const snapshot = signature(request);
         const cfg = loadConfig();
         let reply;
-        if (options.client || cfg.mode === 'api') reply = await (options.client || getClient()).request(request, { signal: controller.signal });
+        if (options.client || cfg.mode === 'api') reply = await (options.client || getClient()).request(request, { ...options.requestOptions, signal: controller.signal });
         else reply = { text: F.buildPrompt(request), format: 'prompt' };
         if (controller.signal.aborted) throw new F.FeedbackError('ABORTED', L.cancelled);
         const current = signature(await collect());
@@ -203,8 +203,7 @@
     attach({ integration: 'non-python', id: data.id, button: trigger, output, uiLanguage: data.uiLanguage, getRequest: async () => {
       if (loadingImages) await loadingImages;
       let materials = (data.materials || []).slice();
-      if (data.contextMode === 'explicit') materials.push(...F.collectExplicitContexts(data.contextRefs || '').map(c => ({ id: c.id, role: 'context', text: c.content })));
-      if (data.contextMode === 'auto' && data.context) materials.push({ id: 'section-context', role: 'context', text: data.context });
+      materials.push(...F.contextMaterials({mode:data.contextMode, refs:data.contextRefs, text:data.context}));
       if (data.sourceRef) {
         const sources = F.collectExplicitContexts(data.sourceRef);
         if (!sources.length) throw new Error('The referenced source text is missing or unavailable.');

@@ -1,238 +1,240 @@
-# AI Feedback — Quarto extension
+# AI Feedback for Quarto
 
-Shared browser feedback for text, translation, images, mathematics and Python.
-The first release provides text activities and a stable adapter API. Existing
-exercise integrations are migrated incrementally, with examples added alongside
-each integration. No Python runtime is needed for the text activities.
+One feedback service for text and images, `py-exercise`, `math-exercise` and
+`pyodide-interaktiv`. It owns prompts, progressive hints, provider settings,
+requests, cancellation, Markdown/LaTeX rendering and learning-context collection.
+Exercise plugins supply the task, current response and safe evidence from a
+previous Check or Run. Feedback never executes learner code or assigns grades.
 
-[Rendered examples](https://erasmus-ctm.github.io/ai-feedback/examples.html)
-· [Examples source](examples.qmd) · [API documentation](docs/api.md)
+[Combined examples](https://erasmus-ctm.github.io/ctm-assessment/example.html) ·
+[Examples source](https://github.com/Erasmus-CTM/ctm-assessment/blob/main/example.qmd) · [Teaching policies](docs/feedback-policies.md) ·
+[JavaScript API](docs/api.md)
 
-The examples are live on GitHub Pages. Each example separates course-author
-notes from the learner's task; the handwriting activity includes a downloadable
-PNG sample. GitHub Actions tests and renders the site before publishing it.
+## Install once, activate automatically
 
-## Install
+Install ai-feedback **once in the Quarto project**, alongside the exercise
+extensions. Consumers do not contain private copies of its runtime.
 
 ```sh
 quarto add Erasmus-CTM/ai-feedback
 ```
 
+**Integration-branch preview:** until this work is merged, install
+`Erasmus-CTM/ai-feedback@feature/shared-context` and each consumer's
+`feature/shared-feedback-integration` branch. Main-branch consumers do not yet
+have this protocol. The common examples builder pins the exact tested revisions.
+
+For text/image activities alone:
+
+```yaml
+filters: [ai-feedback]
+```
+
+For exercise pages, list the exercise filters you use:
+
 ```yaml
 filters:
-  - ai-feedback
+  - math-exercise
+  - pyodide-interaktiv
+  - py-exercise
+py-exercise:
+  feedback: true
+pyodide:
+  feedback: true
 ai-feedback:
   mode: copy
   storage: local
 ```
 
-Use **Feedback settings** to switch between a copyable prompt and direct API
-feedback. API requests use a personal key supplied in the browser. No key is
-needed for Copy prompt mode. Selected text and images are sent to the selected
-provider only when you request direct feedback. Uploaded images are kept in
-memory, never in browser storage. Copy prompt requires attaching the original
-images separately in your chosen chat application.
+An enabled consumer automatically loads the installed ai-feedback module during
+HTML rendering, including text/image activities on that page. An explicit
+`ai-feedback` filter also works, in either order. Resources and settings load
+once. Flat and owner-qualified `_extensions` layouts and nested project pages
+are supported; duplicate installations or a missing shared dependency produce
+an actionable render error. Rendering does not download dependencies.
 
-## Author an activity
+`py-exercise` loads its browser Python runtime directly when used alone, or
+reuses the runtime from `pyodide-interaktiv` when both are present. Feedback-disabled Python/Pyodide pages do not require
+ai-feedback unless another enabled integration uses it. This feedback interface
+is for HTML; exercise extensions retain their own non-HTML behavior.
 
-```markdown
-::: {.ai-feedback #spanish profile="language-quality" response-language="es" feedback-language="en" learner-level="Spanish course 1"}
-Write five sentences about your daily routine.
-:::
-```
-
-For translation, supply an original source using a nested `.feedback-source`
-block or `source="block-id"`. Mark referenced blocks `.ai-feedback-context`;
-the existing `.math-exercise-context` class is a permanent alias.
-
-See [examples.qmd](examples.qmd), [the API contract](docs/api.md), and
-[the migration plan](docs/migration.md). New features must bring a working
-example and a regression test. Examples use copy mode initially so they work
-without credentials; live provider replies are never simulated.
-
-Phase 1 is the standalone extension and its examples. See the
-[phase 1 recovery and verification record](docs/phase-1.md) for the recovered
-scope, validation, and the boundary before consumer migrations.
-
-## API quick start
-
-### Quarto: German source, Norwegian translation, English feedback
-
-The source block is reusable. The short `.ai-context` class, canonical
-`.ai-feedback-context`, and legacy `.math-exercise-context` are aliases.
-`source="german-original"` gives the referenced block its role in this task.
+## Author text, translation and image tasks
 
 ````markdown
----
-lang: en
-filters:
-  - ai-feedback
----
+::: {.ai-feedback #spanish profile="language-quality" response-language="es" feedback-language="en" learner-level="Spanish course 1"}
+Write five sentences about your daily routine.
 
-::: {#german-original .ai-context}
-Am Samstag fährt Lena mit dem Zug nach Oslo.
+::: {.feedback-starter}
+Me llamo Ana. Yo vivir en Oslo.
 :::
 
-::: {.ai-feedback #translation profile="translation" source="german-original" source-language="de" response-language="nb" feedback-language="en" context="none"}
-Translate the German passage into Norwegian Bokmål.
-
 ::: {.feedback-criteria}
-Review meaning, phrasing and grammar. Accept valid alternative translations.
+Identify up to three useful improvements. Preserve the learner's meaning.
 :::
 :::
 ````
 
-Use `context="id1,id2"` for additional learning context. `context="none"`
-disables automatic context without removing the explicitly selected source.
-Use `.feedback-criteria` for instructions to the reviewer: they are included in
-the request but not displayed in the learner's task. Keep learner instructions
-in the activity's main prose. `feedback-language="en"` selects English feedback.
+The main prose is the learner's task. `.feedback-criteria` is hidden author
+instruction; `.feedback-starter` pre-fills the response. Profiles are `review`,
+`language-quality`, `translation`, `python` and `mathematics`.
 
-### Images
+Translation activities can use a nested `.feedback-source` or
+`source="original-id"` pointing to a tagged context block. `source-language`,
+`response-language` and `feedback-language` are independent. A selected source
+remains part of the task even with `context="none"`.
 
-Add `image-upload="true" image-role="response"` to an activity for images of
-learner work, such as handwritten Spanish. Use `image-role="source"` for a
-picture the learner must describe. A response image can replace typed text;
-a source image still needs a learner response. Direct feedback requires a
-vision-capable model and never silently discards a required image.
+Use `image-upload="true" image-role="response"` for photographed learner work,
+or `image-role="source"` for an image to describe. PNG, JPEG and WebP are
+supported (at most three images, 8 MiB each, 12 MiB combined). Images remain in
+memory. Copy mode requires attaching them separately in the chosen chat app;
+direct feedback needs a vision-capable provider. Required images are not silently
+dropped. Mathematics may explicitly fall back to its supplied textual graph
+summary when a provider cannot accept the optional graph image.
 
-### JavaScript: request feedback
+## The same learning context in all four integrations
 
-When the Quarto extension is enabled, `AIFeedback` is available in the browser:
+| Setting | Meaning |
+|---|---|
+| Omitted or `context: auto` | Preceding prose since the latest heading, including that heading |
+| `context: none` | No surrounding learning context |
+| `context: notes` | Only the tagged block `notes`, anywhere on the page |
+| `context: notes,formula` | Those tagged blocks in the specified order |
 
-```js
-const request = {
-  version: 1,
-  profile: 'translation',
-  task: 'Translate the German passage into Norwegian Bokmål.',
-  materials: [{
-    id: 'original', role: 'source', language: 'de',
-    text: 'Am Samstag fährt Lena mit dem Zug nach Oslo.'
-  }],
-  responses: [{
-    id: 'translation', format: 'text', language: 'nb',
-    value: textarea.value
-  }],
-  feedback: { language: 'en', mode: 'review', maxIssues: 3,
-    allowFullRewrite: false }
-};
+Text activities use attributes such as `context="notes"`; code cells use
+`#| context: notes`. Code integrations also accept `feedback-context` as an
+explicit alias; that alias takes precedence.
 
-// Use the website's saved endpoint, model and personal key.
-const result = await AIFeedback.getClient().request(request);
-// result: { text: '...', format: 'markdown' }
+**Pyodide exception:** `context: interactive`, `setup` and `output` retain their
+execution meaning. Use `feedback-context` when specifying both execution and
+feedback context. Other context values, including `none`, control feedback and
+leave execution at its normal default.
 
-// Or prepare a prompt without making any API request:
-const prompt = AIFeedback.buildPrompt(request);
+Automatic context is collected once from the source document before exercise
+transformation, not by scraping the rendered page. It keeps whole recent blocks
+up to 1,500 characters and preserves source LaTeX. Code, other activities,
+feedback criteria/starters, `.example-author-notes`, `.ai-feedback-ignore`,
+hidden content and generated cell output are excluded. Author callouts remain
+visible but are excluded from context. Heading boundaries apply inside nested
+containers too; a single oversized latest block is omitted rather than sliced.
+
+Explicit context uses a combined 6,000-character budget and preserves math
+through MathJax or KaTeX rendering. Missing, duplicate, untagged, empty or
+over-budget references are skipped with a browser-console warning. Explicit
+selection replaces automatic prose; it does not append to it.
+
+Reusable tagged blocks can be referenced by any integration. See the
+[combined authoring examples](https://github.com/Erasmus-CTM/ctm-assessment#reuse-one-block-across-different-integrations).
+
+## Prompts, hints and local YAML
+
+Defaults ship in `_extensions/ai-feedback/feedback-defaults.yml`. Leave that
+file unchanged and override it in a local file:
+
+```yaml
+# feedback.yml
+ai-feedback:
+  defaults:
+    max-words: 180
+    reset-on-run: true
+  integrations:
+    py-exercise:
+      prompt: Use the terminology taught in this course.
+      steps:
+        - prompt: Ask one guiding question.
+        - prompt: Explain the relevant idea without finished code.
+        - prompt: Explain a complete solution.
+          allow-full-solution: true
 ```
 
-`learner: {level}`, `criteria: [string, ...]`, `evidence: [{label, text}, ...]`
-and `attachments: [{id, role, label, dataUrl}, ...]` are optional. Image data
-URLs must be PNG/JPEG/WebP. Do not include hidden test source, submission
-identifiers or credentials in the request. The API does not run code or assign
-grades. See [API v1](docs/api.md) for validation limits, hints and error codes.
+Load one file with `ai-feedback.policy-files: feedback.yml`, or list several
+files in order. Later files override earlier values within the same scope;
+integration settings override common defaults. Step lists are replaced in full;
+`steps: []` gives ordinary review mode. Inline Quarto metadata can override files.
+Use this loader for ordered step replacement: native `metadata-files` may merge
+arrays before the filter sees them.
 
-### Attach an existing editor and button
+| Integration | Shipped behavior |
+|---|---|
+| Non-Python | Review, no hint sequence |
+| py-exercise | Review, no hint sequence |
+| math-exercise | Four steps; full worked solution permitted at step four |
+| pyodide-interaktiv | Three steps; last describes the approach, without finished code |
 
-```js
-const adapter = AIFeedback.attach({
-  id: 'my-activity',
-  button: feedbackButton,
-  output: feedbackArea,
-  getRequest: () => ({ ...request,
-    responses: [{ id: 'translation', format: 'text', language: 'nb',
-      value: textarea.value }]
-  })
-});
-buttonBar.append(AIFeedback.settingsButton());
-// adapter.cancel(); adapter.dispose();
-```
+Each successful feedback advances one step; the last step repeats. Failed,
+cancelled or stale responses consume no step. Editing invalidates evidence and
+pending feedback but preserves progression. **Run/Check resets hints by default**;
+set `reset-on-run: false` globally or per integration to preserve them. Explicit
+Reset/new math task always restarts. Changing the effective policy resets saved
+progress. Counters belong to the activity and page in the current browser tab.
 
-`getRequest()` collects a current snapshot; it must not run learner code.
-The adapter handles copy/API mode, cancellation, errors and responses that
-became stale during a request. It safely renders feedback Markdown.
+Policies also support `language`, `max-issues`, `allow-full-solution` and
+per-step limits. Prompts are author instructions; they never appear in the
+learner's task. [Full schema, precedence and examples](docs/feedback-policies.md).
 
-### One cogwheel and one setup across the website
+## Provider settings and data sent
 
-Every activity's cogwheel opens the same settings dialog.
-`AIFeedback.openSettings()` opens it programmatically. By default one
-localStorage record shares base URL, model, personal key and mode across all
-pages and tabs on the same origin. Browser storage cannot span different
-domains. Per-tab storage remains an optional user choice. Institutions can
-provide defaults as shown below; keys are entered only in the browser.
-
-## Institution configuration
-
-No provider presets are bundled. Institutions can prefill their own endpoint
-and model in `_quarto.yml` (never an API key):
+Every cogwheel opens the same settings dialog. Copy mode needs no account and
+makes no provider request. Direct API mode uses an OpenAI-compatible endpoint,
+model and personal key entered in the browser. Institutional defaults belong in
+Quarto metadata; never put keys in the project:
 
 ```yaml
 ai-feedback:
-  base-url: https://your-institution.example/v1
-  model: your-model-id
   mode: copy
   storage: local
+  base-url: https://your-institution.example/v1
+  model: your-model-id
 ```
 
-For NTNU, the documented base URL is `https://llm.hpc.ntnu.no/v1`;
-`moonshotai/Kimi-K2.6` accepts text and images.
-Access requires the NTNU network or VPN and a personal API key. Browser CORS
-access must also be allowed by the server; the public examples cannot establish
-a VPN connection for the student. The provider and model remain editable.
+Local storage shares settings across pages on the same origin. Session storage
+limits them to a browser tab. Users can edit settings and explicitly import old
+consumer settings. The chosen provider must allow browser CORS access; network
+or VPN requirements remain the institution's responsibility.
 
-Source: [NTNU LLM API instructions](https://www.hpc.ntnu.no/idun/documentation/ai-coding-assistant-and-large-language-models-llms-on-idun/), checked 2026-09-25.
+Direct requests contain the task, current response, selected context, policy
+and optional attachments/evidence. Python tests, expected math answers,
+checker source and raw tracebacks are not feedback material. A previous
+Check/Run contributes evidence only while it matches the current response;
+editing, resetting or rerunning invalidates it. Pyodide sends a generic run
+status and learner stdout, not raw stderr, HTML output or plots. Graph adapters
+supply an explicit summary and optional image; raw graph/checker objects stay
+local. These are client-side learning tools, not secure examination systems.
+
+## Integrating another activity
+
+Use `AIFeedback.attach({integration, id, button, output, getRequest})` for policy,
+progression, settings, requests and rendering. `getRequest` should collect data
+without executing code. Use `AIFeedback.contextMaterials({mode, refs, text})` for
+context and `handle.reset('run')` on Run/Check. Call `handle.cancel({clearOutput:
+true})` on edits and `handle.reset()` on explicit Reset. The consumer owns its
+editor, checker and evidence boundary. [API reference](docs/api.md).
+
+The Quarto side exposes `feedback-quarto.lua`: a `markCallout` filter prepass,
+`prepare(doc)` and `context(block, options, isPyodide)`. Consumers contain only
+small dependency-discovery glue. All policy, context and feedback implementation
+belongs here.
 
 ## Development
 
 ```sh
-python scripts/setup-feedback-integration.py --test
-python -m http.server 8000 --directory .feedback-workspace/site/_site
+npm ci
+npm test
+python -m pip install PyYAML==6.0.2
+python scripts/sync-feedback-defaults.py --check
 ```
 
-The setup script resolves the branches and pins in `integration/feedback/repos.json`,
-then builds this repository's `examples.qmd` and its topic includes with shared feedback, Python exercises, mathematics and Pyodide.
-Its four tabs include five Python exercises, five mathematics tasks and three
-Pyodide activities with incomplete starters. Open
-`http://localhost:8000/examples.html` after starting the server. Development needs
-Python 3.12+, Git, Node 22/npm and Quarto 1.8.27; mathematics tests also need
-`pip install sympy==1.14.0 networkx==3.4.2`.
-
-See [the shared integration workbench](integration/feedback/README.md) for local
-branch overrides, exact revision records and real browser tests. Shared adapters
-are developed and validated here before consumer PRs are opened.
-Python tasks use the pinned py-exercise feature branch and include shared Feedback
-buttons. The builder does not substitute py-exercise main for this integration.
-
-CI runs the tests and renders the examples on pull requests. A successful main
-build deploys the examples through GitHub Pages. Set the repository's Pages
-source to **GitHub Actions**. Provider access is not needed by CI; transport
-tests explicitly use mocked HTTP responses.
+Edit `feedback-defaults.yml`, then run `python scripts/sync-feedback-defaults.py`
+to regenerate the embedded browser policy. This repository tests the shared
+runtime and API. It does not own consumer examples, installation assembly or site
+deployment: those live in [ctm-assessment](https://github.com/Erasmus-CTM/ctm-assessment).
+That repository pins consumer branches and runs Quarto and real-browser gates.
 
 ## License
 
-AGPL-3.0-or-later. Shared rendering, context serialization and model-policy code
-are derived from Erasmus-CTM/math-exercise (fc549d2) and feedback interface ideas
-from Erasmus-CTM/pyodide-interaktiv (f815bc2), under the same license.
+AGPL-3.0-or-later. Shared rendering, context and model-policy code originated in
+Erasmus-CTM/math-exercise, with feedback-interface ideas from
+Erasmus-CTM/pyodide-interaktiv, under the same license.
 
-### Mathematics integration workbench
+### Standalone example
 
-The Mathematics tab in `examples.html` is included from
-`examples/_mathematics.qmd`. The builder pins math-exercise's
-`feature/shared-feedback-integration` branch to an exact commit, alongside the
-Python integration branch. Five partial-answer examples cover scalars, multiple
-fields, vectors, matrices and an adjustable basis.
-
-Math Feedback uses the shared settings and renderer, without executing a checker.
-Only unchanged previous Check results contribute allowlisted evidence. Its four
-teaching steps use central English policy instructions while feedback follows
-the selected language; a worked solution is permitted only at the fourth step.
-The standalone math fallback must match this checkout's six shared runtime and
-policy files byte for byte, verified by the builder. Consumer PRs remain
-separate from acceptance on this page.
-
-## Configurable feedback steps
-
-Shipped defaults preserve the four integrations’ teaching approaches. Override
-them with one YAML file or an ordered `ai-feedback.policy-files` list. Configure
-prompts, step counts, solution permissions, word limits and `reset-on-run`.
-Run/Check restarts hints by default; set `reset-on-run: false` to preserve them.
-See [Teaching policies](docs/feedback-policies.md) for the complete format.
+`example.qmd` demonstrates this package with shared feedback. No additional Quarto extension is required. The example builds automatically on pushes and pull requests; download the `standalone-example` Actions artifact. Feedback defaults to copy mode, which needs no API key.

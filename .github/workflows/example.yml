@@ -1,0 +1,23 @@
+name: Build standalone example
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  example:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: quarto-dev/quarto-actions/setup@v2
+        with:
+          version: '1.8.27'
+      - name: Render standalone example
+        run: |
+          quarto render example.qmd
+          test -f example.html || test -f _site/example.html
+      - uses: actions/upload-artifact@v4
+        with:
+          name: standalone-example
+          path: |
+            example.html
+            example_files
+            _site

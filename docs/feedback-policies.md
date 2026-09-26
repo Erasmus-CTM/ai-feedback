@@ -140,7 +140,9 @@ python scripts/sync-feedback-defaults.py
 python scripts/sync-feedback-defaults.py --check
 ```
 
-Generation uses PyYAML. Consumer fallback synchronization includes the four runtime
-files, YAML defaults and metadata loader; the workbench verifies identical hashes.
-The common examples use `feedback.yml`; the builder also copies a `feedback/`
-directory for split-file examples. Use the pinned 0.4.0 integration branches.
+Generation uses PyYAML. Consumers load the single installed shared extension;
+there are no fallback bundles to synchronize. The combined examples, builder
+and pinned integration branches live in
+[Erasmus-CTM/ctm-assessment](https://github.com/Erasmus-CTM/ctm-assessment).
+Its builder copies `feedback.yml` and an optional `feedback/` directory.
+Use ai-feedback 0.5.0 with the matching integration branches.

@@ -78,3 +78,11 @@ test('abort and timeout include response-body reading and are not retried', asyn
   const controller = new AbortController(); controller.abort();
   await assert.rejects(c.request(fixtures.writing, { signal: controller.signal }), { code: 'ABORTED' });
 });
+
+test('required mathematics images fail clearly; only an explicit graph adapter may request text fallback',async()=>{
+ const request={...fixtures.image,profile:'mathematics'};
+ let calls=0;
+ const c=client(async(_url,options)=>{calls++;const body=JSON.parse(options.body);return Array.isArray(body.messages[1].content)?response(415):response();});
+ await assert.rejects(c.request(request),e=>e.code==='IMAGE_UNSUPPORTED');assert.equal(calls,1);
+ calls=0;await c.request(request,{imageFallback:'text'});assert.equal(calls,2);
+});
