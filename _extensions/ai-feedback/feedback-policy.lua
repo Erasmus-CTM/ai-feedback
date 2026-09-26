@@ -88,6 +88,7 @@ local function layer(cfg)
 end
 function M.emit(meta)
   local cfg = meta['ai-feedback'] or {}
+  if type(cfg) ~= 'table' or pandoc.utils.type(cfg) ~= 'table' then fail('ai-feedback metadata must be a mapping') end
   local function readFiles(files)
   local layers = {}
   if files then
@@ -102,7 +103,7 @@ function M.emit(meta)
       raw = raw:gsub('^%-%-%-%s*\n', ''):gsub('\n%-%-%-%s*$', '')
       local parsed = pandoc.read('---\n'..raw..'\n---\n', 'markdown+tex_math_single_backslash').meta
       local data = parsed['ai-feedback']
-      if not data then fail('ai-feedback: policy file must contain an ai-feedback mapping: '..name) end
+      if type(data) ~= 'table' or pandoc.utils.type(data) ~= 'table' then fail('ai-feedback: policy file must contain an ai-feedback mapping: '..name) end
       for key, _ in pairs(data) do if key ~= 'defaults' and key ~= 'integrations' and key ~= 'policies' and key ~= 'exercises' then fail('ai-feedback: unknown policy file section: '..key) end end
       local result = layer(data); if result then table.insert(layers, result) end
     end
