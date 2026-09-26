@@ -44,7 +44,6 @@ pyodide:
 ai-feedback:
   mode: copy
   storage: local
-  policy-files: feedback.yml
 ```
 
 An enabled consumer automatically loads the installed ai-feedback module during
