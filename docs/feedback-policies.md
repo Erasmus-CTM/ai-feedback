@@ -92,7 +92,7 @@ Effective settings use this precedence, lowest to highest:
 Legacy inline policy metadata is the final project layer. New policy definitions should use external YAML files. Page files form a separate, higher-precedence layer. Integration-specific settings
 win over common defaults regardless of which file contains them. A local `prompt`
 replaces the prompt in that scope; the effective common and integration prompts
-are both included. An explicit non-Python activity `max-issues` attribute overrides the policy limit.
+are both included. An explicit plain-text activity `max-issues` attribute overrides the policy limit.
 Stable shared rules, assignment restrictions, authored activity
 criteria, learner responses and eligible evidence remain separate from these
 teaching instructions. Replacing a step list never inherits permissions from
