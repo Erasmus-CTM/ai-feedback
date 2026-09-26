@@ -1,17 +1,13 @@
 {
   "name": "@erasmus-ctm/ai-feedback",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "description": "Shared browser feedback and Quarto extension",
   "scripts": {
-    "test": "node --test tests/*.test.cjs",
-    "test:render": "python scripts/setup-feedback-integration.py --test",
-    "test:integration": "node --test integration/feedback/rendered.test.cjs",
-    "test:browser": "node integration/feedback/browser-smoke.cjs"
+    "test": "node --test tests/*.test.cjs"
   },
   "devDependencies": {
     "jsdom": "26.1.0",
-    "katex": "0.16.11",
-    "playwright": "1.55.1"
+    "katex": "0.16.11"
   }
 }

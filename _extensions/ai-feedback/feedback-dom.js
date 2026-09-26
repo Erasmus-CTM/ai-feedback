@@ -239,7 +239,7 @@
       var el = node;
       if (el.matches(
         'script, style, noscript, template, button, select, ' +
-        '.ai-feedback-activity, .ai-feedback-output, .ai-feedback-settings, .math-exercise-cell, .math-exercise-controls, .math-feedback-area, ' +
+        '.hidden, .ai-feedback, .feedback-criteria, .feedback-starter, .example-author-notes, .ai-feedback-ignore, [class*="cell-output"], .ai-feedback-activity, .ai-feedback-output, .ai-feedback-settings, .math-exercise-cell, .math-exercise-controls, .math-feedback-area, ' +
         '.py-exercise-cell, .qpyodide-interactive-area, .qpyodide-non-interactive-area, ' +
         '.math-legend-panel, .math-dynamic-matrix-controls, [hidden], [aria-hidden="true"]'
       )) return;
@@ -379,5 +379,10 @@
   }
 
 
-  Object.assign(root.AIFeedback, { renderMarkdown: simpleMarkdown, typesetFeedback, contextText, sourceText, questionText, collectExplicitContexts });
+  function contextMaterials({mode = 'auto', refs = '', text = ''} = {}) {
+    if (mode === 'none') return [];
+    if (mode === 'explicit') return collectExplicitContexts(refs).map(c => ({id:c.id, role:'context', text:c.content}));
+    return text ? [{id:'section-context', role:'context', text}] : [];
+  }
+  Object.assign(root.AIFeedback, { renderMarkdown: simpleMarkdown, typesetFeedback, contextMaterials, contextText, sourceText, questionText, collectExplicitContexts });
 })(globalThis);

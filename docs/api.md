@@ -180,3 +180,16 @@ restarts the sequence; call it on explicit Reset/new pool task. Edits should use
 policy; `applyPolicy(integration, request, hintLevel, legacyDefaults)` applies it.
 Legacy defaults exist for Pyodide's `feedback-hints: false`; local YAML overrides
 them. Do not copy teaching prompts into adapters. See [policy authoring](feedback-policies.md).
+
+## Shared context and Quarto preparation
+
+`AIFeedback.contextMaterials({mode, refs, text})` returns request materials.
+`mode` is `auto`, `none` or `explicit`; `refs` is a comma-separated list of
+tagged element IDs; `text` is the source-filter snapshot for automatic context.
+All integrations use this API.
+
+`feedback-quarto.lua` exposes `markCallout` (a Quarto Callout prepass),
+`prepare(doc)` (idempotent document preparation/resource registration), and
+`context(block, options, isPyodide)` (the shared context descriptor). The module
+uses its installed directory for resources. A consumer's small loader locates
+the project installation; it must run preparation before converting code cells.

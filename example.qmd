@@ -1,0 +1,20 @@
+---
+title: "ai-feedback example"
+format: html
+filters: [ai-feedback]
+ai-feedback:
+  mode: copy
+---
+
+## Spanish practice
+
+::: {.ai-feedback profile="language-quality" response-language="es" feedback-language="en" learner-level="Spanish course 1" context="none"}
+Write two sentences about your morning. Correct and finish this draft.
+
+::: {.feedback-criteria}
+Give one useful improvement at a time without rewriting the whole response.
+:::
+::: {.feedback-starter}
+Yo vive en Oslo. Por la mañana yo come pan.
+:::
+:::
