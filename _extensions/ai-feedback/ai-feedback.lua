@@ -106,7 +106,7 @@ function Pandoc(doc)
   cfg = doc.meta["ai-feedback"] or {}
   language = str(doc.meta.lang, "en")
   quarto.doc.add_html_dependency({
-    name = "ai-feedback", version = "0.2.1",
+    name = "ai-feedback", version = "0.3.0",
     scripts = {"feedback-core.js", "feedback-dom.js", "ai-feedback.js"},
     stylesheets = {"ai-feedback.css"}
   })

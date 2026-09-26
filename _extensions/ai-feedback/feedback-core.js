@@ -1,4 +1,4 @@
-/* AI Feedback v0.2.1 — AGPL-3.0-or-later. Provider policy derived from
+/* AI Feedback v0.3.0 — AGPL-3.0-or-later. Provider policy derived from
  * Erasmus-CTM/math-exercise fc549d2. No DOM, editor or Python dependency. */
 (function (root, factory) {
   const api = factory();
@@ -6,7 +6,7 @@
   if (root) root.AIFeedback = Object.assign(root.AIFeedback || {}, api);
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
-  const VERSION = '0.2.1';
+  const VERSION = '0.3.0';
   const profiles = {
     review: { criteria: [] },
     translation: { criteria: ['Preserve the meaning of the source.', 'Accept valid alternative translations.'] },

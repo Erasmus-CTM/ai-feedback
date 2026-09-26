@@ -158,3 +158,8 @@ frozen for a request and its final stale-response check. Use it to coordinate
 step-dependent policy such as allowing a worked solution on step four. The
 adapter compares the complete request, including feedback policy, before
 rendering; cancellation during either asynchronous collection prevents success.
+
+Since 0.3.0, `handle.cancel({clearOutput: true})` cancels quietly and keeps the
+output empty even if network, snapshot collection or typesetting later finishes.
+Adapters use this for edits, Reset and execution invalidation. No-argument
+`cancel()` retains the visible cancellation notice. Neither consumes a hint.
