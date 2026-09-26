@@ -174,3 +174,30 @@ test('teaching criteria show literal TeX delimiters rather than JSON-escaped ins
   assert.ok(F.buildPrompt({...fixtures.mathematics, criteria: [criterion]}).includes(criterion));
   w.close();
 });
+
+for (const stage of ['network', 'snapshot', 'typeset']) test('quiet cancellation stays empty during ' + stage, async () => {
+  const {F, w} = page('<button>Feedback</button><div id="out"></div>');
+  let finish, calls = 0;
+  const pause = () => new Promise(resolve => {finish = resolve;});
+  if (stage === 'typeset') F.typesetFeedback = pause;
+  const request = fixtures.mathematics;
+  const reply = {text: '$x^2$', format: 'markdown'};
+  const handle = F.attach({id: stage, button: w.document.querySelector('button'), output: w.document.querySelector('#out'),
+    getRequest: () => ++calls === 2 && stage === 'snapshot' ? pause() : request,
+    client: {request: () => stage === 'network' ? pause() : reply}});
+  const pending = handle.request(); await new Promise(resolve => setImmediate(resolve));
+  handle.cancel({clearOutput: true}); finish(stage === 'network' ? reply : request); await pending;
+  assert.equal(w.document.querySelector('#out').textContent, '');
+  assert.equal(w.sessionStorage.getItem('ai-feedback-hints|/course|' + stage), null);
+  assert.equal(w.document.querySelector('button').disabled, false);
+  handle.dispose(); w.close();
+});
+test('explicit context excludes live Python editors, output and feedback', () => {
+  const {F,w} = page('<div id="context" class="ai-feedback-context">Area <span data-ai-feedback-tex="r^2">math</span><div class="py-exercise-cell">HIDDEN_TEST</div><div class="qpyodide-interactive-area">OLD_CODE OLD_REPLY</div><div class="qpyodide-non-interactive-area">SETUP_OUTPUT</div></div>');
+  const content = F.collectExplicitContexts('context')[0].content;
+  assert.match(content, /r\^2/); assert.doesNotMatch(content, /HIDDEN_TEST|OLD_CODE|OLD_REPLY|SETUP_OUTPUT/); w.close();
+});
+test('Norwegian legacy locale uses shared Norwegian settings', () => {
+  const {F,w} = page(); w.document.documentElement.lang = 'no';
+  F.buildSettings(); assert.match(w.document.querySelector('dialog h2').textContent, /Innstillinger/); w.close();
+});

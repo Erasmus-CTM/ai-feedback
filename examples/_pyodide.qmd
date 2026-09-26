@@ -1,0 +1,79 @@
+These activities use a free Python editor. Each starter is partly completed.
+**Run** executes your code; **Feedback** reviews the current draft without running
+it. After a run, feedback can also use its matching printed output. Three hint
+levels offer increasing guidance without supplying finished code.
+
+### 1. Print a price including tax
+
+::: {.example-author-notes}
+**For course authors** — This editor uses shared feedback settings. The task is
+passed explicitly, separately from this note. Feedback also works before Run.
+:::
+
+::: {#task-pyodide-price .example-learner-task}
+#### Your task
+
+A book costs 80 before tax. Calculate the price after adding 25% tax and print
+that final price. Complete the starter below.
+
+```{pyodide-python}
+#| task: A book costs 80 before tax. Calculate and print the price including 25% tax.
+price = 80
+rate = 0.25
+tax = price * rate
+# TODO: include the tax in the printed price
+print(price)
+```
+:::
+
+### 2. Accumulate a total
+
+::: {.example-author-notes}
+**For course authors** — A previous run contributes printed output only while
+it matches the current editor revision. Editing or Reset clears that evidence.
+:::
+
+::: {#task-pyodide-total .example-learner-task}
+#### Your task
+
+Use a loop to add all values in the list and print their total, without using
+`sum()`. The starter
+currently replaces the running total on each iteration. Fix that step.
+
+```{pyodide-python}
+#| task: Use a loop to add all values in the list and print their total. Do not use sum().
+values = [3, 5, 2]
+total = 0
+for value in values:
+    total = value  # TODO: keep the earlier values too
+print(total)
+```
+:::
+
+### 3. Calculate a circle's area
+
+::: {.example-author-notes}
+**For course authors** — This task explicitly selects the formula below as
+feedback context. Mathematical notation is preserved in prompts and replies.
+:::
+
+::: {#task-pyodide-circle .example-learner-task}
+#### Your task
+
+Complete the function so that it returns the circle's area, then print the
+result for a radius of 3. Use the supplied approximation of pi.
+
+::: {#pyodide-circle-formula .ai-feedback-context}
+The area of a circle is $A = \pi r^2$.
+:::
+
+```{pyodide-python}
+#| task: Return the area of a circle from circle_area(radius), then print the result for radius 3 using the supplied pi.
+#| feedback-context: pyodide-circle-formula
+def circle_area(radius):
+    pi = 3.14159
+    return pi * radius  # TODO: check the power of radius
+
+print(circle_area(3))
+```
+:::

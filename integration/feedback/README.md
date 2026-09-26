@@ -2,13 +2,13 @@
 
 All common examples and acceptance checks belong to **ai-feedback**.
 The source is the root **`examples.qmd`**: six text/image activities plus
-Python unit-test and mathematics exercises.
+Python unit-test, mathematics and Pyodide exercises.
 The entry page uses topic includes in `examples/` to render one HTML page with
-**Non-Python**, **Python** and **Mathematics** tabs. The Python tab includes five
+**Non-Python**, **Python**, **Mathematics** and **Pyodide** tabs. The Python tab includes five
 partially completed functions, with separate author notes and learner tasks.
 Add a sibling tab and topic include for each new integration.
 Develop and validate each shared adapter here first; only then open consumer PRs.
-The current adapters are py-exercise and mathematics; Pyodide is deferred.
+The current adapters are py-exercise, math-exercise and pyodide-interaktiv.
 
 ## Set up and serve
 
@@ -35,7 +35,7 @@ Use an HTTP origin: Monaco and Pyodide workers do not work reliably with `file:/
 | ai-feedback | `main` | This checkout, including local edits |
 | py-exercise | `feature/shared-feedback-integration` | Pinned branch commit |
 | math-exercise | `feature/shared-feedback-integration` | Pinned branch commit |
-| pyodide-interaktiv | `main` | Pinned pre-migration commit |
+| pyodide-interaktiv | `feature/shared-feedback-integration` | Pinned branch commit |
 
 The script records every resolved commit, local dirty-file list and copied
 extension file's SHA-256 in `resolved-repos.json`. That record is included in the
@@ -96,10 +96,22 @@ Python tasks use shared Feedback and settings from the pinned
 `feature/shared-feedback-integration` branch, not the main runtime. Feedback
 reads current code without execution and includes only code-matched checker
 summaries and learner output. Edits and Reset invalidate that evidence.
-Mathematics uses shared settings, transport and rendering while retaining its four-step teaching policy. Feedback never runs its checker. Only matching prior Check evidence is sent; graph payloads, expected values and checker source stay local. The generated standalone fallback must match all four shared runtime files byte for byte. The separate
-interactive Pyodide example is removed; its source pin is retained for the future
-integration. Python exercises still use Pyodide internally to execute code.
+Mathematics uses shared settings, transport and rendering while retaining its four-step teaching policy. Feedback never runs its checker. Only matching prior Check evidence is sent; graph payloads, expected values and checker source stay local. The generated standalone fallback must match all four shared runtime files byte for byte. The Pyodide tab now exercises its shared adapter with incomplete starters.
+Python exercises also use Pyodide internally to execute code.
 
 The adapters must omit stale output and hidden test source, preserve
 Check/Reset/submission, and use the shared API and cogwheel without executing
 code for feedback. Validate them here before opening a consumer PR.
+
+## Pyodide integration
+
+The fourth tab includes `examples/_pyodide.qmd`: three incomplete programs for
+price, accumulation and circle area. `pyodide-interaktiv` is pinned to its shared
+feedback feature branch, alongside py-exercise and math-exercise. All consumers
+share settings, transport and LaTeX rendering. Pyodide retains three hints that
+never supply finished code, and feedback never executes Python.
+
+The builder verifies that both generated fallback bundles match the shared
+runtime byte for byte. Tests cover fresh stdout evidence, edit/reset/run/restart
+invalidation, no raw stderr, standalone documents and both filter orders.
+Consumer PRs remain deferred until this common page is accepted.

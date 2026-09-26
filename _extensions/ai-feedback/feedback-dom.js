@@ -240,6 +240,7 @@
       if (el.matches(
         'script, style, noscript, template, button, select, ' +
         '.ai-feedback-activity, .ai-feedback-output, .ai-feedback-settings, .math-exercise-cell, .math-exercise-controls, .math-feedback-area, ' +
+        '.py-exercise-cell, .qpyodide-interactive-area, .qpyodide-non-interactive-area, ' +
         '.math-legend-panel, .math-dynamic-matrix-controls, [hidden], [aria-hidden="true"]'
       )) return;
 

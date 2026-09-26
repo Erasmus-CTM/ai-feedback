@@ -13,15 +13,15 @@ test('common page renders the active extensions and keeps local dependencies res
   assert.equal(doc.querySelectorAll('.ai-feedback-activity').length, 6);
   assert.equal(doc.querySelectorAll('.math-exercise-cell').length, 5);
   assert.equal(doc.querySelectorAll('.py-exercise-cell').length, 6);
-  assert.deepEqual([...doc.querySelectorAll('.panel-tabset > ul [role=tab]')].map(n => n.textContent.trim()), ['Non-Python', 'Python', 'Mathematics']);
+  assert.deepEqual([...doc.querySelectorAll('.panel-tabset > ul [role=tab]')].map(n => n.textContent.trim()), ['Non-Python', 'Python', 'Mathematics', 'Pyodide']);
   const panels = doc.querySelectorAll('.panel-tabset > .tab-content > .tab-pane');
-  assert.equal(panels.length, 3);
+  assert.equal(panels.length, 4);
   assert.equal(panels[0].querySelectorAll('.ai-feedback-activity').length, 6);
   assert.equal(panels[0].querySelectorAll('.math-exercise-cell').length, 0);
   assert.equal(panels[1].querySelectorAll('.py-exercise-cell').length, 6);
   assert.equal(panels[1].querySelectorAll('[id^="qpyodide-insertion-location-"]').length, 0);
   assert.ok(!fs.existsSync(path.join(site, 'py-exercise-examples.html')), 'Python examples must use the same page');
-  assert.equal(doc.querySelectorAll('[id^="qpyodide-insertion-location-"]').length, 0);
+  assert.equal(panels[3].querySelectorAll('[id^="qpyodide-insertion-location-"]').length, 3);
   for (const name of ['feedback-core.js', 'feedback-dom.js', 'ai-feedback.js']) {
     assert.equal([...doc.scripts].filter(s => s.src.endsWith('/' + name)).length, 1, name + ' must load once');
   }
@@ -44,6 +44,12 @@ test('common page renders the active extensions and keeps local dependencies res
     assert.equal(python.commit, manifest.repositories['py-exercise'].commit);
   }
   assert.ok(record.extension_sha256['py-exercise']['py-exercise-feedback.js']);
+  const pyodide = record.repositories['pyodide-interaktiv'];
+  assert.equal(pyodide.branch, 'feature/shared-feedback-integration');
+  if (!pyodide.local_override && !record.refresh) assert.equal(pyodide.commit, JSON.parse(fs.readFileSync(path.join(__dirname,'repos.json'),'utf8')).repositories['pyodide-interaktiv'].commit);
+  for (const file of ['feedback-core.js','feedback-dom.js','ai-feedback.js','ai-feedback.css']) {
+    assert.equal(record.extension_sha256['pyodide-interaktiv']['ai-feedback/'+file],record.extension_sha256['ai-feedback'][file]);
+  }
   for (const [name, source] of Object.entries(record.repositories)) {
     assert.match(source.commit, /^[0-9a-f]{40}$/);
     assert.ok(Object.keys(record.extension_sha256[name]).length > 0);
@@ -136,7 +142,7 @@ test('standalone math and both shared-filter orders load one usable runtime', as
         // Simulate the previously released explicit dependency and callback contract.
         for (const name of ['ai-feedback.lua', 'feedback-core.js', 'ai-feedback.js']) {
           const file = path.join(dir, '_extensions/ai-feedback', name);
-          fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replaceAll('0.2.1', '0.1.0').replace('await getRequest({ hintLevel })', 'await getRequest()'));
+          fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replaceAll('0.3.0', '0.1.0').replace('await getRequest({ hintLevel })', 'await getRequest()'));
         }
       }
       fs.writeFileSync(path.join(dir, `order-${i}.qmd`), `---\nformat: html\nfilters: [${filters.join(', ')}]\n---\n\n::: {#context .ai-context}\nUse $x^2$.\n:::\n\n\x60\x60\x60{math-exercise}\n#| label: order\n#| context: context\nCompute $2+2$: _[SECRET_ANSWER]\n\x60\x60\x60\n`);
@@ -149,7 +155,7 @@ test('standalone math and both shared-filter orders load one usable runtime', as
         assert.equal(scripts.length, 1, `${filters}: ${name}`);
         w.eval(fs.readFileSync(path.join(dir, scripts[0].getAttribute('src')), 'utf8'));
       }
-      if (i < 3) assert.equal(w.AIFeedback.version, '0.2.1');
+      if (i < 3) assert.equal(w.AIFeedback.version, '0.3.0');
       w.AIFeedback.initialize();
       const math = [...w.document.scripts].find(s => s.textContent.includes('var ME_CFG ='));
       w.eval(math.textContent);
@@ -177,4 +183,33 @@ test('standalone math and both shared-filter orders load one usable runtime', as
       dom.window.close();
     }
   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
+});
+
+test('standalone Pyodide, both filter orders and disabled feedback render correctly', () => {
+  const {spawnSync} = require('node:child_process');
+  const dir = fs.mkdtempSync(path.join(path.dirname(site), 'pyodide-order-'));
+  try {
+    for(const extension of ['pyodide-interaktiv','ai-feedback']) fs.cpSync(path.join(path.dirname(site),'_extensions',extension),path.join(dir,'_extensions',extension),{recursive:true});
+    for(const [i,filters] of [['pyodide-interaktiv'],['ai-feedback','pyodide-interaktiv'],['pyodide-interaktiv','ai-feedback'],['pyodide-interaktiv']].entries()) {
+      const blocks=['interactive','setup','output'].map(context=>'```{pyodide-python}\n#| context: '+context+'\n#| task: Print the value.\nprint(1)\n```').join('\n\n');
+      fs.writeFileSync(path.join(dir,`order-${i}.qmd`),`---\nformat: html\nfilters: [${filters.join(', ')}]\npyodide:\n  feedback: ${i!==3}\n---\n\n${blocks}\n`);
+      const render=spawnSync(process.env.QUARTO_BIN||'quarto',['render',`order-${i}.qmd`],{cwd:dir,encoding:'utf8',timeout:120000});
+      assert.equal(render.status,0,render.stderr);
+      const dom=new JSDOM(fs.readFileSync(path.join(dir,`order-${i}.html`),'utf8'),{url:'https://order.invalid/',runScripts:'outside-only'});
+      const w=dom.window;
+      for(const file of ['feedback-core.js','feedback-dom.js','ai-feedback.js']) {
+        const scripts=[...w.document.scripts].filter(s=>s.src.endsWith('/'+file));
+        assert.equal(scripts.length,i===3?0:1);
+        if(i!==3)w.eval(fs.readFileSync(path.join(dir,scripts[0].getAttribute('src')),'utf8'));
+      }
+      if(i!==3){assert.equal(w.AIFeedback.version,'0.3.0');w.AIFeedback.openSettings();assert.equal(w.document.querySelectorAll('dialog.ai-feedback-settings').length,1);}
+      assert.equal(w.document.querySelectorAll('[id^="qpyodide-insertion-location-"]').length,3);
+      const dataScript = [...w.document.scripts].find(s=>s.textContent.includes('globalThis.qpyodideCellDetails ='));
+      assert.ok(dataScript); w.eval(dataScript.textContent);
+      assert.equal(w.qpyodideCellDetails.length,3);
+      assert.ok(w.qpyodideCellDetails.every(c=>c.options.task==='Print the value.'));
+      assert.deepEqual(Array.from(w.qpyodideCellDetails,c=>c.options.context),['interactive','setup','output']);
+      w.close();
+    }
+  } finally {fs.rmSync(dir,{recursive:true,force:true});}
 });

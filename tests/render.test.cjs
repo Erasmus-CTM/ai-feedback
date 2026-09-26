@@ -17,7 +17,7 @@ test('rendered examples load the runtime once and produce real copy prompts', { 
   const activities = [...w.document.querySelectorAll('.ai-feedback-activity')];
   assert.equal(activities.length, 6);
   const notes = [...w.document.querySelectorAll('.example-author-notes')];
-  assert.equal(notes.length, 16);
+  assert.equal(notes.length, 19);
   assert.ok(notes.every(note => !note.closest('.ai-feedback-activity')));
   const download = w.document.querySelector('#handwriting-sample-download');
   assert.ok(download.hasAttribute('download'));

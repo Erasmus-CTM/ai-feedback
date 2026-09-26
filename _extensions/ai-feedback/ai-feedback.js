@@ -10,7 +10,7 @@
     nb: { button: 'Tilbakemelding', settings: 'Innstillinger for KI', response: 'Svaret ditt', busy: 'Henter tilbakemelding…', cancelled: 'Avbrutt.', stale: 'Svaret ditt er endret. Be om ny tilbakemelding.', copy: 'Kopier instruksjon', copied: 'Kopiert', save: 'Lagre innstillinger', saved: 'Innstillinger lagret.', cancel: 'Avbryt', images: 'Last opp bilder', clear: 'Fjern bilder', storage: 'Lagring', session: 'Denne fanen', local: 'Husk på denne enheten', mode: 'Modus', api: 'Direkte API', url: 'API-adresse', key: 'Personlig API-nøkkel', model: 'Modell', models: 'Hent modeller', privacy: 'Direkte tilbakemelding sender svaret, konteksten og bildene til valgt leverandør.', imageNote: 'PNG, JPEG eller WebP; opptil tre bilder, 8 MiB hver og 12 MiB totalt. Bilder lagres ikke i nettleserlagringen.', prompt: 'Lim inn instruksjonen i din valgte KI-chat.', choose: 'Velg modell', legacy: 'Bruk lagrede innstillinger fra', invalidImage: 'Bruk PNG-, JPEG- eller WebP-bilder innenfor størrelsesgrensen.', hint: 'Hint' },
     es: { button: 'Comentarios', settings: 'Configurar IA', response: 'Tu respuesta', busy: 'Obteniendo comentarios…', cancelled: 'Cancelado.', stale: 'Tu respuesta ha cambiado. Solicita comentarios de nuevo.', copy: 'Copiar instrucciones', copied: 'Copiado', save: 'Guardar configuración', saved: 'Configuración guardada.', cancel: 'Cancelar', images: 'Subir imágenes', clear: 'Quitar imágenes', storage: 'Almacenamiento', session: 'Esta pestaña', local: 'Recordar en este dispositivo', mode: 'Modo', api: 'API directa', url: 'URL base de la API', key: 'Clave API personal', model: 'Modelo', models: 'Obtener modelos', privacy: 'Los comentarios directos envían tu respuesta, contexto e imágenes al proveedor elegido.', imageNote: 'PNG, JPEG o WebP; hasta tres imágenes, 8 MiB cada una y 12 MiB en total. Las imágenes no se guardan en el almacenamiento del navegador.', prompt: 'Pega estas instrucciones en tu chat de IA.', choose: 'Elegir modelo', legacy: 'Usar configuración guardada de', invalidImage: 'Usa imágenes PNG, JPEG o WebP dentro del límite de tamaño.', hint: 'Pista' }
   };
-  function lang(code) { return locale[String(code || document.documentElement.lang || 'en').split('-')[0]] || locale.en; }
+  function lang(code) { const key = String(code || document.documentElement.lang || 'en').split('-')[0]; return locale[key === 'no' ? 'nb' : key] || locale.en; }
   function node(tag, text, className) { const el = document.createElement(tag); if (text !== undefined) el.textContent = text; if (className) el.className = className; return el; }
   function button(text) { const el = node('button', text, 'ai-feedback-button'); el.type = 'button'; return el; }
   function store(kind) { try { return root[kind === 'local' ? 'localStorage' : 'sessionStorage']; } catch { return null; } }
@@ -93,7 +93,7 @@
   function attach(options) {
     const { button: trigger, output, getRequest } = options;
     const L = lang(options.uiLanguage);
-    let controller, disposed = false;
+    let controller, disposed = false, quietCancellation = false;
     let count = 0;
     const counterKey = options.id ? 'ai-feedback-hints|' + location.pathname + '|' + options.id : null;
     try { count = Number(store('session')?.getItem(counterKey)) || 0; } catch {}
@@ -102,6 +102,7 @@
       const original = trigger.textContent;
       trigger.disabled = true; trigger.textContent = L.busy;
       output.replaceChildren(); output.setAttribute('aria-busy', 'true');
+      quietCancellation = false;
       controller = new AbortController();
       const cancel = button(L.cancel); cancel.onclick = () => controller?.abort(); output.append(cancel);
       try {
@@ -140,12 +141,13 @@
         }
 
       } catch (e) {
+        if (controller.signal.aborted && quietCancellation) { output.replaceChildren(); return; }
         output.textContent = e.code === 'ABORTED' ? L.cancelled : e.message;
         if (e.code === 'CONFIGURATION') { const configure = button(L.settings); configure.onclick = openSettings; output.append(configure); }
       } finally { controller = null; trigger.disabled = false; trigger.textContent = original; output.setAttribute('aria-busy', 'false'); }
     }
     trigger.addEventListener('click', run);
-    return { request: run, cancel: () => controller?.abort(), dispose() { disposed = true; controller?.abort(); trigger.removeEventListener('click', run); } };
+    return { request: run, cancel({clearOutput = false} = {}) { quietCancellation ||= clearOutput; controller?.abort(); if (clearOutput) output.replaceChildren(); }, dispose() { disposed = true; controller?.abort(); trigger.removeEventListener('click', run); } };
   }
   function readFile(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error('Could not read image.')); reader.readAsDataURL(file); }); }
   function initActivity(el) {

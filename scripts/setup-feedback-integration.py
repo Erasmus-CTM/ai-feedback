@@ -114,8 +114,9 @@ def main():
         hashes[name] = {str(p.relative_to(extension)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(extension.rglob('*')) if p.is_file()}
     for filename, digest in hashes['ai-feedback'].items():
         if filename in ('feedback-core.js', 'feedback-dom.js', 'ai-feedback.js', 'ai-feedback.css'):
-            if hashes['math-exercise'].get('ai-feedback/' + filename) != digest:
-                raise SystemExit('Math shared runtime differs: ' + filename + '. Run math-exercise/scripts/sync-ai-feedback.py with this checkout.')
+            for consumer in ('math-exercise', 'pyodide-interaktiv'):
+                if hashes[consumer].get('ai-feedback/' + filename) != digest:
+                    raise SystemExit(consumer + ' shared runtime differs: ' + filename + '. Run its scripts/sync-ai-feedback.py with this checkout.')
     result = {'quarto': config['quarto'], 'refresh': args.refresh, 'repositories': revisions, 'extension_sha256': hashes}
     (workspace / 'resolved-repos.json').write_text(json.dumps(result, indent=2) + '\n')
     shutil.copy2(workspace / 'resolved-repos.json', site / 'resolved-repos.json')
@@ -125,8 +126,9 @@ def main():
         run(['npm', 'ci', '--ignore-scripts'], cwd=ROOT)
         if args.test:
             run(['npm', 'test'], cwd=ROOT, env=env)
-            run(['npm', 'ci', '--ignore-scripts'], cwd=sources['math-exercise'])
-            run(['npm', 'test'], cwd=sources['math-exercise'], env=env)
+            for consumer in ('math-exercise', 'pyodide-interaktiv'):
+                run(['npm', 'ci', '--ignore-scripts'], cwd=sources[consumer])
+                run(['npm', 'test'], cwd=sources[consumer], env=env)
             run(['npm', 'run', 'test:integration'], cwd=ROOT, env=env)
         if args.browser:
             run(['npm', 'run', 'test:browser'], cwd=ROOT, env=env)
