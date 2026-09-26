@@ -62,3 +62,17 @@ test('blocked browser storage still permits progressive feedback',async()=>{
  const {w,api,level}=attached();Object.defineProperty(w,'sessionStorage',{get(){throw new Error('blocked');}});
  await api.request();await api.request();assert.equal(level(),'Hint 2');w.close();
 });
+
+test('real text activities inherit YAML issue limits unless explicitly overridden',async()=>{
+ for(const [explicit,expected] of [[undefined,5],[1,1]]){
+  const w=new JSDOM('<div id="activity"><script class="ai-feedback-data" type="application/json"></script></div>',{url:'https://course.invalid/text',runScripts:'outside-only'}).window;
+  for(const f of ['feedback-core.js','feedback-dom.js','ai-feedback.js'])w.eval(fs.readFileSync(path.join(__dirname,'../_extensions/ai-feedback',f),'utf8'));
+  w.__aiFeedbackPolicies=config({'max-issues':5});
+  const el=w.document.querySelector('#activity');
+  el.querySelector('script').textContent=JSON.stringify({id:'text',task:'Explain your answer.',starter:'My answer',profile:'review',uiLanguage:'en',feedbackLanguage:'en',maxIssues:explicit});
+  w.AIFeedback.initActivity(el);el.querySelector('button').click();
+  await new Promise(r=>setImmediate(r));
+  assert.match(el.querySelector('.ai-feedback-output').textContent,new RegExp('Discuss at most '+expected+' issues'));
+  w.close();
+ }
+});

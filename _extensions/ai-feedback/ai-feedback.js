@@ -212,7 +212,7 @@
       }
       return { task: data.task, profile: data.profile, materials, responses: [{ id: 'response', value: input.value, format: 'text', language: data.responseLanguage }], attachments,
         learner: { level: data.learnerLevel || '' }, criteria: data.criteria,
-        feedback: { language: data.feedbackLanguage, mode: 'review', maxIssues: data.maxIssues || 3, allowFullRewrite: false } };
+        feedback: { language: data.feedbackLanguage, mode: 'review', maxIssues: data.maxIssues, allowFullRewrite: false } };
     } });
   }
   function initialize() { if (document.querySelector('.ai-feedback-activity')) { buildSettings(); document.querySelectorAll('.ai-feedback-activity').forEach(initActivity); } }
