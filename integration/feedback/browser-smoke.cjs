@@ -239,6 +239,52 @@ const server = http.createServer((req, res) => {
     assert.equal(await page.locator('dialog.ai-feedback-settings[open]').count(), 1);
     await page.locator('dialog.ai-feedback-settings').getByRole('button', {name: 'Cancel', exact: true}).click();
     await page.screenshot({path: path.join(site, 'mathematics-practice-desktop.png'), fullPage: true});
+    await page.getByRole('tab', {name: 'Pyodide', exact: true}).click();
+    await page.waitForFunction(() => globalThis.qpyodideCellContainer?.cells.length === 3 && qpyodideCellContainer.cells.every(c => c.primaryUnit?.editor));
+    await page.evaluate(async () => {
+      const proxy = await qpyodideReady, run = proxy.runCell;
+      window.__pyodideRunCount = 0;
+      proxy.runCell = function(...args) { window.__pyodideRunCount++; return run.apply(this,args); };
+    });
+    const pyodideCases = [
+      {id:'task-pyodide-price', result:'100', solution:'price = 80\nrate = 0.25\ntax = price * rate\nprint(price + tax)'},
+      {id:'task-pyodide-total', result:'10', solution:'values = [3, 5, 2]\ntotal = 0\nfor value in values:\n    total += value\nprint(total)'},
+      {id:'task-pyodide-circle', result:'28.27431', solution:'def circle_area(radius):\n    pi = 3.14159\n    return pi * radius ** 2\nprint(circle_area(3))'}
+    ];
+    for (const [index, example] of pyodideCases.entries()) {
+      const cell = page.locator('#'+example.id), feedback = cell.locator('.qpyodide-button-feedback');
+      const ask = async () => {
+        const runs = await page.evaluate(() => window.__pyodideRunCount);
+        await feedback.click(); await cell.locator('.ai-feedback-body').waitFor();
+        await page.waitForFunction(id => document.querySelectorAll('#'+id+' .ai-feedback-body .katex').length === 9, example.id);
+        assert.equal(await page.evaluate(() => window.__pyodideRunCount), runs);
+        assert.equal(await cell.locator('.katex-error').count(),0);
+        assert.doesNotMatch(JSON.stringify(apiRequest), /For course authors|TODO_AUTHOR|test-only/);
+        return JSON.parse(apiRequest.messages[1].content);
+      };
+      assert.deepEqual((await ask()).evidence,[]);
+      await cell.locator('.qpyodide-button-run').click();
+      await page.waitForFunction(index => qpyodideCellContainer.cells[index].primaryUnit.feedbackEvidence !== null, index);
+      assert.ok((await ask()).evidence.some(e=>e.label==='Learner stdout'));
+      await page.evaluate(({index,code})=>qpyodideCellContainer.cells[index].primaryUnit.editor.setValue(code), {index,code:example.solution});
+      assert.deepEqual((await ask()).evidence,[]);
+      assert.match(apiRequest.messages[0].content,/Do not supply a complete rewritten response or finished solution/);
+      assert.match(apiRequest.messages[0].content,/Hint level 3/);
+      await cell.locator('.qpyodide-button-run').click();
+      await page.waitForFunction(index => qpyodideCellContainer.cells[index].primaryUnit.feedbackEvidence !== null,index);
+      assert.match(await cell.locator('.qpyodide-output-code-area').innerText(),new RegExp(example.result.replace('.', '\\.')));
+      if(index===2)assert.match(JSON.stringify((await ask()).materials),/pi.*r/);
+      await cell.locator('.qpyodide-button-reset').click();
+      assert.equal(await cell.locator('.qpyodide-output-feedback-area').textContent(),'');
+      assert.equal(await cell.locator('.qpyodide-output-code-area').textContent(),'');
+      assert.ok(await page.evaluate(index => {const u=qpyodideCellContainer.cells[index].primaryUnit;return u.getCode()===u.code && u.getFeedbackEvidence().length===0;},index));
+      report.checks.push(example.id+': real worker run, matching stdout, no feedback execution, three hints, LaTeX and Reset');
+    }
+    await page.locator('#task-pyodide-price .ai-feedback-gear').click();
+    assert.equal(await page.locator('dialog.ai-feedback-settings[open]').count(),1);
+    await page.locator('dialog.ai-feedback-settings').getByRole('button',{name:'Cancel',exact:true}).click();
+    await page.screenshot({path:path.join(site,'pyodide-practice-desktop.png'),fullPage:true});
+
     await pythonTab.click();
     await page.evaluate(() => AIFeedback.saveConfig({mode: 'copy', storage: 'session'}));
     report.checks.push('Python API feedback uses shared settings and current code without execution or hidden tests (mock provider)');

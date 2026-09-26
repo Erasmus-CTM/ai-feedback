@@ -33,7 +33,7 @@ jobs:
         run: python scripts/setup-feedback-integration.py --test
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
-      - name: Test the Non-Python, Python and Mathematics tabs
+      - name: Test all four integration tabs
         env:
           CTM_INTEGRATION_SITE: ${{ github.workspace }}/.feedback-workspace/site/_site
         run: npm run test:browser

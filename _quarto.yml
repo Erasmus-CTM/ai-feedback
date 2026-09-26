@@ -28,3 +28,7 @@ py-exercise:
   feedback: true
   show-test-hints: true
   submission: false
+
+pyodide:
+  feedback: true
+  feedback-hints: true

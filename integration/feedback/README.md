@@ -103,3 +103,16 @@ integration. Python exercises still use Pyodide internally to execute code.
 The adapters must omit stale output and hidden test source, preserve
 Check/Reset/submission, and use the shared API and cogwheel without executing
 code for feedback. Validate them here before opening a consumer PR.
+
+## Pyodide integration
+
+The fourth tab includes `examples/_pyodide.qmd`: three incomplete programs for
+price, accumulation and circle area. `pyodide-interaktiv` is pinned to its shared
+feedback feature branch, alongside py-exercise and math-exercise. All consumers
+share settings, transport and LaTeX rendering. Pyodide retains three hints that
+never supply finished code, and feedback never executes Python.
+
+The builder verifies that both generated fallback bundles match the shared
+runtime byte for byte. Tests cover fresh stdout evidence, edit/reset/run/restart
+invalidation, no raw stderr, standalone documents and both filter orders.
+Consumer PRs remain deferred until this common page is accepted.

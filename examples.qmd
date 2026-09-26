@@ -4,6 +4,7 @@ filters:
   - ai-feedback
   - math-exercise
   - py-exercise
+  - pyodide-interaktiv
 ---
 
 This page is both a demonstration for course authors and a set of activities you
@@ -27,6 +28,10 @@ Choose a tab below. All examples share this page.
 ## Mathematics {#mathematics}
 
 {{< include examples/_mathematics.qmd >}}
+
+## Pyodide {#pyodide}
+
+{{< include examples/_pyodide.qmd >}}
 
 ::::::
 
