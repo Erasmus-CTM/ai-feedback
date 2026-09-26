@@ -200,7 +200,7 @@
     }
     const trigger = button(L.button); const output = node('div', undefined, 'ai-feedback-output'); output.setAttribute('aria-live', 'polite');
     el.append(trigger, settingsButton(data.uiLanguage), output);
-    attach({ integration: 'non-python', policySelection: data.policySelection, id: data.id, button: trigger, output, uiLanguage: data.uiLanguage, getRequest: async () => {
+    attach({ integration: 'plain-text', policySelection: data.policySelection, id: data.id, button: trigger, output, uiLanguage: data.uiLanguage, getRequest: async () => {
       if (loadingImages) await loadingImages;
       let materials = (data.materials || []).slice();
       materials.push(...F.contextMaterials({mode:data.contextMode, refs:data.contextRefs, text:data.context}));

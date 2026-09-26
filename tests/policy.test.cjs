@@ -3,7 +3,7 @@ const F=require('../_extensions/ai-feedback/feedback-core.js');
 const request={profile:'python',task:'Add the values.',responses:[{id:'code',format:'code',value:'print(2)'}],criteria:['Do not import math.'],feedback:{language:'nb'}};
 const config=(defaults={},integrations={})=>({layers:[{defaults,integrations}]});
 test('shipped policies preserve review modes, four math steps and three Python hints',()=>{
-  for(const [name,count] of [['non-python',0],['py-exercise',0],['math-exercise',4],['pyodide-interaktiv',3]]){
+  for(const [name,count] of [['plain-text',0],['py-exercise',0],['math-exercise',4],['pyodide-interaktiv',3]]){
     const p=F.resolvePolicy(name,'nb',{},config());assert.equal(p.steps.length,count);assert.equal(p.language,'nb');assert.equal(p['reset-on-run'],true);
   }
   const p=F.resolvePolicy('math-exercise','de',{},config());assert.equal(p['max-words'],120);assert.equal(p.steps[3]['allow-full-solution'],true);
@@ -15,7 +15,7 @@ test('local common, integration and later files replace scalars and whole step l
 });
 test('all integrations can use new steps with step-specific limits and solution permission',()=>{
   globalThis.__aiFeedbackPolicies=config({steps:[{prompt:'Nudge'},{prompt:'Explain fully','allow-full-solution':true,'max-words':400}],language:'es'});
-  for(const name of ['non-python','py-exercise','math-exercise','pyodide-interaktiv']){
+  for(const name of ['plain-text','py-exercise','math-exercise','pyodide-interaktiv']){
     const first=F.applyPolicy(name,request,1);assert.equal(first.feedback.allowFullRewrite,false);
     const last=F.applyPolicy(name,request,99);assert.equal(last.feedback.level,2);assert.equal(last.feedback.maxWords,400);assert.equal(last.feedback.allowFullRewrite,true);assert.equal(last.feedback.language,'es');assert.ok(last.criteria.includes('Do not import math.'));
     assert.match(F.buildPrompt(last),/CURRENT HINT LEVEL: 2 OF 2/);
@@ -54,8 +54,8 @@ test('Reset cancels pending reply without consuming or restoring a hint',async()
 
 test('explicit activity max-issues remains authoritative while absent values inherit policy',()=>{
  globalThis.__aiFeedbackPolicies=config({'max-issues':5});
- assert.equal(F.applyPolicy('non-python',{...request,feedback:{maxIssues:1}},1).feedback.maxIssues,1);
- assert.equal(F.applyPolicy('non-python',request,1).feedback.maxIssues,5);
+ assert.equal(F.applyPolicy('plain-text',{...request,feedback:{maxIssues:1}},1).feedback.maxIssues,1);
+ assert.equal(F.applyPolicy('plain-text',request,1).feedback.maxIssues,5);
  delete globalThis.__aiFeedbackPolicies;
 });
 test('blocked browser storage still permits progressive feedback',async()=>{
@@ -86,7 +86,7 @@ test('page scope beats project integration; exercise and selected YAML policy wi
 });
 test('named policies are reusable across all integrations and empty steps disable progression',()=>{
  const c={layers:[{policies:{review:{steps:[],'reset-on-run':false,'max-words':80}}}]};
- for(const integration of ['non-python','math-exercise','py-exercise','pyodide-interaktiv']){
+ for(const integration of ['plain-text','math-exercise','py-exercise','pyodide-interaktiv']){
   const p=F.resolvePolicy(integration,'en',{},c,{name:'review'});assert.equal(p.steps.length,0);assert.equal(p['max-words'],80);assert.equal(p['reset-on-run'],false);
  }
 });

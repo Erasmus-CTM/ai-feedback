@@ -23,7 +23,7 @@ ai-feedback:
     - feedback/math.yml
     - feedback/python.yml
     - feedback/pyodide.yml
-    - feedback/non-python.yml
+    - feedback/plain-text.yml
 ```
 
 Paths are relative to the Quarto project root, or to the standalone input page.
@@ -64,7 +64,7 @@ ai-feedback:
         - prompt: Explain the problem without supplying finished code.
 ```
 
-The other integration names are `pyodide-interaktiv` and `non-python`. All four
+The other integration names are `pyodide-interaktiv` and `plain-text`. All four
 support the same options. The number of steps is the length of the list, with a
 maximum of 20. One step is valid; after the last step, later requests repeat it.
 
@@ -72,7 +72,7 @@ maximum of 20. One step is valid; after the last step, later requests repeat it.
 
 | Integration | Shipped behavior |
 |---|---|
-| `non-python` | Review without a hint sequence; activity criteria still apply |
+| `plain-text` | Review without a hint sequence; activity criteria still apply |
 | `py-exercise` | Review without a hint sequence; assignment restrictions still apply |
 | `math-exercise` | Four steps: question, concept, procedure, worked solution; 120 words |
 | `pyodide-interaktiv` | Three increasingly detailed hints without finished code; 250 words |
@@ -92,7 +92,7 @@ Effective settings use this precedence, lowest to highest:
 Legacy inline policy metadata is the final project layer. New policy definitions should use external YAML files. Page files form a separate, higher-precedence layer. Integration-specific settings
 win over common defaults regardless of which file contains them. A local `prompt`
 replaces the prompt in that scope; the effective common and integration prompts
-are both included. An explicit non-Python activity `max-issues` attribute overrides the policy limit.
+are both included. An explicit plain-text activity `max-issues` attribute overrides the policy limit.
 Stable shared rules, assignment restrictions, authored activity
 criteria, learner responses and eligible evidence remain separate from these
 teaching instructions. Replacing a step list never inherits permissions from
