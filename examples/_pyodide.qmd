@@ -1,3 +1,6 @@
+Hint progression restarts when you choose **Check** or **Run**. Editing alone
+keeps the current hint level.
+
 These activities use a free Python editor. Each starter is partly completed.
 **Run** executes your code; **Feedback** reviews the current draft without running
 it. After a run, feedback can also use its matching printed output. Three hint

@@ -1,3 +1,6 @@
+Hint progression restarts when you choose **Check** or **Run**. Editing alone
+keeps the current hint level.
+
 Each activity contains a draft answer with something to finish or correct.
 Edit the fields, then choose **Check**. **Feedback** offers progressively more
 help: a guiding question, a conceptual hint, a method, and finally a worked

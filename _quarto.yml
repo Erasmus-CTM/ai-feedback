@@ -22,6 +22,7 @@ format:
 filters:
   - ai-feedback
 ai-feedback:
+  policy-files: feedback.yml
   mode: copy
   storage: local
 py-exercise:

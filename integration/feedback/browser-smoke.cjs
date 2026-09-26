@@ -230,6 +230,8 @@ const server = http.createServer((req, res) => {
       assert.deepEqual(JSON.parse(apiRequest.messages[1].content).evidence, []);
       assert.equal(await page.evaluate(() => window.__feedbackExecutionCount), runs);
       await feedback.click(); await cell.locator('.ai-feedback-body').waitFor();
+      assert.match(apiRequest.messages[0].content, /CURRENT HINT LEVEL: 3 OF 4/);
+      await feedback.click(); await cell.locator('.ai-feedback-body').waitFor();
       assert.match(apiRequest.messages[0].content, /CURRENT HINT LEVEL: 4 OF 4/);
       assert.match(apiRequest.messages[0].content, /A complete rewrite or solution is permitted/);
       report.checks.push(example.id + ': partial draft, real Check, four feedback steps, matching evidence, no feedback execution and LaTeX');
@@ -275,7 +277,9 @@ const server = http.createServer((req, res) => {
       await page.evaluate(({index,code})=>qpyodideCellContainer.cells[index].primaryUnit.editor.setValue(code), {index,code:example.solution});
       assert.deepEqual((await ask()).evidence,[]);
       assert.match(apiRequest.messages[0].content,/Do not supply a complete rewritten response or finished solution/);
-      assert.match(apiRequest.messages[0].content,/Hint level 3/);
+      assert.match(apiRequest.messages[0].content,/CURRENT HINT LEVEL: 2 OF 3/);
+      await ask();
+      assert.match(apiRequest.messages[0].content,/CURRENT HINT LEVEL: 3 OF 3/);
       await cell.locator('.qpyodide-button-run').click();
       await page.waitForFunction(index => qpyodideCellContainer.cells[index].primaryUnit.feedbackEvidence !== null,index);
       assert.match(await cell.locator('.qpyodide-output-code-area').innerText(),new RegExp(example.result.replace('.', '\\.')));
@@ -290,6 +294,35 @@ const server = http.createServer((req, res) => {
     assert.equal(await page.locator('dialog.ai-feedback-settings[open]').count(),1);
     await page.locator('dialog.ai-feedback-settings').getByRole('button',{name:'Cancel',exact:true}).click();
     await page.screenshot({path:path.join(site,'pyodide-practice-desktop.png'),fullPage:true});
+    // Local policy overrides enable the same progression in both review integrations.
+    await page.evaluate(() => {
+      window.__savedPolicies = window.__aiFeedbackPolicies;
+      window.__aiFeedbackPolicies = {layers:[{integrations:{
+        'py-exercise':{'reset-on-run':false,steps:[{prompt:'LOCAL FIRST'},{prompt:'LOCAL SECOND'}]},
+        'non-python':{steps:[{prompt:'WRITING FIRST'},{prompt:'WRITING SECOND'}]}
+      }}]};
+    });
+    await pythonTab.click();
+    const policyCell=page.locator('#task-price');
+    const policyAsk=async()=>{await policyCell.locator('.py-exercise-feedback').click();await policyCell.locator('.ai-feedback-body').waitFor();return apiRequest.messages[0].content;};
+    assert.match(await policyAsk(),/LOCAL FIRST/);assert.match(await policyAsk(),/LOCAL SECOND/);
+    await policyCell.locator('.py-exercise-check').click();
+    await page.waitForFunction(()=>!document.querySelector('#task-price .py-exercise-check').disabled);
+    assert.match(await policyAsk(),/LOCAL SECOND/);
+    await policyCell.locator('.py-exercise-reset').click();assert.match(await policyAsk(),/LOCAL FIRST/);
+    await page.evaluate(()=>window.__aiFeedbackPolicies.layers[0].integrations['py-exercise']['reset-on-run']=true);
+    await policyAsk();assert.match(await policyAsk(),/LOCAL SECOND/);
+    await policyCell.locator('.py-exercise-check').click();
+    await page.waitForFunction(()=>!document.querySelector('#task-price .py-exercise-check').disabled);
+    assert.match(await policyAsk(),/LOCAL FIRST/);
+    await nonPythonTab.click();
+    const writing=page.locator('#spanish-writing');
+    for(const marker of ['WRITING FIRST','WRITING SECOND']){
+      await writing.locator('button').first().click();await writing.locator('.ai-feedback-body').waitFor();assert.ok(apiRequest.messages[0].content.includes(marker));
+    }
+    await page.evaluate(()=>window.__aiFeedbackPolicies=window.__savedPolicies);
+    report.checks.push('Local YAML-equivalent policies enable text/Python steps, preserve Check progress when configured, and reset on Check/Reset by default');
+
 
     await pythonTab.click();
     await page.evaluate(() => AIFeedback.saveConfig({mode: 'copy', storage: 'session'}));

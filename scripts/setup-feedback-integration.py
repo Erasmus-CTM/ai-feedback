@@ -102,8 +102,10 @@ def main():
     if site.exists():
         shutil.rmtree(site)  # Generated site inside the marked workspace only.
     site.mkdir()
-    for name in ['_quarto.yml', 'index.qmd', 'examples.qmd']:
+    for name in ['_quarto.yml', 'index.qmd', 'examples.qmd', 'feedback.yml']:
         shutil.copy2(ROOT / name, site / name)
+    if (ROOT / 'feedback').is_dir():
+        shutil.copytree(ROOT / 'feedback', site / 'feedback')
     shutil.copytree(ROOT / 'assets', site / 'assets')
     shutil.copytree(ROOT / 'examples', site / 'examples')
     hashes = {}
@@ -113,7 +115,7 @@ def main():
         shutil.copytree(extension, destination)
         hashes[name] = {str(p.relative_to(extension)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(extension.rglob('*')) if p.is_file()}
     for filename, digest in hashes['ai-feedback'].items():
-        if filename in ('feedback-core.js', 'feedback-dom.js', 'ai-feedback.js', 'ai-feedback.css'):
+        if filename in ('feedback-core.js', 'feedback-dom.js', 'ai-feedback.js', 'ai-feedback.css', 'feedback-policy.lua', 'feedback-defaults.yml'):
             for consumer in ('math-exercise', 'pyodide-interaktiv'):
                 if hashes[consumer].get('ai-feedback/' + filename) != digest:
                     raise SystemExit(consumer + ' shared runtime differs: ' + filename + '. Run its scripts/sync-ai-feedback.py with this checkout.')

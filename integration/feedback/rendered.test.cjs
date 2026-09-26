@@ -142,7 +142,7 @@ test('standalone math and both shared-filter orders load one usable runtime', as
         // Simulate the previously released explicit dependency and callback contract.
         for (const name of ['ai-feedback.lua', 'feedback-core.js', 'ai-feedback.js']) {
           const file = path.join(dir, '_extensions/ai-feedback', name);
-          fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replaceAll('0.3.0', '0.1.0').replace('await getRequest({ hintLevel })', 'await getRequest()'));
+          fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replaceAll('0.4.0', '0.1.0').replace('await getRequest({ hintLevel })', 'await getRequest()'));
         }
       }
       fs.writeFileSync(path.join(dir, `order-${i}.qmd`), `---\nformat: html\nfilters: [${filters.join(', ')}]\n---\n\n::: {#context .ai-context}\nUse $x^2$.\n:::\n\n\x60\x60\x60{math-exercise}\n#| label: order\n#| context: context\nCompute $2+2$: _[SECRET_ANSWER]\n\x60\x60\x60\n`);
@@ -155,7 +155,7 @@ test('standalone math and both shared-filter orders load one usable runtime', as
         assert.equal(scripts.length, 1, `${filters}: ${name}`);
         w.eval(fs.readFileSync(path.join(dir, scripts[0].getAttribute('src')), 'utf8'));
       }
-      if (i < 3) assert.equal(w.AIFeedback.version, '0.3.0');
+      if (i < 3) assert.equal(w.AIFeedback.version, '0.4.0');
       w.AIFeedback.initialize();
       const math = [...w.document.scripts].find(s => s.textContent.includes('var ME_CFG ='));
       w.eval(math.textContent);
@@ -202,7 +202,7 @@ test('standalone Pyodide, both filter orders and disabled feedback render correc
         assert.equal(scripts.length,i===3?0:1);
         if(i!==3)w.eval(fs.readFileSync(path.join(dir,scripts[0].getAttribute('src')),'utf8'));
       }
-      if(i!==3){assert.equal(w.AIFeedback.version,'0.3.0');w.AIFeedback.openSettings();assert.equal(w.document.querySelectorAll('dialog.ai-feedback-settings').length,1);}
+      if(i!==3){assert.equal(w.AIFeedback.version,'0.4.0');w.AIFeedback.openSettings();assert.equal(w.document.querySelectorAll('dialog.ai-feedback-settings').length,1);}
       assert.equal(w.document.querySelectorAll('[id^="qpyodide-insertion-location-"]').length,3);
       const dataScript = [...w.document.scripts].find(s=>s.textContent.includes('globalThis.qpyodideCellDetails ='));
       assert.ok(dataScript); w.eval(dataScript.textContent);
@@ -212,4 +212,51 @@ test('standalone Pyodide, both filter orders and disabled feedback render correc
       w.close();
     }
   } finally {fs.rmSync(dir,{recursive:true,force:true});}
+});
+
+test('ordered YAML policy files equal one file, replace steps, preserve TeX and reject invalid policy', () => {
+  const {spawnSync}=require('node:child_process');
+  const dir=fs.mkdtempSync(path.join(path.dirname(site),'policy-files-'));
+  try {
+    fs.cpSync(path.join(path.dirname(site),'_extensions/ai-feedback'),path.join(dir,'_extensions/ai-feedback'),{recursive:true});
+    fs.writeFileSync(path.join(dir,'base.yml'),`ai-feedback:\n  defaults:\n    max-words: 180\n    reset-on-run: false\n  integrations:\n    math-exercise:\n      steps:\n        - prompt: Old first\n        - prompt: Old second\n`);
+    fs.writeFileSync(path.join(dir,'later.yml'),String.raw`ai-feedback:
+  integrations:
+    math-exercise:
+      prompt: |
+        Use \(x^2\) and \frac{a}{b}.
+
+        Do not output <think> tags.
+      steps:
+        - prompt: Replacement first
+        - prompt: Replacement final
+          allow-full-solution: true
+          max-words: 350
+`);
+    fs.writeFileSync(path.join(dir,'one.yml'),fs.readFileSync(path.join(dir,'later.yml'),'utf8').replace('ai-feedback:\n','ai-feedback:\n  defaults:\n    max-words: 180\n    reset-on-run: false\n'));
+    fs.writeFileSync(path.join(dir,'empty.yml'),'ai-feedback:\n  integrations:\n    math-exercise:\n      steps: []\n');
+    fs.writeFileSync(path.join(dir,'invalid.yml'),'ai-feedback:\n  defaults:\n    reset-on-run: "false"\n');
+    fs.writeFileSync(path.join(dir,'invalidmap.yml'),'ai-feedback:\n  defaults: false\n');
+    fs.writeFileSync(path.join(dir,'invalidlist.yml'),'ai-feedback:\n  integrations: []\n');
+    const configs=[['one.yml'],['base.yml','later.yml'],['base.yml','later.yml','empty.yml'],['invalid.yml'],['invalidmap.yml'],['invalidlist.yml']];
+    const policies=[];
+    for(const [i,files] of configs.entries()){
+      fs.writeFileSync(path.join(dir,`p${i}.qmd`),`---\nformat: html\nfilters: [ai-feedback]\nai-feedback:\n  policy-files: [${files.join(', ')}]\n---\n\nPolicy fixture.\n`);
+      const run=spawnSync(process.env.QUARTO_BIN||'quarto',['render',`p${i}.qmd`],{cwd:dir,encoding:'utf8',timeout:120000});
+      if(i>=3){assert.notEqual(run.status,0);assert.match(run.stderr,/must be (true or false|a mapping)/);continue;}
+      assert.equal(run.status,0,run.stderr);
+      const w=new JSDOM(fs.readFileSync(path.join(dir,`p${i}.html`),'utf8'),{url:'https://policy.invalid/',runScripts:'outside-only'}).window;
+      const core=[...w.document.scripts].find(s=>s.src.endsWith('/feedback-core.js'));
+      w.eval(fs.readFileSync(path.join(dir,core.getAttribute('src')),'utf8'));
+      for(const script of w.document.scripts)if(script.textContent.includes('window.__aiFeedbackPolicies ='))w.eval(script.textContent);
+      const p=JSON.parse(JSON.stringify(w.AIFeedback.resolvePolicy('math-exercise','en')));policies.push(p);
+      assert.equal(p['max-words'],180);assert.equal(p['reset-on-run'],false);
+      assert.ok(p.prompt.includes(String.raw`Use \(x^2\) and \frac{a}{b}.`));
+      assert.ok(p.prompt.includes('Do not output <think> tags.'));
+      assert.equal(p.steps.length,i===2?0:2);
+      if(i<2){assert.equal(p.steps[0].prompt,'Replacement first');assert.equal(p.steps[1]['allow-full-solution'],true);}
+      w.close();
+    }
+    assert.deepEqual(policies[0],policies[1]);
+  }finally{fs.rmSync(dir,{recursive:true,force:true});}
 });

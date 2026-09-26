@@ -1,0 +1,11 @@
+# Local teaching policy overrides. The shipped defaults supply the step sequences.
+# Replace this file with several paths under ai-feedback.policy-files if preferred.
+ai-feedback:
+  defaults:
+    reset-on-run: true
+#  integrations:
+#    py-exercise:
+#      steps:
+#        - prompt: Ask one guiding question.
+#        - prompt: Explain the relevant idea without finishing the program.
+#        - prompt: Describe the solution approach in words.
