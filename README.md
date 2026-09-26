@@ -20,7 +20,7 @@ quarto add Erasmus-CTM/ai-feedback
 ```
 
 **Integration-branch preview:** until this work is merged, install
-`Erasmus-CTM/ai-feedback@feature/shared-context` and each consumer's
+`Erasmus-CTM/ai-feedback@feature/scoped-policies` and each consumer's
 `feature/shared-feedback-integration` branch. Main-branch consumers do not yet
 have this protocol. The common examples builder pins the exact tested revisions.
 
