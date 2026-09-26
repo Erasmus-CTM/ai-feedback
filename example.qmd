@@ -1,10 +1,18 @@
 ---
-title: "ai-feedback example"
+title: "Help a learner revise a short draft"
 format: html
 filters: [_filters/example-source.lua, ai-feedback]
 ai-feedback:
   mode: copy
 ---
+
+Try improving the Spanish below, then choose **Feedback**. The aim is one useful
+next step, rather than a replacement answer. Open the source after the activity
+to adapt its language, level and teaching focus.
+
+**Feedback** prepares a message to paste into an AI chat. If your course has
+feedback set up on the page, you can receive the reply here instead.
+
 
 ## Spanish practice
 
