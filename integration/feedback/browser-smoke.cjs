@@ -113,8 +113,7 @@ const server = http.createServer((req, res) => {
       const bounds = await cell.locator('.monaco-editor').boundingBox();
       assert.ok(bounds && bounds.width > 100 && bounds.height > 40, exercise.label + ': editor must lay out after opening its tab');
       const result = cell.locator('.py-exercise-result');
-      const fn = /def (\w+)\(/.exec(exercise.starter)[1];
-      const modelId = await page.evaluate(fn => monaco.editor.getModels().find(m => m.getValue().includes('def ' + fn + '(')).uri.toString(), fn);
+      const modelId = await page.evaluate(starter => monaco.editor.getModels().find(m => m.getValue().trim() === starter.trim()).uri.toString(), exercise.starter);
       const replace = code => page.evaluate(({modelId, code}) => monaco.editor.getModels().find(m => m.uri.toString() === modelId).setValue(code), {modelId, code});
       const runCheck = async () => {
         await cell.locator('.py-exercise-check').click();
@@ -246,6 +245,13 @@ const server = http.createServer((req, res) => {
       window.__pyodideRunCount = 0;
       proxy.runCell = function(...args) { window.__pyodideRunCount++; return run.apply(this,args); };
     });
+    const compact = await page.locator('.qpyodide-editor-toolbar').evaluateAll(bars => bars.every(bar => {
+      const reference = bar.querySelector('.qpyodide-button-run').cloneNode(true);
+      reference.style.alignSelf='center'; reference.style.visibility='hidden'; bar.append(reference);
+      const normal=reference.getBoundingClientRect().height; reference.remove();
+      return normal > 0 && [...bar.querySelectorAll('button')].every(b=>b.getBoundingClientRect().height<=normal+1);
+    }));
+    assert.ok(compact,'Pyodide settings gear must not stretch the original compact controls');
     const pyodideCases = [
       {id:'task-pyodide-price', result:'100', solution:'price = 80\nrate = 0.25\ntax = price * rate\nprint(price + tax)'},
       {id:'task-pyodide-total', result:'10', solution:'values = [3, 5, 2]\ntotal = 0\nfor value in values:\n    total += value\nprint(total)'},
@@ -306,6 +312,7 @@ const server = http.createServer((req, res) => {
     await page.screenshot({path: path.join(site, 'mathematics-practice-mobile.png'), fullPage: true});
     console.log(JSON.stringify(report, null, 2));
   } finally {
+    console.log(JSON.stringify(report, null, 2));
     fs.writeFileSync(path.join(site, 'browser-smoke.json'), JSON.stringify(report, null, 2) + '\n');
     await browser?.close();
     await new Promise(resolve => server.close(resolve));

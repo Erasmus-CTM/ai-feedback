@@ -3,8 +3,8 @@
 ::: {.callout-note .example-author-notes}
 ### For course authors
 
-The Python and mathematics examples load the selected consumer branches on this same examples
-page. Python and mathematics use the shared feedback adapters. [Exact source revisions for this build](resolved-repos.json).
+The Python, mathematics and Pyodide examples load the selected consumer branches on this same examples
+page. Python, mathematics and Pyodide use the shared feedback adapters. [Exact source revisions for this build](resolved-repos.json).
 :::
 
 
@@ -16,7 +16,7 @@ All shared-feedback development and acceptance checks live in this repository's
 `examples.qmd` entry page and its topic includes. Add a new tab and topic include
 for each subsequent integration.
 Once an adapter works here, its changes can be propagated in a
-separate consumer PR. Python and mathematics are the current consumer integrations.
+separate consumer PR. Python, mathematics and Pyodide are the current consumer integrations.
 
 For installation and copyable authoring examples, see the
 [README and API guide](https://github.com/Erasmus-CTM/ai-feedback#api-quick-start).

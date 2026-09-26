@@ -38,6 +38,7 @@ jobs:
           CTM_INTEGRATION_SITE: ${{ github.workspace }}/.feedback-workspace/site/_site
         run: npm run test:browser
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: rendered-examples
           path: .feedback-workspace/site/_site
