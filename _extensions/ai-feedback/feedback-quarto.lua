@@ -2,6 +2,7 @@
 -- AGPL-3.0-or-later. Context preservation follows math-exercise fc549d2.
 local M = {}
 local directory = debug.getinfo(1, "S").source:sub(2):match("^(.*)[/\\]")
+local policy = dofile(directory .. "/feedback-policy.lua")
 local counter = 0
 local cfg = {}
 local language = "en"
@@ -86,7 +87,7 @@ local function activity(block, context)
   if task == "" then task = profile == "translation" and "Translate the supplied source into the response language." or "Give feedback on the learner's response." end
   local contextMode = attrs["context"] == "none" and "none" or (attrs["context"] and attrs["context"] ~= "auto" and "explicit" or "auto")
   local data = {
-    id = id, profile = profile, task = task, materials = materials, criteria = criteria,
+    id = id, policySelection = policy.selection(block, attrs), profile = profile, task = task, materials = materials, criteria = criteria,
     uiLanguage = attrs["ui-language"] or str(cfg["ui-language"], language),
     responseLanguage = attrs["response-language"] or "",
     feedbackLanguage = attrs["feedback-language"] or str(cfg["feedback-language"], language),
@@ -147,9 +148,9 @@ function M.prepare(doc)
   doc.meta["ctm-feedback-prepared"] = true
   cfg = doc.meta["ai-feedback"] or {}
   language = str(doc.meta.lang, "en")
-  dofile(directory .. "/feedback-policy.lua").emit(doc.meta)
+  policy.emit(doc.meta)
   quarto.doc.add_html_dependency({
-    name = "ai-feedback", version = "0.5.0",
+    name = "ai-feedback", version = "0.6.0",
     scripts = {directory .. "/feedback-core.js", directory .. "/feedback-dom.js", directory .. "/ai-feedback.js"},
     stylesheets = {directory .. "/ai-feedback.css"}
   })
@@ -158,6 +159,7 @@ function M.prepare(doc)
   return doc
 end
 
+M.selection = policy.selection
 function M.context(block, opts, pyodide)
   local ref = opts["feedback-context"] or opts["context"] or "auto"
   ref = tostring(ref):gsub('^"(.*)"$', '%1'):gsub("^'(.*)'$", "%1")

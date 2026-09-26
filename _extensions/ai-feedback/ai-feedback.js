@@ -100,7 +100,7 @@
     let policyFingerprint;
     function syncPolicy() {
       if (!options.integration) return;
-      const fingerprint = JSON.stringify(F.resolvePolicy(options.integration, options.uiLanguage, options.policyDefaults));
+      const fingerprint = JSON.stringify(F.resolvePolicy(options.integration, options.uiLanguage, options.policyDefaults, undefined, options.policySelection));
       if (fingerprint === policyFingerprint) return;
       const changed = policyFingerprint !== undefined;
       policyFingerprint = fingerprint;
@@ -124,7 +124,7 @@
         const hintLevel = count + 1;
         async function collect() {
           let request = await getRequest({ hintLevel });
-          if (options.integration) request = F.applyPolicy(options.integration, request, hintLevel, options.policyDefaults);
+          if (options.integration) request = F.applyPolicy(options.integration, request, hintLevel, options.policyDefaults, options.policySelection);
           if (request.feedback?.mode === 'hints') return { ...request, feedback: { ...request.feedback, level: Math.min(hintLevel, request.feedback.steps.length) } };
           return request;
         }
@@ -165,7 +165,7 @@
     trigger.addEventListener('click', run);
     return { request: run, reset(reason = 'reset') {
       quietCancellation = true; controller?.abort(); output.replaceChildren();
-      if (reason !== 'run' || !options.integration || F.resolvePolicy(options.integration, options.uiLanguage, options.policyDefaults)['reset-on-run']) {
+      if (reason !== 'run' || !options.integration || F.resolvePolicy(options.integration, options.uiLanguage, options.policyDefaults, undefined, options.policySelection)['reset-on-run']) {
         count = 0; try { if (counterKey) store('session')?.removeItem(counterKey); } catch {}
       }
     }, cancel({clearOutput = false} = {}) { quietCancellation ||= clearOutput; controller?.abort(); if (clearOutput) output.replaceChildren(); }, dispose() { disposed = true; controller?.abort(); trigger.removeEventListener('click', run); } };
@@ -200,7 +200,7 @@
     }
     const trigger = button(L.button); const output = node('div', undefined, 'ai-feedback-output'); output.setAttribute('aria-live', 'polite');
     el.append(trigger, settingsButton(data.uiLanguage), output);
-    attach({ integration: 'non-python', id: data.id, button: trigger, output, uiLanguage: data.uiLanguage, getRequest: async () => {
+    attach({ integration: 'non-python', policySelection: data.policySelection, id: data.id, button: trigger, output, uiLanguage: data.uiLanguage, getRequest: async () => {
       if (loadingImages) await loadingImages;
       let materials = (data.materials || []).slice();
       materials.push(...F.contextMaterials({mode:data.contextMode, refs:data.contextRefs, text:data.context}));

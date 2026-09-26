@@ -76,3 +76,25 @@ test('real text activities inherit YAML issue limits unless explicitly overridde
   w.close();
  }
 });
+
+test('page scope beats project integration; exercise and selected YAML policy win last',()=>{
+ const c={layers:[{defaults:{'max-words':200},integrations:{'math-exercise':{'max-words':300}},policies:{brief:{steps:[{prompt:'First'},{prompt:'Full','allow-full-solution':true}]}},exercises:{'math-exercise':{task:{'max-words':90}}}}],pageLayers:[{defaults:{'max-words':150},policies:{brief:{steps:[{prompt:'Page nudge'}]}}}]};
+ assert.equal(F.resolvePolicy('math-exercise','en',{},c)['max-words'],150);
+ const p=F.resolvePolicy('math-exercise','en',{},c,{exercise:'task',name:'brief'});
+ assert.equal(p['max-words'],90);assert.deepEqual(p.steps,[{prompt:'Page nudge'}]);assert.equal(p['allow-full-solution'],false);
+ assert.throws(()=>F.resolvePolicy('math-exercise','en',{},c,{name:'missing'}),/Unknown feedback policy/);
+});
+test('named policies are reusable across all integrations and empty steps disable progression',()=>{
+ const c={layers:[{policies:{review:{steps:[],'reset-on-run':false,'max-words':80}}}]};
+ for(const integration of ['non-python','math-exercise','py-exercise','pyodide-interaktiv']){
+  const p=F.resolvePolicy(integration,'en',{},c,{name:'review'});assert.equal(p.steps.length,0);assert.equal(p['max-words'],80);assert.equal(p['reset-on-run'],false);
+ }
+});
+test('only an effective policy change resets the selected exercise counter',async()=>{
+ const {w,api,level}=attached();
+ w.__aiFeedbackPolicies={layers:[{defaults:{steps:[{prompt:'One'},{prompt:'Two'}]},policies:{unused:{prompt:'Unused'}}}]};
+ await api.request();w.__aiFeedbackPolicies.layers[0].policies.unused.prompt='Different unused policy';
+ await api.request();assert.equal(level(),'Hint 2');
+ w.__aiFeedbackPolicies.pageLayers=[{defaults:{steps:[{prompt:'Page start'}]}}];
+ await api.request();assert.equal(level(),'Hint 1');w.close();
+});

@@ -1,7 +1,7 @@
 ---
 title: "ai-feedback example"
 format: html
-filters: [ai-feedback]
+filters: [_filters/example-source.lua, ai-feedback]
 ai-feedback:
   mode: copy
 ---

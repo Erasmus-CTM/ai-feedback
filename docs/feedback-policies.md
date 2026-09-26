@@ -89,7 +89,7 @@ Effective settings use this precedence, lowest to highest:
 3. Local common defaults, merged in file order.
 4. Local integration settings, merged in file order.
 
-Inline policy metadata is the final local layer. Integration-specific settings
+Legacy inline policy metadata is the final project layer. New policy definitions should use external YAML files. Page files form a separate, higher-precedence layer. Integration-specific settings
 win over common defaults regardless of which file contains them. A local `prompt`
 replaces the prompt in that scope; the effective common and integration prompts
 are both included. An explicit non-Python activity `max-issues` attribute overrides the policy limit.
@@ -146,3 +146,92 @@ and pinned integration branches live in
 [Erasmus-CTM/ctm-assessment](https://github.com/Erasmus-CTM/ctm-assessment).
 Its builder copies `feedback.yml` and an optional `feedback/` directory.
 Use ai-feedback 0.5.0 with the matching integration branches.
+
+## Page scope and named exercise policies (0.6.0)
+
+All new policy definitions live in external YAML files. An exercise may only
+select an existing named policy inline; it cannot embed a policy mapping.
+Existing inline document defaults/integrations remain supported for compatibility.
+Named `policies` and `exercises` mappings are rejected in document front matter.
+
+```yaml
+# _quarto.yml
+ai-feedback:
+  policy-files: feedback/course.yml
+```
+
+```yaml
+# A page's front matter; one path or an ordered list
+ai-feedback:
+  page-policy-files: feedback/chapter-3.yml
+```
+
+Paths in both lists are relative to the project root, including pages in nested
+folders. For standalone documents, paths are relative to the input document.
+There is no filename-based discovery: each file must be listed explicitly.
+
+```yaml
+# feedback/chapter-3.yml
+ai-feedback:
+  defaults:
+    max-words: 160
+  integrations:
+    math-exercise:
+      max-words: 100
+  policies:
+    short-hints:
+      prompt: Prefer the methods taught in this chapter.
+      reset-on-run: true
+      steps:
+        - prompt: Ask one guiding question.
+        - prompt: Explain the relevant idea without a completed solution.
+  exercises:
+    math-exercise:
+      quadratic-practice:
+        max-words: 80
+```
+
+Select that reusable policy inside any code integration:
+
+````markdown
+```{math-exercise}
+#| label: quadratic-practice
+#| feedback-policy: short-hints
+Solve $x+2=5$: $x=$ _[3].
+```
+````
+
+For text/image activities, use `feedback-policy="short-hints"` on the
+`.ai-feedback` Div. Its explicit `#id` is its exercise key. Python and mathematics
+use their authored `#| label:`; use stable, unique labels within each integration
+when configuring exercise-specific settings. Unlabelled exercises can select a
+named policy but should not be targeted through generated IDs.
+
+Precedence, lowest to highest:
+
+1. Shipped common and integration defaults.
+2. Project files: common defaults, then integration settings.
+3. Page files: common defaults, then integration settings.
+4. YAML exercise entries for the integration and authored ID/label, merged in
+   project-file order followed by page-file order.
+5. The named policy explicitly selected on that exercise.
+6. The current step's permitted per-step settings.
+
+Within each scope later files override earlier files. A page common setting can
+override a project integration setting. Named definitions merge by name in file
+order (project then page). Selecting a name does not automatically activate it
+elsewhere. No named-policy inheritance or inline definitions are supported.
+
+Scalars replace, omitted keys inherit, and `steps` replaces the entire list.
+`steps: []` disables hints. Replacing steps never inherits old per-step solution
+permissions. An exercise/named `prompt` replaces the effective integration prompt;
+the effective common prompt and separate authored criteria still apply. Existing
+explicit text-activity `max-issues` attributes retain their compatibility priority.
+Unknown selected names, missing files and invalid fields stop rendering clearly.
+Named and exercise policy entries must define at least one option; empty sections
+are ignored. Use `steps: []` explicitly when requesting review without hints.
+
+All integrations pass only the selection and authored exercise key to the shared
+resolver. The resulting policy governs prompts, limits, steps and Run/Check
+resets. Only a change to that exercise's effective policy resets its saved hint
+counter; editing an unused named policy does not reset unrelated exercises.
