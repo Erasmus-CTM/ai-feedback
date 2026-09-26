@@ -76,7 +76,7 @@ local function activity(block, context)
     learnerLevel = attrs["learner-level"] or "", starter = starter,
     imageUpload = attrs["image-upload"] == "true", imageRole = attrs["image-role"] or "response",
     contextMode = contextMode, contextRefs = attrs["context"] or "", context = contextMode == "auto" and bounded(context) or "",
-    maxIssues = tonumber(attrs["max-issues"] or "3")
+    maxIssues = tonumber(attrs["max-issues"])
   }
   visible:insert(pandoc.RawBlock("html", '<script type="application/json" class="ai-feedback-data">' .. json(data) .. '</script>'))
   visible:insert(pandoc.RawBlock("html", '<noscript>Enable JavaScript to use this feedback activity.</noscript>'))
@@ -105,8 +105,9 @@ function Pandoc(doc)
   if not quarto.doc.is_format("html") then return doc end
   cfg = doc.meta["ai-feedback"] or {}
   language = str(doc.meta.lang, "en")
+  dofile(quarto.utils.resolve_path("feedback-policy.lua")).emit(doc.meta)
   quarto.doc.add_html_dependency({
-    name = "ai-feedback", version = "0.3.0",
+    name = "ai-feedback", version = "0.4.0",
     scripts = {"feedback-core.js", "feedback-dom.js", "ai-feedback.js"},
     stylesheets = {"ai-feedback.css"}
   })

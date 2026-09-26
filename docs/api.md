@@ -163,3 +163,20 @@ Since 0.3.0, `handle.cancel({clearOutput: true})` cancels quietly and keeps the
 output empty even if network, snapshot collection or typesetting later finishes.
 Adapters use this for edits, Reset and execution invalidation. No-argument
 `cancel()` retains the visible cancellation notice. Neither consumes a hint.
+
+## Layered policies (0.4.0)
+
+Use `attach({integration: 'math-exercise', ...})` (or `non-python`, `py-exercise`,
+`pyodide-interaktiv`) to resolve shipped and local policies centrally. The adapter
+supplies task, responses, domain criteria, evidence and its default explanation
+language. `getRequest` no longer needs to choose a hint level or permission.
+
+`handle.reset('run')` quietly cancels pending feedback and resets the counter when
+`reset-on-run` is true. Call it at the start of Run/Check. `handle.reset()` always
+restarts the sequence; call it on explicit Reset/new pool task. Edits should use
+`cancel({clearOutput: true})` and invalidate evidence without resetting progression.
+
+`resolvePolicy(integration, language, legacyDefaults, configuration)` resolves a
+policy; `applyPolicy(integration, request, hintLevel, legacyDefaults)` applies it.
+Legacy defaults exist for Pyodide's `feedback-hints: false`; local YAML overrides
+them. Do not copy teaching prompts into adapters. See [policy authoring](feedback-policies.md).

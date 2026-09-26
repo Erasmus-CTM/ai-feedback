@@ -1,4 +1,4 @@
-/* AI Feedback v0.3.0 — AGPL-3.0-or-later. Provider policy derived from
+/* AI Feedback v0.4.0 — AGPL-3.0-or-later. Provider policy derived from
  * Erasmus-CTM/math-exercise fc549d2. No DOM, editor or Python dependency. */
 (function (root, factory) {
   const api = factory();
@@ -6,7 +6,65 @@
   if (root) root.AIFeedback = Object.assign(root.AIFeedback || {}, api);
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
-  const VERSION = '0.3.0';
+  const VERSION = '0.4.0';
+
+  // BEGIN GENERATED FEEDBACK DEFAULTS
+  const shippedPolicies = {"defaults": {"max-words": 250, "max-issues": 3, "allow-full-solution": false, "reset-on-run": true, "steps": []}, "integrations": {"non-python": {}, "py-exercise": {"prompt": "Respect the assignment and its restrictions. Use supplied checker evidence only; do not claim untested code has passed."}, "math-exercise": {"max-words": 120, "prompt": "Preserve every given, sign, unit, domain and assumption. Use the supplied learning context and notation. Use assessments only as private evidence: do not announce scores, checker details or field numbers. Briefly acknowledge meaningful progress when present. Address the learner directly. Use short paragraphs rather than tables. Wrap mathematics in LaTeX delimiters.", "steps": [{"prompt": "Ask exactly one guiding question in one or two sentences. Do not give a formula, method, intermediate value or answer. Do not use headings or repeat the task."}, {"prompt": "Give a short conceptual nudge. Explain what to think about next, without formulas, calculations, intermediate values or answers."}, {"prompt": "Explain the general procedure in at most three concise steps. A general formula is allowed, but stop before any task-specific substitution or calculation. Ask the learner to carry out the next step."}, {"prompt": "Provide a concise complete worked solution, with substitutions, calculations and the final answer.", "allow-full-solution": true}]}, "pyodide-interaktiv": {"prompt": "Be a patient programming tutor for Python beginners. Give constructive, compact feedback grounded in the current code and supplied execution evidence. Discuss errors, strengths and possible improvements when relevant.", "steps": [{"prompt": "Give a gentle nudge: indicate where the problem might be, without explaining why."}, {"prompt": "Explain the problem concretely, without giving a solution path or finished solution code."}, {"prompt": "Describe the complete solution approach in words, without supplying finished solution code."}]}}};
+  // END GENERATED FEEDBACK DEFAULTS
+  const policyNames = ['non-python', 'py-exercise', 'math-exercise', 'pyodide-interaktiv'];
+  const policyKeys = ['prompt', 'language', 'max-words', 'max-issues', 'allow-full-solution', 'reset-on-run', 'steps'];
+  function validatePolicy(policy, where, step = false) {
+    if (!policy || typeof policy !== 'object' || Array.isArray(policy)) fail(where + ' must be a mapping.');
+    for (const [key, value] of Object.entries(policy)) {
+      if (!(step ? ['prompt', 'max-words', 'max-issues', 'allow-full-solution'] : policyKeys).includes(key)) fail(where + ': unknown option ' + key);
+      if (['prompt', 'language'].includes(key)) string(value, where + '.' + key, true);
+      if (['allow-full-solution', 'reset-on-run'].includes(key) && typeof value !== 'boolean') fail(where + '.' + key + ' must be boolean.');
+      if (key === 'max-words') finiteInt(value, 250, 20, 2000, where + '.' + key);
+      if (key === 'max-issues') finiteInt(value, 3, 1, 20, where + '.' + key);
+      if (key === 'steps') {
+        if (!Array.isArray(value) || value.length > 20) fail(where + '.steps must be a list of at most 20 steps.');
+        value.forEach((entry, index) => {
+          validatePolicy(entry, where + '.steps[' + index + ']', true);
+          string(entry.prompt, where + '.steps[' + index + '].prompt', true);
+        });
+      }
+    }
+    return policy;
+  }
+  function resolvePolicy(integration, language = 'en', legacy = {}, configuration) {
+    if (!policyNames.includes(integration)) fail('Unknown feedback integration: ' + integration);
+    const localDefaults = {}, localIntegration = {};
+    const config = configuration || globalThis.__aiFeedbackPolicies || {layers: []};
+    for (const layer of config.layers || [config]) {
+      for (const key of Object.keys(layer)) if (!['defaults', 'integrations'].includes(key)) fail('Unknown feedback policy section: ' + key);
+      if (layer.defaults !== undefined) Object.assign(localDefaults, validatePolicy(layer.defaults, 'defaults'));
+      if (layer.integrations !== undefined) {
+        if (!layer.integrations || typeof layer.integrations !== 'object' || Array.isArray(layer.integrations)) fail('integrations must be a mapping.');
+        for (const [name, policy] of Object.entries(layer.integrations)) {
+          if (!policyNames.includes(name)) fail('Unknown feedback integration: ' + name);
+          validatePolicy(policy, name);
+          if (name === integration) Object.assign(localIntegration, policy);
+        }
+      }
+    }
+    const common = {...shippedPolicies.defaults, ...localDefaults};
+    const specific = {...shippedPolicies.integrations[integration], ...localIntegration};
+    const policy = {language, ...shippedPolicies.defaults, ...shippedPolicies.integrations[integration], ...legacy, ...localDefaults, ...localIntegration};
+    policy.prompts = [common.prompt, specific.prompt].filter(Boolean);
+    return policy;
+  }
+  function applyPolicy(integration, request, hintLevel, legacy) {
+    const policy = resolvePolicy(integration, request.feedback?.language || 'en', legacy);
+    const steps = policy.steps || [];
+    const level = Math.min(hintLevel, Math.max(1, steps.length));
+    const current = {...policy, ...(steps[level - 1] || {})};
+    return {...request,
+      criteria: [...(request.criteria === undefined ? profiles[request.profile || 'review'].criteria : request.criteria), ...policy.prompts],
+      feedback: {...request.feedback, language: policy.language, mode: steps.length ? 'hints' : 'review',
+        maxWords: current['max-words'], maxIssues: integration === 'non-python' && request.feedback?.maxIssues !== undefined ? request.feedback.maxIssues : current['max-issues'], allowFullRewrite: current['allow-full-solution'],
+        steps: steps.map(s => s.prompt), level}};
+  }
+
   const profiles = {
     review: { criteria: [] },
     translation: { criteria: ['Preserve the meaning of the source.', 'Accept valid alternative translations.'] },
@@ -102,7 +160,7 @@
       'Adapt explanations to the stated course level without assuming a CEFR equivalence. Use short paragraphs or lists and safe Markdown. ' +
       'Use LaTeX delimiters for mathematical notation. Discuss at most ' + f.maxIssues + ' issues in at most ' + f.maxWords + ' words. ';
     system += f.allowFullRewrite ? 'A complete rewrite or solution is permitted when useful. ' : 'Do not supply a complete rewritten response or finished solution. Give limited examples only when the current teaching step permits them. ';
-    if (f.mode === 'hints') system += 'Current teaching step: ' + f.steps[f.level - 1] + ' ';
+    if (f.mode === 'hints') system += 'CURRENT HINT LEVEL: ' + f.level + ' OF ' + f.steps.length + '. Current teaching step: ' + f.steps[f.level - 1] + ' ';
     system += 'Write explanations in ' + f.language + '. You may quote source or target-language words, code and formulas in their original language.';
     const text = JSON.stringify({ task: r.task, materials: r.materials, responses: r.responses, learner: r.learner, evidence: r.evidence,
       attachments: r.attachments.map(({ dataUrl, ...metadata }) => metadata) });
@@ -219,5 +277,5 @@
     return { request: (input, options) => complete(buildMessages(input), options), complete, buildPrompt,
       loadCapability, saveCapability };
   }
-  return { version: VERSION, FeedbackError, normalizeRequest, buildMessages, buildPrompt, modelPolicy, createClient };
+  return { version: VERSION, shippedPolicies, resolvePolicy, applyPolicy, FeedbackError, normalizeRequest, buildMessages, buildPrompt, modelPolicy, createClient };
 });
