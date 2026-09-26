@@ -171,6 +171,13 @@ Policies also support `language`, `max-issues`, `allow-full-solution` and
 per-step limits. Prompts are author instructions; they never appear in the
 learner's task. [Full schema, precedence and examples](docs/feedback-policies.md).
 
+Page front matter may load `ai-feedback.page-policy-files` to override project
+settings. Define reusable policies under `ai-feedback.policies` in those YAML
+files and select one with `feedback-policy="name"` (text activities) or
+`#| feedback-policy: name` (code cells). Inline selections contain names only.
+YAML `ai-feedback.exercises.<integration>.<label-or-id>` targets individual
+exercises. See [page/exercise precedence and examples](docs/feedback-policies.md#page-scope-and-named-exercise-policies-060).
+
 ## Provider settings and data sent
 
 Every cogwheel opens the same settings dialog. Copy mode needs no account and

@@ -1,4 +1,4 @@
--- Shared policy metadata loader. Bundled unchanged by standalone consumers.
+-- Shared policy metadata loader; consumers use the installed shared extension.
 local M = {}
 local function fail(message) assert(false, message) end
 local function text(value)
@@ -60,12 +60,36 @@ local function layer(cfg)
     end
     if next(integrations) then out.integrations = integrations end
   end
+  for _, section in ipairs({'policies', 'exercises'}) do
+    if cfg[section] ~= nil then
+      if type(cfg[section]) ~= 'table' or pandoc.utils.type(cfg[section]) ~= 'table' then fail('ai-feedback: '..section..' must be a mapping') end
+      out[section] = {}
+      for name, value in pairs(cfg[section]) do
+        if section == 'policies' then
+          local entry = policy(value, section..'.'..name)
+          if not next(entry) then fail('ai-feedback: named policy '..name..' must define at least one option') end
+          out[section][name] = entry
+        else
+          if not names[name] then fail('ai-feedback: unknown integration '..name) end
+          if type(value) ~= 'table' or pandoc.utils.type(value) ~= 'table' then fail('ai-feedback: exercises.'..name..' must be a mapping') end
+          out[section][name] = {}
+          for id, entry in pairs(value) do
+            local p = policy(entry, 'exercises.'..name..'.'..id)
+            if not next(p) then fail('ai-feedback: exercise policy '..name..'.'..id..' must define at least one option') end
+            out[section][name][id] = p
+          end
+          if not next(out[section][name]) then out[section][name] = nil end
+        end
+      end
+      if not next(out[section]) then out[section] = nil end
+    end
+  end
   return next(out) and out or nil
 end
 function M.emit(meta)
   local cfg = meta['ai-feedback'] or {}
+  local function readFiles(files)
   local layers = {}
-  local files = cfg['policy-files']
   if files then
     if pandoc.utils.type(files) ~= 'List' then files = {files} end
     for _, file in ipairs(files) do
@@ -79,12 +103,35 @@ function M.emit(meta)
       local parsed = pandoc.read('---\n'..raw..'\n---\n', 'markdown+tex_math_single_backslash').meta
       local data = parsed['ai-feedback']
       if not data then fail('ai-feedback: policy file must contain an ai-feedback mapping: '..name) end
-      for key, _ in pairs(data) do if key ~= 'defaults' and key ~= 'integrations' then fail('ai-feedback: policy files accept only defaults and integrations: '..key) end end
+      for key, _ in pairs(data) do if key ~= 'defaults' and key ~= 'integrations' and key ~= 'policies' and key ~= 'exercises' then fail('ai-feedback: unknown policy file section: '..key) end end
       local result = layer(data); if result then table.insert(layers, result) end
     end
   end
-  local inline = layer(cfg); if inline then table.insert(layers, inline) end
-  local encoded = quarto.json.encode({layers=layers}):gsub('<','\\u003c'):gsub('>','\\u003e'):gsub('&','\\u0026')
+  return layers
+  end
+  local layers = readFiles(cfg['policy-files'])
+  local pageLayers = readFiles(cfg['page-policy-files'])
+  if cfg.policies or cfg.exercises then fail('ai-feedback: policies and exercises must be defined in external YAML policy files') end
+  local inline = layer({defaults=cfg.defaults, integrations=cfg.integrations}); if inline then table.insert(layers, inline) end
+  _G.ctmFeedbackPolicies = {layers=layers, pageLayers=pageLayers}
+  local encoded = quarto.json.encode(_G.ctmFeedbackPolicies):gsub('<','\\u003c'):gsub('>','\\u003e'):gsub('&','\\u0026')
   quarto.doc.include_text('before-body','<script>window.__aiFeedbackPolicies = '..encoded..';</script>')
+end
+function M.selection(block, opts)
+  local name = opts['feedback-policy'] or block.attributes['feedback-policy'] or ''
+  if type(name) ~= 'string' then fail('ai-feedback: feedback-policy must name an existing YAML policy, not contain inline settings') end
+  name = name:gsub('^"(.*)"$', '%1'):gsub("^'(.*)'$", '%1')
+  if name ~= '' then
+    local found = false
+    local config = _G.ctmFeedbackPolicies or {}
+    for _, layers in ipairs({config.layers or {}, config.pageLayers or {}}) do
+      for _, item in ipairs(layers) do if item.policies and item.policies[name] then found = true end end
+    end
+    if not found then fail('ai-feedback: unknown feedback-policy '..name..'; define it in a policy YAML file') end
+  end
+  local id = opts.label
+  if id == nil or id == '' then id = block.identifier or '' end
+  id = tostring(id):gsub('^"(.*)"$', '%1'):gsub("^'(.*)'$", '%1')
+  return {exercise=id, name=name}
 end
 return M
