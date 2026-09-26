@@ -23,7 +23,7 @@ ai-feedback:
     - feedback/math.yml
     - feedback/python.yml
     - feedback/pyodide.yml
-    - feedback/non-python.yml
+    - feedback/plain-text.yml
 ```
 
 Paths are relative to the Quarto project root, or to the standalone input page.
@@ -64,7 +64,7 @@ ai-feedback:
         - prompt: Explain the problem without supplying finished code.
 ```
 
-The other integration names are `pyodide-interaktiv` and `non-python`. All four
+The other integration names are `pyodide-interaktiv` and `plain-text`. All four
 support the same options. The number of steps is the length of the list, with a
 maximum of 20. One step is valid; after the last step, later requests repeat it.
 
@@ -72,7 +72,7 @@ maximum of 20. One step is valid; after the last step, later requests repeat it.
 
 | Integration | Shipped behavior |
 |---|---|
-| `non-python` | Review without a hint sequence; activity criteria still apply |
+| `plain-text` | Review without a hint sequence; activity criteria still apply |
 | `py-exercise` | Review without a hint sequence; assignment restrictions still apply |
 | `math-exercise` | Four steps: question, concept, procedure, worked solution; 120 words |
 | `pyodide-interaktiv` | Three increasingly detailed hints without finished code; 250 words |

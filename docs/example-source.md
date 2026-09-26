@@ -1,6 +1,6 @@
 # Download an example to edit
 
-To try the activity first, [open the rendered examples](https://erasmus-ctm.github.io/ctm-assessment/example.html). Choose the **Non-Python** tab.
+To try the activity first, [open the rendered examples](https://erasmus-ctm.github.io/ctm-assessment/example.html). Choose the **Plain text** tab.
 
 [Example source — download and open in your editor](https://github.com/Erasmus-CTM/ai-feedback/blob/feature/scoped-policies/example.qmd).
 On GitHub, select **Download raw file**. Open the saved file in your editor;

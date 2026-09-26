@@ -99,7 +99,7 @@ arrays before the filter sees them.
 
 | Integration | Shipped behavior |
 |---|---|
-| Non-Python | Review, no hint sequence |
+| Plain text | Review, no hint sequence |
 | py-exercise | Review, no hint sequence |
 | math-exercise | Four steps; full worked solution permitted at step four |
 | pyodide-interaktiv | Three steps; last describes the approach, without finished code |

@@ -46,7 +46,7 @@ local function policy(value, where, step)
   end
   return out
 end
-local names = {['non-python']=true, ['py-exercise']=true, ['math-exercise']=true, ['pyodide-interaktiv']=true}
+local names = {['plain-text']=true, ['py-exercise']=true, ['math-exercise']=true, ['pyodide-interaktiv']=true}
 local function layer(cfg)
   local out = {}
   if cfg.defaults ~= nil then local p = policy(cfg.defaults, 'defaults'); if next(p) then out.defaults = p end end

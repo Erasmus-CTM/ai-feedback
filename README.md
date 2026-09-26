@@ -6,7 +6,7 @@ Give students useful advice while they write, translate, explain or work through
 
 ## Try it, then make it yours
 
-Choose the **Non-Python** tab.
+Choose the **Plain text** tab.
 
 Try a short Spanish writing activity, then adapt it to your subject. A starter response gives students something to improve instead of an empty box.
 
@@ -51,4 +51,7 @@ guide starts with the teaching task; setup details are kept separately.
 
 AGPL-3.0-or-later. See [LICENSE](LICENSE).
 
+Developed by the **CTM team** for the Erasmus+ project
+**“Computational Thinking makes sense of Mathematics”**
+(**2023-1-NO01-KA220-HED-000166744**).
 [Funding and acknowledgements](docs/acknowledgements.md).

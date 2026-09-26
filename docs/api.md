@@ -166,7 +166,7 @@ Adapters use this for edits, Reset and execution invalidation. No-argument
 
 ## Layered policies (0.4.0)
 
-Use `attach({integration: 'math-exercise', ...})` (or `non-python`, `py-exercise`,
+Use `attach({integration: 'math-exercise', ...})` (or `plain-text`, `py-exercise`,
 `pyodide-interaktiv`) to resolve shipped and local policies centrally. The adapter
 supplies task, responses, domain criteria, evidence and its default explanation
 language. `getRequest` no longer needs to choose a hint level or permission.

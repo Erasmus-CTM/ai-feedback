@@ -6,7 +6,7 @@ ai-feedback:
     reset-on-run: true
     steps: []
   integrations:
-    non-python: {}
+    plain-text: {}
     py-exercise:
       prompt: Respect the assignment and its restrictions. Use supplied checker evidence only; do not
         claim untested code has passed.
