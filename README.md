@@ -2,9 +2,11 @@
 
 Give students useful advice while they write, translate, explain or work through a problem. You decide what the feedback should focus on: one helpful question, a grammar point, a clearer explanation, or a more detailed hint.
 
-[Example to adapt](example.qmd) · [Authoring guide](docs/authoring.md)
+[Try the writing and image activities](https://erasmus-ctm.github.io/ctm-assessment/example.html) · [Authoring guide](docs/authoring.md)
 
 ## Try it, then make it yours
+
+Choose the **Non-Python** tab.
 
 Try a short Spanish writing activity, then adapt it to your subject. A starter response gives students something to improve instead of an empty box.
 
@@ -27,6 +29,14 @@ can offer different help at different stages of learning.
 If your course has an AI service set up, it can show the reply on the exercise
 page. AI advice is for discussion and revision; it does not replace your
 judgment or the exercise's checks.
+
+## Open an example in your editor
+
+[Example source — download and open in your editor](https://github.com/Erasmus-CTM/ai-feedback/blob/feature/scoped-policies/example.qmd).
+
+On GitHub, choose **Download raw file**, then open the saved `.qmd` in your
+editor—for example, **VS Code**. The link above is editable Quarto source; use
+the example link at the top of this README to try the rendered page.
 
 ## Take the next step
 

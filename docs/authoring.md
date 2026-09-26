@@ -1,7 +1,11 @@
 # Author your first activity
 
-Start with [the example page](../example.qmd). The extension setup is described
+Start with [the rendered examples](https://erasmus-ctm.github.io/ctm-assessment/example.html). Choose the **Non-Python** tab. The extension setup is described
 separately in [Installation and setup](installation.md).
+
+[Example source — download and open in your editor](https://github.com/Erasmus-CTM/ai-feedback/blob/feature/scoped-policies/example.qmd).
+Use GitHub’s **Download raw file** button and open the file in an editor such as
+**VS Code**. [Getting all the accompanying files](example-source.md).
 
 ## Give students something to work on
 
