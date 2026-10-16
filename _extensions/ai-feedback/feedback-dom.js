@@ -353,7 +353,7 @@
 
     refsRaw.split(',').forEach(function (part) {
       var id = part.trim();
-      if (!id || seen[id]) return;
+      if (!id || id.startsWith('jsxgraph:') || seen[id]) return;
       seen[id] = true;
 
       var el = document.getElementById(id);
@@ -391,10 +391,52 @@
   }
 
 
+  let visualSequence = 0;
+  async function collectVisualContexts(refs = '') {
+    const ids = [...new Set(String(refs).split(',').map(s => s.trim())
+      .filter(s => s.startsWith('jsxgraph:')).map(s => s.slice('jsxgraph:'.length)))];
+    const materials = [], attachments = [];
+    for (const id of ids) {
+      const frame = document.getElementById(id);
+      if (!id || !frame || frame.tagName !== 'IFRAME' || !frame.contentWindow) {
+        throw new Error('JSXGraph context iframe not found: ' + id);
+      }
+      const requestId = 'ai-context-' + Date.now() + '-' + (++visualSequence);
+      const result = await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => finish(new Error('Timed out waiting for JSXGraph context: ' + id)), 5000);
+        function finish(error, value) {
+          clearTimeout(timer); window.removeEventListener('message', receive);
+          if (error) reject(error); else resolve(value);
+        }
+        function receive(event) {
+          const data = event.data;
+          if (event.source !== frame.contentWindow || !data ||
+              data.protocol !== 'jsxgraph-quarto-assessment' || data.version !== 1 ||
+              data.type !== 'response' || data.requestId !== requestId || data.assessmentId !== id) return;
+          if (data.error) return finish(new Error('JSXGraph context: ' + data.error));
+          try {
+            const text = JSON.stringify({state:data.payload, summary:data.ai?.summary});
+            if (data.payload === undefined || new TextEncoder().encode(text).length > 1024 * 1024) {
+              throw new Error('JSXGraph context state is missing or exceeds 1 MiB');
+            }
+            if (!data.ai?.image) throw new Error('JSXGraph context requires a registered board with ai.render enabled');
+            finish(null, {text, image:data.ai.image});
+          } catch (error) { finish(error); }
+        }
+        window.addEventListener('message', receive);
+        frame.contentWindow.postMessage({protocol:'jsxgraph-quarto-assessment', version:1,
+          type:'request', assessmentId:id, requestId, includeAI:true}, '*');
+      });
+      materials.push({id:'diagram-' + id, role:'context', text:result.text});
+      attachments.push({id:'diagram-' + id, role:'context', label:'Current diagram: ' + id, dataUrl:result.image});
+    }
+    return {materials, attachments};
+  }
+
   function contextMaterials({mode = 'auto', refs = '', text = ''} = {}) {
     if (mode === 'none') return [];
     if (mode === 'explicit') return collectExplicitContexts(refs).map(c => ({id:c.id, role:'context', text:c.content}));
     return text ? [{id:'section-context', role:'context', text}] : [];
   }
-  Object.assign(root.AIFeedback, { renderMarkdown: simpleMarkdown, typesetFeedback, contextMaterials, contextText, sourceText, questionText, collectExplicitContexts });
+  Object.assign(root.AIFeedback, { renderMarkdown: simpleMarkdown, typesetFeedback, contextMaterials, collectVisualContexts, contextText, sourceText, questionText, collectExplicitContexts });
 })(globalThis);

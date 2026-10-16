@@ -124,6 +124,12 @@
         const hintLevel = count + 1;
         async function collect() {
           let request = await getRequest({ hintLevel });
+          const refs = typeof options.contextRefs === 'function' ? options.contextRefs() : options.contextRefs;
+          if (refs) {
+            const visual = await F.collectVisualContexts(refs);
+            request = {...request, materials:[...(request.materials || []), ...visual.materials],
+              attachments:[...(request.attachments || []), ...visual.attachments]};
+          }
           if (options.integration) request = F.applyPolicy(options.integration, request, hintLevel, options.policyDefaults, options.policySelection);
           if (request.feedback?.mode === 'hints') return { ...request, feedback: { ...request.feedback, level: Math.min(hintLevel, request.feedback.steps.length) } };
           return request;
@@ -142,6 +148,20 @@
         if (reply.format === 'prompt') {
           output.append(node('p', L.prompt));
           const pre = node('pre', reply.text, 'ai-feedback-prompt'); output.append(pre);
+          const images = F.normalizeRequest(request).attachments;
+          if (images.length) {
+            const note = {de:'Füge diese Bilder ebenfalls in deinem KI-Chat an.', nb:'Legg også ved disse bildene i KI-chatten.',
+              es:'Adjunta también estas imágenes en tu chat de IA.'};
+            output.append(node('p', note[String(options.uiLanguage || 'en').split('-')[0]] || 'Attach these images in your AI chat as well.'));
+            const previews = node('div', undefined, 'ai-feedback-images');
+            for (const image of images) {
+              const figure = node('figure'); const preview = node('img'); preview.src = image.dataUrl; preview.alt = image.label;
+              const download = node('a', image.label); download.href = image.dataUrl;
+              download.download = image.id.replace(/[^a-z0-9_-]/gi, '-') + '.' + image.dataUrl.match(/^data:image\/([^;]+)/)[1];
+              figure.append(preview, download); previews.append(figure);
+            }
+            output.append(previews);
+          }
           const copy = button(L.copy); copy.onclick = async () => { try { await navigator.clipboard.writeText(reply.text); copy.textContent = L.copied; } catch { pre.setAttribute('tabindex', '0'); pre.focus(); } }; output.append(copy);
         } else {
           const body = node('div', undefined, 'ai-feedback-body');
@@ -200,7 +220,7 @@
     }
     const trigger = button(L.button); const output = node('div', undefined, 'ai-feedback-output'); output.setAttribute('aria-live', 'polite');
     el.append(trigger, settingsButton(data.uiLanguage), output);
-    attach({ integration: 'plain-text', policySelection: data.policySelection, id: data.id, button: trigger, output, uiLanguage: data.uiLanguage, getRequest: async () => {
+    attach({ integration: 'plain-text', contextRefs: () => data.contextMode === 'none' ? '' : data.contextRefs, policySelection: data.policySelection, id: data.id, button: trigger, output, uiLanguage: data.uiLanguage, getRequest: async () => {
       if (loadingImages) await loadingImages;
       let materials = (data.materials || []).slice();
       materials.push(...F.contextMaterials({mode:data.contextMode, refs:data.contextRefs, text:data.context}));

@@ -219,3 +219,63 @@ test('Norwegian legacy locale uses shared Norwegian settings', () => {
   const {F,w} = page(); w.document.documentElement.lang = 'no';
   F.buildSettings(); assert.match(w.document.querySelector('dialog h2').textContent, /Innstillinger/); w.close();
 });
+
+const diagramPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=';
+function diagramContext(w, state = () => ({vertices:[[0,0],[3,0],[3,4]]})) {
+  w.TextEncoder = TextEncoder;
+  const frame = w.document.createElement('iframe'); frame.id = 'triangle'; w.document.body.append(frame);
+  frame.contentWindow.postMessage = request => {
+    const reply = {...request, type:'response', payload:state(), ai:{image:diagramPng, summary:'Triangle ABC'}};
+    // Unrelated frames and stale requests must not satisfy the collection.
+    w.dispatchEvent(new w.MessageEvent('message', {source:w, data:{...reply,payload:'FORGED'}}));
+    w.dispatchEvent(new w.MessageEvent('message', {source:frame.contentWindow, data:{...reply,requestId:'old',payload:'STALE'}}));
+    w.dispatchEvent(new w.MessageEvent('message', {source:frame.contentWindow, data:reply}));
+  };
+  return frame;
+}
+test('visual contexts reach the actual request as context while the typed response is preserved', async () => {
+  const {F,w} = page('<div id="lesson" class="ai-context">Use the labelled triangle.</div><button>Feedback</button><div id="out"></div>');
+  diagramContext(w);
+  let sent;
+  const request = {profile:'mathematics', task:'Find the sloping side.', responses:[{id:'answer',value:'4'}],
+    materials:F.contextMaterials({mode:'explicit',refs:'lesson, jsxgraph:triangle'})};
+  const api = F.attach({contextRefs:'lesson, jsxgraph:triangle, jsxgraph:triangle',
+    button:w.document.querySelector('button'), output:w.document.querySelector('#out'), getRequest:()=>request,
+    client:{request:async r=>{sent=F.normalizeRequest(r); return {text:'Try again.',format:'markdown'};}}});
+  await api.request();
+  assert.equal(sent.responses[0].value,'4');
+  assert.equal(sent.materials.length,2); assert.match(sent.materials[1].text,/vertices/);
+  assert.doesNotMatch(JSON.stringify(sent),/FORGED|STALE/);
+  assert.equal(sent.attachments.length,1); assert.equal(sent.attachments[0].role,'context');
+  assert.equal(F.buildMessages(sent)[1].content.filter(p=>p.type==='image_url').length,1);
+  api.dispose(); w.close();
+});
+test('copy prompts expose the diagram image for attachment in chat', async () => {
+  const {F,w} = page('<button>Feedback</button><div id="out"></div>'); diagramContext(w);
+  F.saveConfig({mode:'copy',storage:'session'});
+  const api = F.attach({contextRefs:'jsxgraph:triangle', button:w.document.querySelector('button'),output:w.document.querySelector('#out'),
+    getRequest:()=>({task:'Find the side.',responses:[{id:'answer',value:'4'}]})});
+  await api.request();
+  assert.equal(w.document.querySelector('.ai-feedback-images img').src,diagramPng);
+  assert.match(w.document.querySelector('a[download]').download,/diagram-triangle\.png$/);
+  assert.match(w.document.querySelector('pre').textContent,/vertices/);
+  api.dispose(); w.close();
+});
+test('changing diagram state during a provider request discards obsolete feedback', async () => {
+  const {F,w} = page('<button>Feedback</button><div id="out"></div>');
+  let length=3, finish, ready; const started=new Promise(r=>{ready=r;}); diagramContext(w,()=>({length}));
+  const api=F.attach({contextRefs:'jsxgraph:triangle',button:w.document.querySelector('button'),output:w.document.querySelector('#out'),
+    getRequest:()=>({task:'Find the side.',responses:[{id:'answer',value:'4'}]}),
+    client:{request:()=>new Promise(r=>{finish=r;ready();})}});
+  const pending=api.request(); await started; length=6; finish({text:'OBSOLETE',format:'markdown'}); await pending;
+  assert.doesNotMatch(w.document.querySelector('#out').textContent,/OBSOLETE/);
+  assert.match(w.document.querySelector('#out').textContent,/changed/);
+  api.dispose(); w.close();
+});
+test('missing boards and oversized context state fail visibly instead of silently dropping the diagram', async () => {
+  const {F,w}=page();
+  await assert.rejects(F.collectVisualContexts('jsxgraph:missing'),/iframe not found/);
+  diagramContext(w,()=>({value:'x'.repeat(1024*1024)}));
+  await assert.rejects(F.collectVisualContexts('jsxgraph:triangle'),/exceeds 1 MiB/);
+  w.close();
+});

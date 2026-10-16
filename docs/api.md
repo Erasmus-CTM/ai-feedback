@@ -193,3 +193,27 @@ All integrations use this API.
 `context(block, options, isPyodide)` (the shared context descriptor). The module
 uses its installed directory for resources. A consumer's small loader locates
 the project installation; it must run preparation before converting code cells.
+
+## JSXGraph visual context (0.7.0)
+
+Plain-text activities may mix tagged text and explicit diagram references:
+`context="lesson, jsxgraph:diagram-id"`. The math-exercise integration supports
+the equivalent `#| context:` option from version 0.8.0. `context="none"` still
+disables context; a nearby diagram is never attached implicitly.
+
+The iframe must use `assessment_id="diagram-id"` and register its board, a JSON
+`response` provider describing current state, and `ai: {render: true}` using
+`JXG.QuartoAssessment.register`. The selected board image and state are context;
+they do not replace the learner's typed response. Include all relevant changing
+geometry and view bounds in the state. Missing boards, failed exports, or state
+over 1 MiB fail visibly rather than sending incomplete context. Existing image
+size/count limits also apply. No images are saved in browser storage.
+
+Custom adapters opt in with `attach({contextRefs: () => refs, ...})`. The shared
+adapter collects `jsxgraph:` references asynchronously before sending and again
+when checking for an obsolete response. `contextMaterials` continues to collect
+text references; `collectVisualContexts(refs)` returns `{materials, attachments}`
+for explicit lower-level integrations. Duplicate diagram references are included
+once. Message replies must match the iframe window, protocol, version, request
+ID and assessment ID. In copy mode, the UI exposes image previews and download
+links so the learner can attach them in their chat.
