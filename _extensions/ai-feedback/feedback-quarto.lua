@@ -150,7 +150,7 @@ function M.prepare(doc)
   language = str(doc.meta.lang, "en")
   policy.emit(doc.meta)
   quarto.doc.add_html_dependency({
-    name = "ai-feedback", version = "0.6.1",
+    name = "ai-feedback", version = "0.7.0",
     scripts = {directory .. "/feedback-core.js", directory .. "/feedback-dom.js", directory .. "/ai-feedback.js"},
     stylesheets = {directory .. "/ai-feedback.css"}
   })
