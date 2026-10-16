@@ -164,7 +164,7 @@ output empty even if network, snapshot collection or typesetting later finishes.
 Adapters use this for edits, Reset and execution invalidation. No-argument
 `cancel()` retains the visible cancellation notice. Neither consumes a hint.
 
-## Layered policies (0.4.0)
+## Explicit policies (0.8.0)
 
 Use `attach({integration: 'math-exercise', ...})` (or `plain-text`, `py-exercise`,
 `pyodide-interaktiv`) to resolve shipped and local policies centrally. The adapter
@@ -176,10 +176,20 @@ language. `getRequest` no longer needs to choose a hint level or permission.
 restarts the sequence; call it on explicit Reset/new pool task. Edits should use
 `cancel({clearOutput: true})` and invalidate evidence without resetting progression.
 
-`resolvePolicy(integration, language, legacyDefaults, configuration)` resolves a
-policy; `applyPolicy(integration, request, hintLevel, legacyDefaults)` applies it.
-Legacy defaults exist for Pyodide's `feedback-hints: false`; local YAML overrides
-them. Do not copy teaching prompts into adapters. See [policy authoring](feedback-policies.md).
+`resolvePolicy(integration, language, runtimeOptions, configuration, selection)`
+returns an independent effective policy. `configuration` contains ordered
+`layers`/`pageLayers` of named `policies` and targeted `exercises`, plus explicit
+`projectPolicy`/`pagePolicy` names or integration selector maps. `selection` is
+`{exercise: labelOrId, name: policyName}`. Loading definitions alone has no effect.
+
+`applyPolicy(integration, request, hintLevel, runtimeOptions, selection)` applies
+the active base instructions, step instructions, limits and permissions.
+`runtimeOptions` supplies integration defaults (for example Pyodide's
+`feedback-hints: false` contributes `steps: []`); explicitly selected YAML
+policies can override them. `explainPolicy(integration, language, configuration,
+selection, runtimeOptions)` returns the effective policy and named scope chains
+for author-facing summaries. Adapters pass `policySelection` and `policyDefaults`
+to `attach` rather than copying teaching prompts. See [policy authoring](feedback-policies.md).
 
 ## Shared context and Quarto preparation
 

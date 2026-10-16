@@ -8,13 +8,13 @@ Install ai-feedback **once in the Quarto project**, alongside the exercise
 extensions. Consumers do not contain private copies of its runtime.
 
 ```sh
-quarto add Erasmus-CTM/ai-feedback@feature/scoped-policies
+quarto add Erasmus-CTM/ai-feedback@main
 ```
 
-**Integration-branch preview:** until this work is merged, install
-`Erasmus-CTM/ai-feedback@feature/scoped-policies` and each consumer's
-`feature/shared-feedback-integration` branch. Main-branch consumers do not yet
-have this protocol. The common examples builder pins the exact tested revisions.
+Use Quarto 1.8.27 or later with AI Feedback 0.8. For the combined distribution,
+install the [CTM Assessment umbrella](https://github.com/Erasmus-CTM/ctm-assessment)
+so it owns the component sources and the temporary Pyodide migration pin.
+Standalone consumers install this shared dependency from current `main`.
 
 For text/image activities alone:
 
