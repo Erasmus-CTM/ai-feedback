@@ -282,3 +282,12 @@ test('missing boards and oversized context state fail visibly instead of silentl
   await assert.rejects(F.collectVisualContexts('jsxgraph:triangle'),/exceeds 1 MiB/);
   w.close();
 });
+test('policy summary uses the same runtime defaults and per-step limits as feedback', () => {
+  const {w,F}=page('<div class="ai-feedback-policy-summary" data-integration="pyodide-interaktiv"></div><div class="ai-feedback-policy-summary" data-integration="plain-text" data-max-issues="7"></div>');
+  w.qpyodideFeedbackOptions={hints:false};F.renderPolicySummaries();
+  const [python,text]=w.document.querySelectorAll('.ai-feedback-policy-summary');
+  const request=F.applyPolicy('pyodide-interaktiv',{task:'Review code',feedback:{language:'en'}},1,{steps:[]});
+  assert.equal(request.feedback.mode,'review');assert.match(python.textContent,/Review without a hint sequence/);
+  const plain=F.applyPolicy('plain-text',{task:'Review text',feedback:{maxIssues:7}},1,{});
+  assert.equal(text.querySelectorAll('td')[2].textContent,String(plain.feedback.maxIssues));w.close();
+});

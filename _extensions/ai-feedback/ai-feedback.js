@@ -234,7 +234,34 @@
         feedback: { language: data.feedbackLanguage, mode: 'review', maxIssues: data.maxIssues, allowFullRewrite: false } };
     } });
   }
-  function initialize() { if (document.querySelector('.ai-feedback-activity')) { buildSettings(); document.querySelectorAll('.ai-feedback-activity').forEach(initActivity); } }
-  Object.assign(F, { attach, openSettings, settingsButton, buildSettings, loadConfig, saveConfig, getClient, initActivity, initialize, locales: locale });
+  function renderPolicySummaries() {
+    for (const el of document.querySelectorAll('.ai-feedback-policy-summary')) {
+      try {
+        const options=el.dataset.integration === 'pyodide-interaktiv' && root.qpyodideFeedbackOptions?.hints === false ? {steps:[]} : {};
+        const info=F.explainPolicy(el.dataset.integration, el.dataset.language || document.documentElement.lang || 'en', undefined,
+          {exercise:el.dataset.exercise || '',name:el.dataset.policy || ''},options);
+        const p=info.policy;
+        el.replaceChildren(node('strong','Effective policy'));
+        el.append(node('p',info.scopes.length ? info.scopes.map(s => s.scope + ': ' + s.chain.join(' → ')).join('; ') : 'Integration defaults (no named selection)'));
+        if (el.dataset.exercise) el.append(node('p','Exercise: ' + el.dataset.exercise));
+        el.append(node('p',p.steps.length ? p.steps.length + ' feedback step(s)' : 'Review without a hint sequence'));
+        const table=node('table'),head=node('tr');
+        for(const label of ['Step','Word limit','Issue limit','Full solution'])head.append(node('th',label));
+        table.append(head);
+        for(const [i,step] of (p.steps.length?p.steps:[{}]).entries()){
+          const effective={...p,...step},row=node('tr');
+          for(const value of [p.steps.length?String(i+1):'Review',String(effective['max-words']),String(el.dataset.integration === 'plain-text' && el.dataset.maxIssues ? el.dataset.maxIssues : effective['max-issues']),effective['allow-full-solution']?'Allowed':'Not allowed'])row.append(node('td',value));
+          table.append(row);
+        }
+        el.append(table,node('p','Resolved base instructions'),node('pre',p.basePrompts.join('\n\n')));
+      } catch(error) { el.replaceChildren(node('p',error.message)); }
+    }
+  }
+  function initialize() {
+    if (document.querySelector('.ai-feedback-activity')) { buildSettings(); document.querySelectorAll('.ai-feedback-activity').forEach(initActivity); }
+    renderPolicySummaries();
+  }
+
+  Object.assign(F, { attach, openSettings, settingsButton, buildSettings, loadConfig, saveConfig, getClient, initActivity, initialize, renderPolicySummaries, locales: locale });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize); else initialize();
 })(globalThis);
