@@ -22,6 +22,24 @@ test('Markdown rendering never activates model HTML', () => {
   const el = w.document.createElement('div'); el.innerHTML = F.renderMarkdown('<img src=x onerror=alert(1)> **word**');
   assert.equal(el.querySelector('img'), null); assert.equal(el.querySelector('strong').textContent, 'word'); w.close();
 });
+test('feedback renders ATX headings and removes closing hashes without changing literal content', () => {
+  const { F, w } = page();
+  const el = w.document.createElement('div');
+  el.innerHTML = F.renderMarkdown('Before\n\n## **Next step** ##\nTry again.\n### Check $x^2$ ###\n#### Keep C#\n##### Escaped \\#\n###### <img src=x onerror=alert(1)> ######\n\n#tag\n####### literal\n\n`## code ##`\n\n```text\n## literal ##\n```');
+  assert.equal(el.querySelector('h2').textContent, 'Next step');
+  assert.equal(el.querySelector('h2 strong').textContent, 'Next step');
+  assert.equal(el.querySelector('h3 .ai-feedback-math').dataset.tex, 'x^2');
+  assert.equal(el.querySelector('h4').textContent, 'Keep C#');
+  assert.equal(el.querySelector('h5').textContent, 'Escaped \\#');
+  assert.equal(el.querySelector('img'), null);
+  assert.equal(el.querySelector('h6').textContent, '<img src=x onerror=alert(1)>');
+  assert.match(el.textContent, /#tag ####### literal/);
+  assert.equal(el.querySelector('code').textContent, '## code ##');
+  assert.equal(el.querySelector('pre code').textContent, '## literal ##');
+  assert.equal(el.querySelector('h2').previousElementSibling.textContent, 'Before');
+  assert.equal(el.querySelector('h2').nextElementSibling.textContent, 'Try again.');
+  w.close();
+});
 test('feedback preserves inline/display TeX through Markdown and leaves code literal', () => {
   const {F, w} = page();
   const el = w.document.createElement('div');
