@@ -67,7 +67,7 @@ over-budget references are skipped with a browser-console warning. Explicit
 selection replaces automatic prose; it does not append to it.
 
 Reusable tagged blocks can be referenced by any integration. See the
-[combined authoring examples](https://github.com/Erasmus-CTM/ctm-assessment/blob/feature/scoped-policies/docs/reference.md#reuse-one-block-across-different-integrations).
+[combined authoring examples](https://github.com/Erasmus-CTM/ctm-assessment/blob/main/docs/reference.md#reuse-one-block-across-different-integrations).
 
 ## Prompts, hints and local YAML
 
