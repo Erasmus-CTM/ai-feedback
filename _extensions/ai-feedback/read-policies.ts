@@ -20,18 +20,29 @@ function metadata(file: string, frontMatter = false) {
     raw = match[1];
   }
   const document = parse(raw) as Record<string, any>;
-  if (document?.['ai-feedback']) Object.assign(settings, document['ai-feedback']);
+  if (document && Object.hasOwn(document, 'ai-feedback')) {
+    const value = document['ai-feedback'];
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('ai-feedback metadata must be a mapping: ' + file);
+    Object.assign(settings, value);
+  }
+}
+function metadataFile(stem: string) {
+  for (const suffix of ['.yml','.yaml']) {
+    try { Deno.statSync(stem + suffix); metadata(stem + suffix); return; } catch (error) {
+      if (!(error instanceof Deno.errors.NotFound)) throw error;
+    }
+  }
 }
 const root = resolve(config.projectDirectory || dirname(config.inputFile));
 if (config.projectDirectory) {
-  metadata(join(root, '_quarto.yml'));
-  for (const profile of config.profiles || []) metadata(join(root, '_quarto-' + profile + '.yml'));
+  metadataFile(join(root, '_quarto'));
+  for (const profile of config.profiles || []) metadataFile(join(root, '_quarto-' + profile));
 }
 const input = resolve(config.inputFile);
 const directories = relative(root, dirname(input)).split(/[\\/]/).filter(Boolean);
 let directory = root;
-metadata(join(directory, '_metadata.yml'));
-for (const part of directories) { directory = join(directory, part); metadata(join(directory, '_metadata.yml')); }
+metadataFile(join(directory, '_metadata'));
+for (const part of directories) { directory = join(directory, part); metadataFile(join(directory, '_metadata')); }
 metadata(input, true);
 for (const [field, key] of [['policy-files','layers'],['page-policy-files','pageLayers']]) {
   if (Object.hasOwn(settings, field)) {

@@ -48,6 +48,11 @@ ai-feedback:
   page-policy: brief-practice
 ```
 
+Policy selections are read from project configuration, active profile files,
+directory `_metadata` files and page front matter (both `.yml` and `.yaml`
+configuration filenames are supported). Use these sources for policy selectors
+rather than CLI metadata or native `metadata-files`.
+
 Both file options accept one path or an ordered list. A file name has no special
 meaning. `page-policy-files` alone never changes the page baseline. No automatic
 `defaults` or `integrations` sections are accepted in authored policy files or

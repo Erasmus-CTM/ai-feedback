@@ -48,6 +48,10 @@ test('Quarto validates explicit selections, inheritance and renamed prompts befo
   r=render('  page-policy: child\n','raw.yml');assert.equal(r.status,0,r.stderr);assert.equal(F.resolvePolicy('plain-text','en',{},config())['base-prompt'],'Keep this line. extends: null End.');
   r=render('  page-policy: [child]\n','raw.yml');assert.notEqual(r.status,0);
   assert.equal(fs.existsSync(path.join(dir,'deno.lock')),false);
+  fs.writeFileSync(path.join(dir,'_quarto.yaml'),'project:\n  type: default\n  render: [lesson.qmd]\nai-feedback:\n  policy-files: raw.yml\n  project-policy: _parent_\n');
+  fs.writeFileSync(path.join(dir,'lesson.qmd'),'---\nformat: html\nfilters: [ai-feedback]\nai-feedback:\n  page-policy: child\n---\nExplain a half.\n');
+  r=spawnSync(quarto,['render'],{cwd:dir,encoding:'utf8',timeout:60000});assert.equal(r.status,0,r.stderr);assert.equal(config().projectPolicy,'_parent_');assert.equal(config().layers.length,1);assert.equal(config().pagePolicy,'child');
+  fs.unlinkSync(path.join(dir,'_quarto.yaml'));
   for(const [body,pattern] of [
    ['ai-feedback:\n  policies:\n    x:\n      prompt: OLD\n',/base-prompt/],
    ['ai-feedback:\n  policies:\n    x:\n      steps:\n        - prompt: OLD\n',/step-prompt/],
