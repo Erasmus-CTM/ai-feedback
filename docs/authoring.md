@@ -47,8 +47,8 @@ ai-feedback:
     gentle-coach:
       max-words: 120
       steps:
-        - prompt: Ask one useful question without giving the answer.
-        - prompt: Explain the relevant idea and suggest a next step.
+        - step-prompt: Ask one useful question without giving the answer.
+        - step-prompt: Explain the relevant idea and suggest a next step.
 ```
 
 Load it in the page's front matter:
@@ -56,6 +56,7 @@ Load it in the page's front matter:
 ```yaml
 ai-feedback:
   page-policy-files: feedback.yml
+  page-policy: gentle-coach
 ```
 
 Select it on the activity with `feedback-policy="gentle-coach"`.

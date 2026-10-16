@@ -1,20 +1,28 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const F=require('../_extensions/ai-feedback/feedback-core.js');
 const request={profile:'python',task:'Add the values.',responses:[{id:'code',format:'code',value:'print(2)'}],criteria:['Do not import math.'],feedback:{language:'nb'}};
-const config=(defaults={},integrations={})=>({layers:[{defaults,integrations}]});
+const config=(defaults={},integrations={})=>{
+ const policies={},projectPolicy={};
+ if(Object.keys(defaults).length){policies.common=defaults;projectPolicy.default='common';}
+ for(const [integration,policy] of Object.entries(integrations)){policies[integration]=policy;projectPolicy[integration]=integration;}
+ return {layers:[{policies}],projectPolicy};
+};
 test('shipped policies preserve review modes, four math steps and three Python hints',()=>{
   for(const [name,count] of [['plain-text',0],['py-exercise',0],['math-exercise',4],['pyodide-interaktiv',3]]){
     const p=F.resolvePolicy(name,'nb',{},config());assert.equal(p.steps.length,count);assert.equal(p.language,'nb');assert.equal(p['reset-on-run'],true);
   }
   const p=F.resolvePolicy('math-exercise','de',{},config());assert.equal(p['max-words'],120);assert.equal(p.steps[3]['allow-full-solution'],true);
 });
-test('local common, integration and later files replace scalars and whole step lists',()=>{
-  const c={layers:[{defaults:{'max-words':180,steps:[{prompt:'First'},{prompt:'Second'}]}},{integrations:{'math-exercise':{'max-words':300,steps:[{prompt:'Local final'}]}}}]};
-  const p=F.resolvePolicy('math-exercise','en',{},c);assert.equal(p['max-words'],300);assert.deepEqual(p.steps,[{prompt:'Local final'}]);assert.equal(p['allow-full-solution'],false);
-  c.layers.push({integrations:{'math-exercise':{steps:[],'reset-on-run':false}}});assert.equal(F.resolvePolicy('math-exercise','en',{},c).steps.length,0);assert.equal(F.resolvePolicy('math-exercise','en',{},c)['reset-on-run'],false);
+test('loading definitions has no effect until selected; steps replace completely',()=>{
+ const c={layers:[{policies:{one:{'max-words':180,steps:[{'step-prompt':'First'},{'step-prompt':'Second'}]},two:{extends:'one','max-words':300,steps:[{'step-prompt':'Local final'}]}}}]};
+ assert.equal(F.resolvePolicy('math-exercise','en',{},c).steps.length,4);
+ c.pagePolicy='two';
+ const p=F.resolvePolicy('math-exercise','en',{},c);assert.equal(p['max-words'],300);assert.deepEqual(p.steps,[{'step-prompt':'Local final'}]);assert.equal(p['allow-full-solution'],false);
+ c.pageLayers=[{policies:{two:{steps:[],'reset-on-run':false}}}];
+ assert.equal(F.resolvePolicy('math-exercise','en',{},c).steps.length,0);assert.equal(F.resolvePolicy('math-exercise','en',{},c)['reset-on-run'],false);
 });
 test('all integrations can use new steps with step-specific limits and solution permission',()=>{
-  globalThis.__aiFeedbackPolicies=config({steps:[{prompt:'Nudge'},{prompt:'Explain fully','allow-full-solution':true,'max-words':400}],language:'es'});
+  globalThis.__aiFeedbackPolicies=config({steps:[{'step-prompt':'Nudge'},{'step-prompt':'Explain fully','allow-full-solution':true,'max-words':400}],language:'es'});
   for(const name of ['plain-text','py-exercise','math-exercise','pyodide-interaktiv']){
     const first=F.applyPolicy(name,request,1);assert.equal(first.feedback.allowFullRewrite,false);
     const last=F.applyPolicy(name,request,99);assert.equal(last.feedback.level,2);assert.equal(last.feedback.maxWords,400);assert.equal(last.feedback.allowFullRewrite,true);assert.equal(last.feedback.language,'es');assert.ok(last.criteria.includes('Do not import math.'));
@@ -23,7 +31,7 @@ test('all integrations can use new steps with step-specific limits and solution 
   delete globalThis.__aiFeedbackPolicies;
 });
 test('common/integration prompts combine, replacing their own shipped scope',()=>{
-  globalThis.__aiFeedbackPolicies=config({prompt:'COMMON'},{'pyodide-interaktiv':{prompt:'SPECIFIC'}});
+  globalThis.__aiFeedbackPolicies=config({'base-prompt':'COMMON'},{'pyodide-interaktiv':{'base-prompt':'SPECIFIC'}});
   const r=F.applyPolicy('pyodide-interaktiv',request,1);assert.deepEqual(r.criteria,['Do not import math.','COMMON','SPECIFIC']);delete globalThis.__aiFeedbackPolicies;
 });
 for(const policy of [{steps:false},{steps:[{}]},{steps:['bad']},{'reset-on-run':'false'},{'max-words':5},{'allow-full-solution':'yes'},{unknown:true}])test('invalid policy fails clearly: '+JSON.stringify(policy),()=>{
@@ -33,7 +41,7 @@ const {JSDOM}=require('jsdom');
 function attached({reset=true,client}={}){
  const w=new JSDOM('<button>Feedback</button><div id="out"></div>',{url:'https://course.invalid/task',runScripts:'outside-only'}).window;w.AbortController=AbortController;
  for(const f of ['feedback-core.js','feedback-dom.js','ai-feedback.js'])w.eval(fs.readFileSync(path.join(__dirname,'../_extensions/ai-feedback',f),'utf8'));
- w.__aiFeedbackPolicies=config({'reset-on-run':reset,steps:[{prompt:'First'},{prompt:'Second'},{prompt:'Third'}]});
+ w.__aiFeedbackPolicies=config({'reset-on-run':reset,steps:[{'step-prompt':'First'},{'step-prompt':'Second'},{'step-prompt':'Third'}]});
  let value='print(2)';
  const api=w.AIFeedback.attach({integration:'py-exercise',id:'one',button:w.document.querySelector('button'),output:w.document.querySelector('#out'),client,getRequest:()=>({...request,responses:[{id:'code',format:'code',value}]})});
  return {w,api,edit:v=>{value=v;api.cancel({clearOutput:true});},level:()=>w.document.querySelector('.ai-feedback-hint')?.textContent};
@@ -45,7 +53,7 @@ test('reset-on-run false preserves progress but explicit Reset clears it',async(
  const {w,api,level}=attached({reset:false});await api.request();api.reset('run');await api.request();assert.equal(level(),'Hint 2');api.reset();await api.request();assert.equal(level(),'Hint 1');w.close();
 });
 test('policy change invalidates progress and does not inherit final solution access',async()=>{
- const {w,api,level}=attached();await api.request();await api.request();w.__aiFeedbackPolicies=config({steps:[{prompt:'New start'},{prompt:'New end'}]});await api.request();assert.equal(level(),'Hint 1');w.close();
+ const {w,api,level}=attached();await api.request();await api.request();w.__aiFeedbackPolicies=config({steps:[{'step-prompt':'New start'},{'step-prompt':'New end'}]});await api.request();assert.equal(level(),'Hint 1');w.close();
 });
 test('Reset cancels pending reply without consuming or restoring a hint',async()=>{
  let finish;const {w,api,level}=attached({client:{request:()=>new Promise(r=>{finish=r;})}});
@@ -77,12 +85,12 @@ test('real text activities inherit YAML issue limits unless explicitly overridde
  }
 });
 
-test('page scope beats project integration; exercise and selected YAML policy win last',()=>{
- const c={layers:[{defaults:{'max-words':200},integrations:{'math-exercise':{'max-words':300}},policies:{brief:{steps:[{prompt:'First'},{prompt:'Full','allow-full-solution':true}]}},exercises:{'math-exercise':{task:{'max-words':90}}}}],pageLayers:[{defaults:{'max-words':150},policies:{brief:{steps:[{prompt:'Page nudge'}]}}}]};
+test('explicit project/page selection, matching exercise and selected policy win in order',()=>{
+ const c={layers:[{policies:{project:{'max-words':300},page:{'max-words':150},brief:{steps:[{'step-prompt':'First'},{'step-prompt':'Full','allow-full-solution':true}]}},exercises:{'math-exercise':{task:{'max-words':90}}}}],projectPolicy:{'math-exercise':'project'},pagePolicy:'page',pageLayers:[{policies:{brief:{steps:[{'step-prompt':'Page nudge'}]}}}]};
  assert.equal(F.resolvePolicy('math-exercise','en',{},c)['max-words'],150);
  const p=F.resolvePolicy('math-exercise','en',{},c,{exercise:'task',name:'brief'});
- assert.equal(p['max-words'],90);assert.deepEqual(p.steps,[{prompt:'Page nudge'}]);assert.equal(p['allow-full-solution'],false);
- assert.throws(()=>F.resolvePolicy('math-exercise','en',{},c,{name:'missing'}),/Unknown feedback policy/);
+ assert.equal(p['max-words'],90);assert.deepEqual(p.steps,[{'step-prompt':'Page nudge'}]);assert.equal(p['allow-full-solution'],false);
+ assert.throws(()=>F.resolvePolicy('math-exercise','en',{},c,{name:'missing'}),/Unknown selected policy/);
 });
 test('named policies are reusable across all integrations and empty steps disable progression',()=>{
  const c={layers:[{policies:{review:{steps:[],'reset-on-run':false,'max-words':80}}}]};
@@ -90,11 +98,26 @@ test('named policies are reusable across all integrations and empty steps disabl
   const p=F.resolvePolicy(integration,'en',{},c,{name:'review'});assert.equal(p.steps.length,0);assert.equal(p['max-words'],80);assert.equal(p['reset-on-run'],false);
  }
 });
-test('only an effective policy change resets the selected exercise counter',async()=>{
+test('only effective parent changes reset dependent exercise counters',async()=>{
  const {w,api,level}=attached();
- w.__aiFeedbackPolicies={layers:[{defaults:{steps:[{prompt:'One'},{prompt:'Two'}]},policies:{unused:{prompt:'Unused'}}}]};
- await api.request();w.__aiFeedbackPolicies.layers[0].policies.unused.prompt='Different unused policy';
+ w.__aiFeedbackPolicies={pagePolicy:'child',layers:[{policies:{parent:{steps:[{'step-prompt':'One'},{'step-prompt':'Two'}]},child:{extends:'parent'},unused:{'base-prompt':'Unused'}}}]};
+ await api.request();w.__aiFeedbackPolicies.layers[0].policies.unused['base-prompt']='Different unused policy';
  await api.request();assert.equal(level(),'Hint 2');
- w.__aiFeedbackPolicies.pageLayers=[{defaults:{steps:[{prompt:'Page start'}]}}];
+ w.__aiFeedbackPolicies.layers[0].policies.parent.steps=[{'step-prompt':'New start'}];
  await api.request();assert.equal(level(),'Hint 1');w.close();
+});
+
+test('inheritance chains keep integration defaults and explicitly clear parents',()=>{
+ const c={layers:[{policies:{parent:{'max-words':80,'base-prompt':'Parent'},child:{extends:'parent'},leaf:{extends:'child','max-issues':2},root:{extends:'parent'}}}],pageLayers:[{policies:{root:{extends:null,'max-issues':1}}}]};
+ const inherited=F.resolvePolicy('math-exercise','en',{},c,{name:'leaf'});
+ assert.equal(inherited['max-words'],80);assert.equal(inherited.steps.length,4);assert.equal(inherited['base-prompt'],'Parent');assert.equal(inherited['max-issues'],2);
+ const root=F.resolvePolicy('math-exercise','en',{},c,{name:'root'});assert.equal(root['max-words'],120);assert.equal(root['max-issues'],1);
+ assert.deepEqual(F.explainPolicy('math-exercise','en',c,{name:'leaf'}).scopes[0].chain,['parent','child','leaf']);
+});
+for(const c of [[],{defaults:{prompt:'OLD'}},{layers:[{defaults:{'max-words':80}}]},{layers:[{policies:{x:{prompt:'OLD'}}}]},{layers:[{policies:{x:{extends:'missing'}}}]},{layers:[{policies:{a:{extends:'b'},b:{extends:'a'}}}]},{pagePolicy:'missing'}]) test('malformed or implicit policy configuration fails: '+JSON.stringify(c),()=>{
+ assert.throws(()=>F.resolvePolicy('math-exercise','en',{},c),e=>e.code==='INVALID_REQUEST');
+});
+test('falsey malformed configurations fail and returned steps cannot mutate defaults',()=>{
+ for(const configuration of [false,0,'',{layers:false},{pageLayers:null}]) assert.throws(()=>F.resolvePolicy('math-exercise','en',{},configuration));
+ const first=F.resolvePolicy('math-exercise');first.steps[0]['step-prompt']='mutated';assert.notEqual(F.resolvePolicy('math-exercise').steps[0]['step-prompt'],'mutated');
 });

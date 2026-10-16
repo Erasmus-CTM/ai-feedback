@@ -71,56 +71,42 @@ Reusable tagged blocks can be referenced by any integration. See the
 
 ## Prompts, hints and local YAML
 
-Defaults ship in `_extensions/ai-feedback/feedback-defaults.yml`. Leave that
-file unchanged and override it in a local file:
+Shipped defaults are always available. Loading `policy-files` or
+`page-policy-files` only registers named definitions; activate a baseline with
+`project-policy` or `page-policy`, or select `feedback-policy` on an exercise.
 
 ```yaml
 # feedback.yml
 ai-feedback:
-  defaults:
-    max-words: 180
-    reset-on-run: true
-  integrations:
-    py-exercise:
-      prompt: Use the terminology taught in this course.
+  policies:
+    course-feedback:
+      base-prompt: Use the terminology taught in this course.
+      max-words: 180
       steps:
-        - prompt: Ask one guiding question.
-        - prompt: Explain the relevant idea without finished code.
-        - prompt: Explain a complete solution.
-          allow-full-solution: true
+        - step-prompt: Ask one guiding question.
+        - step-prompt: Explain the relevant idea without finished code.
+    brief-feedback:
+      extends: course-feedback
+      max-words: 80
 ```
 
-Load one file with `ai-feedback.policy-files: feedback.yml`, or list several
-files in order. Later files override earlier values within the same scope;
-integration settings override common defaults. Step lists are replaced in full;
-`steps: []` gives ordinary review mode. Inline Quarto metadata can override files.
-Use this loader for ordered step replacement: native `metadata-files` may merge
-arrays before the filter sees them.
+```yaml
+# Page front matter
+ai-feedback:
+  page-policy-files: feedback.yml
+  page-policy: brief-feedback
+```
 
-| Integration | Shipped behavior |
-|---|---|
-| Plain text | Review, no hint sequence |
-| py-exercise | Review, no hint sequence |
-| math-exercise | Four steps; full worked solution permitted at step four |
-| pyodide-interaktiv | Three steps; last describes the approach, without finished code |
+A child inherits omitted fields. A supplied `steps` list replaces the complete
+inherited sequence; `steps: []` selects review without hint progression.
+`base-prompt` applies throughout, while `step-prompt` adds the current step's
+instructions. Step limits and permissions override the policy for that step.
 
-Each successful feedback advances one step; the last step repeats. Failed,
-cancelled or stale responses consume no step. Editing invalidates evidence and
-pending feedback but preserves progression. **Run/Check resets hints by default**;
-set `reset-on-run: false` globally or per integration to preserve them. Explicit
-Reset/new math task always restarts. Changing the effective policy resets saved
-progress. Counters belong to the activity and page in the current browser tab.
-
-Policies also support `language`, `max-issues`, `allow-full-solution` and
-per-step limits. Prompts are author instructions; they never appear in the
-learner's task. [Full schema, precedence and examples](../docs/feedback-policies.md).
-
-Page front matter may load `ai-feedback.page-policy-files` to override project
-settings. Define reusable policies under `ai-feedback.policies` in those YAML
-files and select one with `feedback-policy="name"` (text activities) or
-`#| feedback-policy: name` (code cells). Inline selections contain names only.
-YAML `ai-feedback.exercises.<integration>.<label-or-id>` targets individual
-exercises. See [page/exercise precedence and examples](../docs/feedback-policies.md#page-scope-and-named-exercise-policies-060).
+Successful feedback advances one step; the last repeats. Failed, cancelled or
+stale requests consume no step. Run/Check resets by default; select a policy
+with `reset-on-run: false` to preserve progression. Changing the effective policy
+resets saved progress. See the [complete policy guide](https://github.com/Erasmus-CTM/ai-feedback/blob/main/docs/feedback-policies.md)
+for inheritance, explicit scopes and targeted exercise overrides.
 
 ## Provider settings and data sent
 
@@ -169,3 +155,5 @@ belongs here.
 ### Standalone example
 
 `example.qmd` demonstrates this package with shared feedback. No additional Quarto extension is required. The example builds automatically on pushes and pull requests; download the `standalone-example` Actions artifact. Feedback defaults to copy mode, which needs no API key.
+
+See [AI Feedback 0.8 policies](feedback-policies.md) for current policy syntax.

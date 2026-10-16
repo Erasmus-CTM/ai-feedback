@@ -1,237 +1,162 @@
-# Teaching policies and progressive feedback
+# Explicit teaching policies
 
-AI Feedback ships its default setup in
-`_extensions/ai-feedback/feedback-defaults.yml`. The browser runtime includes a
-generated copy, so rendering requires no extra YAML package or network request.
-Keep the installed defaults unchanged; put course-specific overrides in local files.
+AI Feedback 0.8 uses `base-prompt` for instructions throughout an activity and
+`step-prompt` for the current feedback step. The old `prompt` key is rejected
+with a migration message. Fixed shared instructions and authored exercise
+criteria remain separate from configurable teaching instructions.
 
-## One file or several
+## Load definitions, then select
 
-For one file, add this to `_quarto.yml` or a standalone page's front matter:
+Loading YAML files registers definitions without activating them. Paths are
+relative to the project root (or the standalone document). Files contain an
+`ai-feedback` mapping with `policies` and optional `exercises` sections.
+
+```yaml
+# feedback.yml
+ai-feedback:
+  policies:
+    guided-practice:
+      base-prompt: Preserve the learner's notation and use the course methods.
+      max-words: 160
+      steps:
+        - step-prompt: Ask one guiding question.
+        - step-prompt: Explain the relevant idea without finishing the exercise.
+    brief-practice:
+      extends: guided-practice
+      max-words: 80
+    worked-review:
+      extends: guided-practice
+      steps:
+        - step-prompt: Give a complete worked explanation.
+          allow-full-solution: true
+          max-words: 250
+```
+
+Select explicitly in Quarto metadata:
 
 ```yaml
 ai-feedback:
   policy-files: feedback.yml
+  project-policy: guided-practice
 ```
 
-For separate files, list them in order:
+A page can load additional definitions and explicitly change its baseline:
 
 ```yaml
 ai-feedback:
-  policy-files:
-    - feedback/common.yml
-    - feedback/math.yml
-    - feedback/python.yml
-    - feedback/pyodide.yml
-    - feedback/plain-text.yml
+  page-policy-files: feedback/chapter.yml
+  page-policy: brief-practice
 ```
 
-Paths are relative to the Quarto project root, or to the standalone input page.
-Missing files and malformed policies stop rendering with an explanation.
-Each file has an `ai-feedback` mapping containing `defaults`, `integrations`, or
-both. Later files override earlier values **within the same scope**. A new
-`steps` list replaces that entire list; `steps: []` disables progression.
+Policy selections are read from project configuration, active profile files,
+directory `_metadata` files and page front matter (both `.yml` and `.yaml`
+configuration filenames are supported). Use these sources for policy selectors
+rather than CLI metadata or native `metadata-files`.
 
-Use `policy-files` when combining policies: Quarto's ordinary `metadata-files`
-merges arrays before filters run and can append or deduplicate steps. Existing
-inline `ai-feedback.defaults` and `ai-feedback.integrations` metadata also work,
-but their values have already undergone Quarto's normal metadata merging.
+Both file options accept one path or an ordered list. A file name has no special
+meaning. `page-policy-files` alone never changes the page baseline. No automatic
+`defaults` or `integrations` sections are accepted in authored policy files or
+inline metadata. The installed `feedback-defaults.yml` is the internal shipped
+baseline, not an authored override file.
 
-## Example local policy
+Select a specialization on one exercise with `#| feedback-policy: worked-review`.
+For text activities use `feedback-policy="worked-review"` on the `.ai-feedback`
+Div. Without a selection, the effective integration baseline remains active.
+
+Project/page selections can instead map integration names to policies:
 
 ```yaml
 ai-feedback:
-  defaults:
-    max-words: 150
-    reset-on-run: true
-    allow-full-solution: false
-  integrations:
-    math-exercise:
-      prompt: |
-        Prefer the methods taught in this course.
-        Use the learner's own notation.
-      steps:
-        - prompt: Ask one guiding question.
-        - prompt: Explain the relevant concept without calculations.
-        - prompt: Describe the method without finishing the exercise.
-        - prompt: Give a worked solution and explain it.
-          allow-full-solution: true
-          max-words: 350
-    py-exercise:
-      reset-on-run: false
-      steps:
-        - prompt: Point out where the learner should look next.
-        - prompt: Explain the problem without supplying finished code.
+  policy-files: feedback.yml
+  page-policy:
+    default: guided-practice
+    math-exercise: brief-practice
 ```
 
-The other integration names are `pyodide-interaktiv` and `plain-text`. All four
-support the same options. The number of steps is the length of the list, with a
-maximum of 20. One step is valid; after the last step, later requests repeat it.
+The `default` selection applies first, followed by the selected integration.
+Supported integration names are `plain-text`, `math-exercise`, `py-exercise` and
+`pyodide-interaktiv`. A map's common base instructions and its integration base
+instructions are both included; a scalar selection replaces the integration base.
 
-## Defaults and precedence
+## Inheritance and precedence
 
-| Integration | Shipped behavior |
-|---|---|
-| `plain-text` | Review without a hint sequence; activity criteria still apply |
-| `py-exercise` | Review without a hint sequence; assignment restrictions still apply |
-| `math-exercise` | Four steps: question, concept, procedure, worked solution; 120 words |
-| `pyodide-interaktiv` | Three increasingly detailed hints without finished code; 250 words |
+Each named policy has at most one parent. Parent definitions may appear before
+or after children. Unknown parents and cycles fail rendering, even when the
+invalid policy is unused. Definitions with the same name merge field by field
+in project-file order followed by page-file order. An omitted parent retains an
+earlier declaration; `extends: null` explicitly removes that named-parent link.
 
-The shipped behavior retains each integration's teaching approach. Its prompt
-instructions are stored centrally in English; feedback is still written in the
-integration's selected language unless the policy overrides `language`. UI,
-source and response languages remain separate.
+A policy with no parent inherits the effective integration settings at its point
+of application. A parent chain contributes only its supplied fields; it does not
+freeze defaults or discard lower-scope settings. A reusable policy therefore
+inherits the appropriate defaults for whichever integration selects it.
 
-Effective settings use this precedence, lowest to highest:
+Resolution order is:
 
-1. Shipped common defaults.
-2. Shipped integration defaults (and legacy `feedback-hints: false` for Pyodide).
-3. Local common defaults, merged in file order.
-4. Local integration settings, merged in file order.
+1. Shipped common/integration defaults and integration runtime options.
+2. Explicit `project-policy` selection(s).
+3. Explicit `page-policy` selection(s).
+4. Matching YAML exercise-ID overrides.
+5. The exercise's explicitly selected `feedback-policy`, including its ancestry.
+6. The current step's settings.
 
-Legacy inline policy metadata is the final project layer. New policy definitions should use external YAML files. Page files form a separate, higher-precedence layer. Integration-specific settings
-win over common defaults regardless of which file contains them. A local `prompt`
-replaces the prompt in that scope; the effective common and integration prompts
-are both included. An explicit plain-text activity `max-issues` attribute overrides the policy limit.
-Stable shared rules, assignment restrictions, authored activity
-criteria, learner responses and eligible evidence remain separate from these
-teaching instructions. Replacing a step list never inherits permissions from
-steps in the old list.
-
-Available policy fields:
-
-| Field | Meaning |
-|---|---|
-| `prompt` | Author instructions for common or integration-specific feedback |
-| `language` | Explanation language; otherwise inherited from the integration |
-| `max-words` | Integer from 20 to 2000; shipped common default 250 |
-| `max-issues` | Integer from 1 to 20; shipped common default 3 |
-| `allow-full-solution` | Boolean; default false; true permits a complete response |
-| `reset-on-run` | Boolean; default true; Run/Check restarts hints at step one |
-| `steps` | Ordered list of mappings with a required `prompt`; empty means review mode |
-
-Each step may also override `max-words`, `max-issues` and
-`allow-full-solution`. The prompt must agree with its permissions. These are
-instructions to a model, not a guarantee that a model obeys them.
-
-## When the counter changes
-
-A successfully displayed API reply or copy prompt advances that exercise's
-counter. Failed, cancelled and stale requests do not. Editing preserves the
-counter and invalidates old evidence. Run or Check resets it by default;
-`reset-on-run: false` preserves progression. Explicit Reset always restarts it.
-Loading a new mathematics pool task also restarts it.
-
-Counters persist independently per page/exercise in the browser tab. Changing
-the effective policy resets its saved progression, avoiding accidental reuse of
-a final-step permission from a previous policy. Reset also cancels pending
-feedback so a late reply cannot restore an old hint.
-
-The shared runtime controls progression and prompt assembly. Integrations collect
-only their task, current response, authored criteria and eligible prior evidence.
-Feedback itself never executes Run or Check.
-
-## Maintainers
-
-After intentionally editing shipped defaults, run:
-
-```sh
-python scripts/sync-feedback-defaults.py
-python scripts/sync-feedback-defaults.py --check
-```
-
-Generation uses PyYAML. Consumers load the single installed shared extension;
-there are no fallback bundles to synchronize. The combined examples, builder
-and pinned integration branches live in
-[Erasmus-CTM/ctm-assessment](https://github.com/Erasmus-CTM/ctm-assessment).
-Its builder copies `feedback.yml` and an optional `feedback/` directory.
-Use ai-feedback 0.5.0 with the matching integration branches.
-
-## Page scope and named exercise policies (0.6.0)
-
-All new policy definitions live in external YAML files. An exercise may only
-select an existing named policy inline; it cannot embed a policy mapping.
-Existing inline document defaults/integrations remain supported for compatibility.
-Named `policies` and `exercises` mappings are rejected in document front matter.
+To target a stable authored label without repeating a selection:
 
 ```yaml
-# _quarto.yml
 ai-feedback:
-  policy-files: feedback/course.yml
-```
-
-```yaml
-# A page's front matter; one path or an ordered list
-ai-feedback:
-  page-policy-files: feedback/chapter-3.yml
-```
-
-Paths in both lists are relative to the project root, including pages in nested
-folders. For standalone documents, paths are relative to the input document.
-There is no filename-based discovery: each file must be listed explicitly.
-
-```yaml
-# feedback/chapter-3.yml
-ai-feedback:
-  defaults:
-    max-words: 160
-  integrations:
-    math-exercise:
-      max-words: 100
-  policies:
-    short-hints:
-      prompt: Prefer the methods taught in this chapter.
-      reset-on-run: true
-      steps:
-        - prompt: Ask one guiding question.
-        - prompt: Explain the relevant idea without a completed solution.
   exercises:
     math-exercise:
       quadratic-practice:
-        max-words: 80
+        max-words: 90
 ```
 
-Select that reusable policy inside any code integration:
+This applies only to that integration and label; it is not a page-wide override.
+Text activities use their explicit Div ID. Code activities use `#| label:`.
 
-````markdown
-```{math-exercise}
-#| label: quadratic-practice
-#| feedback-policy: short-hints
-Solve $x+2=5$: $x=$ _[3].
-```
-````
+## Fields and replacement rules
 
-For text/image activities, use `feedback-policy="short-hints"` on the
-`.ai-feedback` Div. Its explicit `#id` is its exercise key. Python and mathematics
-use their authored `#| label:`; use stable, unique labels within each integration
-when configuring exercise-specific settings. Unlabelled exercises can select a
-named policy but should not be targeted through generated IDs.
+| Field | Meaning |
+|---|---|
+| `extends` | One named parent; only inside named policies; null clears parent |
+| `base-prompt` | Integration instructions; replaces the inherited base string |
+| `language` | Feedback explanation language, independent of UI/response languages |
+| `max-words` | Integer 20–2000 |
+| `max-issues` | Integer 1–20 |
+| `allow-full-solution` | Boolean permission for a full solution; defaults false |
+| `reset-on-run` | Whether Run/Check restarts progression; defaults true |
+| `steps` | Complete sequence, maximum 20 steps; empty selects review mode |
 
-Precedence, lowest to highest:
+Omitted values inherit. Scalars replace. Supplying `steps` replaces the whole
+list: no appending, padding, or merging corresponding steps. Old per-step
+permissions disappear with the replaced list. Each step requires `step-prompt`
+and may override `max-words`, `max-issues`, and `allow-full-solution`.
 
-1. Shipped common and integration defaults.
-2. Project files: common defaults, then integration settings.
-3. Page files: common defaults, then integration settings.
-4. YAML exercise entries for the integration and authored ID/label, merged in
-   project-file order followed by page-file order.
-5. The named policy explicitly selected on that exercise.
-6. The current step's permitted per-step settings.
+The final request combines fixed shared instructions, authored criteria, the
+resolved base instructions, and only the current step's instructions. Replacing
+the step list does not replace the base prompt. Explicit text-activity
+`max-issues` attributes retain priority over policy limits.
 
-Within each scope later files override earlier files. A page common setting can
-override a project integration setting. Named definitions merge by name in file
-order (project then page). Selecting a name does not automatically activate it
-elsewhere. No named-policy inheritance or inline definitions are supported.
+Shipped mathematics has four steps (question, concept, procedure, worked
+solution), Pyodide has three hints, and text/Python exercises start in review
+mode. The resulting step count is exactly the final list's length. Later
+requests repeat the final step. A successful displayed reply or copy prompt
+advances progress; failed, cancelled or stale requests do not. Edits preserve
+progress. Explicit Reset always restarts it. Changed effective parent settings
+reset dependent counters; changing an unused policy does not.
 
-Scalars replace, omitted keys inherit, and `steps` replaces the entire list.
-`steps: []` disables hints. Replacing steps never inherits old per-step solution
-permissions. An exercise/named `prompt` replaces the effective integration prompt;
-the effective common prompt and separate authored criteria still apply. Existing
-explicit text-activity `max-issues` attributes retain their compatibility priority.
-Unknown selected names, missing files and invalid fields stop rendering clearly.
-Named and exercise policy entries must define at least one option; empty sections
-are ignored. Use `steps: []` explicitly when requesting review without hints.
+The example policy disclosure shows selected scopes and parent chains plus the
+resolved step count, per-step limits/permissions and base instructions. The raw
+YAML below is the input definition, not a claim that every displayed policy is
+active.
 
-All integrations pass only the selection and authored exercise key to the shared
-resolver. The resulting policy governs prompts, limits, steps and Run/Check
-resets. Only a change to that exercise's effective policy resets its saved hint
-counter; editing an unused named policy does not reset unrelated exercises.
+## Migration and maintenance
+
+Rename policy `prompt` to `base-prompt`, and step `prompt` to `step-prompt`.
+Move authored automatic defaults/integration overrides into named policies and
+select them explicitly using `project-policy` or `page-policy` (use integration
+maps when scope-specific behavior is needed). There are no old spelling aliases.
+
+After editing shipped defaults run `python scripts/sync-feedback-defaults.py`;
+CI checks generated/browser defaults agree with the YAML. All consumers use the
+single installed shared extension. Test adapters and runtime behavior in the
+CTM Assessment umbrella before adopting changes in course sites.
