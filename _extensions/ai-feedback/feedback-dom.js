@@ -147,6 +147,18 @@
         continue;
       }
 
+      // ATX headings may include a whitespace-separated closing hash sequence.
+      // Parse only after protecting code and TeX, and keep model HTML escaped.
+      match = trimmed.match(/^(#{1,6})(?:[ \t]+(.*))?$/);
+      if (match) {
+        flushParagraph(); flushList();
+        var heading = (match[2] || '').replace(/[ \t]+#+[ \t]*$/, '');
+        if (/^#+[ \t]*$/.test(heading)) heading = '';
+        var tag = 'h' + match[1].length;
+        out.push('<' + tag + '>' + simpleMarkdownInline(heading) + '</' + tag + '>');
+        continue;
+      }
+
       match = trimmed.match(/^[-*+]\s+(.+)$/);
       if (match) {
         flushParagraph();

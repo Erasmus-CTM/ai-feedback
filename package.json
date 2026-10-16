@@ -1,6 +1,6 @@
 {
   "name": "@erasmus-ctm/ai-feedback",
-  "version": "0.5.0",
+  "version": "0.6.1",
   "private": true,
   "description": "Shared browser feedback and Quarto extension",
   "scripts": {
