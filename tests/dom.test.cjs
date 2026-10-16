@@ -248,6 +248,9 @@ test('visual contexts reach the actual request as context while the typed respon
   assert.doesNotMatch(JSON.stringify(sent),/FORGED|STALE/);
   assert.equal(sent.attachments.length,1); assert.equal(sent.attachments[0].role,'context');
   assert.equal(F.buildMessages(sent)[1].content.filter(p=>p.type==='image_url').length,1);
+  const policy = F.buildMessages(F.applyPolicy('math-exercise', sent, 1))[0].content;
+  assert.match(policy, /a context image illustrates the task/);
+  assert.doesNotMatch(policy, /An attached image is the student/);
   api.dispose(); w.close();
 });
 test('copy prompts expose the diagram image for attachment in chat', async () => {
