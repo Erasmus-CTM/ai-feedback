@@ -42,10 +42,12 @@ An enabled consumer automatically loads the installed ai-feedback module during
 HTML rendering, including text/image activities on that page. An explicit
 `ai-feedback` filter also works, in either order. Resources and settings load
 once. Flat and owner-qualified `_extensions` layouts and nested project pages
-are supported; installations with different versions or a missing shared
-dependency produce an actionable render error (copies of the same version may
-coexist, for example the CTM Assessment package next to a separately added
-component). Rendering does not download dependencies.
+are supported. A consumer uses the ai-feedback installed next to it (for
+example inside the CTM Assessment package), so separately added copies may have
+other versions; a page that combines consumers bound to different ai-feedback
+versions, several installations without one next to the consumer, or a missing
+shared dependency produce an actionable render error. Rendering does not
+download dependencies.
 
 `py-exercise` loads its browser Python runtime directly when used alone, or
 reuses the runtime from `pyodide-interaktiv` when both are present. Feedback-disabled Python/Pyodide pages do not require
