@@ -126,3 +126,16 @@ test('rendering does not require quarto on PATH (IDE-bundled Quarto)', {skip: av
     assert.equal(settings(dir, 'plain.qmd').mode, 'api');
   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
 });
+
+test("a project's own Deno or npm configuration does not reach the policy reader", {skip}, () => {
+  const dir = project(['plain.qmd']);
+  try {
+    page(dir, 'plain.qmd', '');
+    fs.writeFileSync(path.join(dir, 'package.json'), '{ "name": "course", "workspaces": [');            // malformed
+    fs.writeFileSync(path.join(dir, 'deno.json'), '{ "workspace": ["./tools"], "nodeModulesDir": "auto" }');
+    const r = render(dir);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(settings(dir, 'plain.qmd').mode, 'api');
+    assert.equal(fs.existsSync(path.join(dir, 'node_modules')), false);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
