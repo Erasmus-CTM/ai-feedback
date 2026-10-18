@@ -4,6 +4,7 @@
   "private": true,
   "description": "Shared browser feedback and Quarto extension",
   "scripts": {
+    "pretest": "node tests/prepare-quarto.cjs",
     "test": "node --test tests/*.test.cjs"
   },
   "devDependencies": {
