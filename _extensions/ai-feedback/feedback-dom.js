@@ -362,10 +362,7 @@
         return;
       }
       if (!el.matches('.ai-feedback-context, .ai-context, .math-exercise-context')) {
-        console.warn(
-          'math-exercise: element "' + id +
-          '" is not a .math-exercise-context and was ignored.'
-        );
+        console.warn('ai-feedback: element "' + id + '" is not tagged .ai-feedback-context (or .ai-context) and was ignored.');
         return;
       }
 
@@ -375,11 +372,7 @@
         return;
       }
       if (usedChars + content.length > MAX_FEEDBACK_CONTEXT_CHARS) {
-        console.warn(
-          'math-exercise: context "' + id +
-          '" exceeds the combined ' + MAX_FEEDBACK_CONTEXT_CHARS +
-          '-character limit and was ignored.'
-        );
+        console.warn('ai-feedback: context "' + id + '" exceeds the combined ' + MAX_FEEDBACK_CONTEXT_CHARS + '-character limit and was ignored.');
         return;
       }
 

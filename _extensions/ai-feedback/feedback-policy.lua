@@ -47,7 +47,11 @@ function M.emit(meta)
   input.inputFile=quarto.doc.input_file
   input.profiles=quarto.project.profiles
   local parser=directory .. '/read-policies.ts'
-  local encoded=pandoc.pipe('quarto',{'run',parser,quarto.json.encode(input)},''):gsub('%s+$','')
+  -- Use the running Quarto, which need not be on PATH (IDE-bundled installations).
+  local cli=(quarto.config and quarto.config.cli_path and quarto.config.cli_path()) or 'quarto'
+  local result=quarto.json.decode((pandoc.pipe(cli,{'run',parser,quarto.json.encode(input)},''):gsub('%s+$','')))
+  for _,warning in ipairs(result.warnings or {}) do quarto.log.warning(warning) end
+  local encoded=result.policies
   local config=quarto.json.decode(encoded)
   local registry={}
   for _,layers in ipairs({config.layers or {},config.pageLayers or {}}) do
@@ -57,6 +61,21 @@ function M.emit(meta)
   _G.ctmFeedbackPolicyNames=registry
   encoded=encoded:gsub('<','\\u003c'):gsub('>','\\u003e'):gsub('&','\\u0026')
   quarto.doc.include_text('before-body','<script>window.__aiFeedbackPolicies = '..encoded..';</script>')
+  -- Runtime settings merged across project, profile, directory and page metadata.
+  -- Values Quarto supplied from elsewhere (for example `-M` on the command line)
+  -- complement the files read above.
+  local settings,read=result.settings or {},{}
+  for _,key in ipairs(result.read or {}) do read[key]=true end
+  local allowed={mode={copy=true,api=true},storage={['local']=true,session=true}}
+  for _,key in ipairs({'mode','storage','base-url','model','ui-language','feedback-language'}) do
+    local value=cfg[key]
+    if not read[key] and value~=nil and pandoc.utils.type(value)~='table' and pandoc.utils.type(value)~='List' then
+      value=text(value)
+      if allowed[key] and not allowed[key][value] then quarto.log.warning('ai-feedback: '..key..' value '..value..' is not supported; it is ignored.')
+      else settings[key]=value end
+    end
+  end
+  return settings
 end
 function M.selection(block,opts)
   local name=opts['feedback-policy'] or block.attributes['feedback-policy'] or ''

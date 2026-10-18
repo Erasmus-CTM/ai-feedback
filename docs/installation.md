@@ -66,6 +66,13 @@ ai-feedback:
   model: your-model-id
 ```
 
+These settings combine key by key across `_quarto.yml`, profile files,
+directory `_metadata.yml` files and page front matter, so a page that selects a
+`page-policy` keeps the project's `mode`, `base-url`, `model` and `storage`.
+Rendering warns about unknown options (for example `base_url`), unsupported
+`mode`/`storage` values and anything that looks like a credential (`api-key`,
+`token`, ...); such values are ignored and never written into the page.
+
 Local storage shares settings across pages on the same origin. Session storage
 limits them to a browser tab. Users can edit settings and explicitly import old
 consumer settings. The chosen provider must allow browser CORS access; network

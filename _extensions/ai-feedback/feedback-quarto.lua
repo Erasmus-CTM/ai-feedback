@@ -5,6 +5,13 @@ local directory = debug.getinfo(1, "S").source:sub(2):match("^(.*)[/\\]")
 local policy = dofile(directory .. "/feedback-policy.lua")
 local counter = 0
 local cfg = {}
+-- The installed manifest is the single source of the extension version.
+local function version()
+  local file = io.open(directory .. "/_extension.yml", "r")
+  local found = file and file:read("*a"):match("\nversion:%s*['\"]?([%w%.%-]+)") or "0"
+  if file then file:close() end
+  return found
+end
 local language = "en"
 local function str(v, fallback)
   if v == nil then return fallback end
@@ -146,11 +153,10 @@ function M.prepare(doc)
   if not quarto.doc.is_format("html") then return doc end
   if doc.meta["ctm-feedback-prepared"] then return doc end
   doc.meta["ctm-feedback-prepared"] = true
-  cfg = doc.meta["ai-feedback"] or {}
   language = str(doc.meta.lang, "en")
-  policy.emit(doc.meta)
+  cfg = policy.emit(doc.meta)
   quarto.doc.add_html_dependency({
-    name = "ai-feedback", version = "0.7.0",
+    name = "ai-feedback", version = version(),
     scripts = {directory .. "/feedback-core.js", directory .. "/feedback-dom.js", directory .. "/ai-feedback.js"},
     stylesheets = {directory .. "/ai-feedback.css"}
   })
