@@ -12,6 +12,20 @@ local function version()
   if file then file:close() end
   return found
 end
+-- One ai-feedback version per page. Consumers (their feedback-loader.lua)
+-- and the explicit ai-feedback filter both register the installation they
+-- load here (filters share Lua globals); a page that would combine two
+-- different versions stops instead of mixing them.
+do
+  local here = directory .. "/feedback-quarto.lua"
+  local loaded = _G.__ctmAiFeedbackInstallation
+  if loaded and pandoc.path.normalize(loaded.path) ~= pandoc.path.normalize(here) and loaded.version ~= version() then
+    assert(false, "This page combines filters that use different ai-feedback versions: " .. loaded.path .. " ("
+      .. loaded.version .. ") and " .. here .. " (" .. version() .. "). List the filters of one installation "
+      .. "(for example only ctm-assessment), or install the same ai-feedback version.")
+  end
+  _G.__ctmAiFeedbackInstallation = loaded or {path = here, version = version()}
+end
 local language = "en"
 local function str(v, fallback)
   if v == nil then return fallback end
