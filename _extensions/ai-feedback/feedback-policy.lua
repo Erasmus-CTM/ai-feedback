@@ -45,7 +45,15 @@ function M.emit(meta)
     projectPolicy=selection(cfg['project-policy']),pagePolicy=selection(cfg['page-policy'])}
   input.projectDirectory=quarto.project.directory
   input.inputFile=quarto.doc.input_file
-  input.profiles=quarto.project.profiles
+  input.profiles=quarto.project.profile
+  -- Quarto's merged document metadata (see read-policies.ts for precedence).
+  local documentMeta={values={},keys={}}
+  for key,value in pairs(cfg) do
+    table.insert(documentMeta.keys,key)
+    local kind=pandoc.utils.type(value)
+    if kind~='table' and kind~='List' and kind~='Meta' then documentMeta.values[key]=text(value) end
+  end
+  input.documentMeta=documentMeta
   local parser=directory .. '/read-policies.ts'
   -- Use the running Quarto, which need not be on PATH (IDE-bundled installations).
   local cli=(quarto.config and quarto.config.cli_path and quarto.config.cli_path()) or 'quarto'
@@ -61,20 +69,8 @@ function M.emit(meta)
   _G.ctmFeedbackPolicyNames=registry
   encoded=encoded:gsub('<','\\u003c'):gsub('>','\\u003e'):gsub('&','\\u0026')
   quarto.doc.include_text('before-body','<script>window.__aiFeedbackPolicies = '..encoded..';</script>')
-  -- Runtime settings merged across project, profile, directory and page metadata.
-  -- Values Quarto supplied from elsewhere (for example `-M` on the command line)
-  -- complement the files read above.
-  local settings,read=result.settings or {},{}
-  for _,key in ipairs(result.read or {}) do read[key]=true end
-  local allowed={mode={copy=true,api=true},storage={['local']=true,session=true}}
-  for _,key in ipairs({'mode','storage','base-url','model','ui-language','feedback-language'}) do
-    local value=cfg[key]
-    if not read[key] and value~=nil and pandoc.utils.type(value)~='table' and pandoc.utils.type(value)~='List' then
-      value=text(value)
-      if allowed[key] and not allowed[key][value] then quarto.log.warning('ai-feedback: '..key..' value '..value..' is not supported; it is ignored.')
-      else settings[key]=value end
-    end
-  end
+  -- Runtime settings resolved and validated by the reader.
+  local settings=result.settings or {}
   return settings
 end
 function M.selection(block,opts)

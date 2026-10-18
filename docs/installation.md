@@ -66,12 +66,19 @@ ai-feedback:
   model: your-model-id
 ```
 
-These settings combine key by key across `_quarto.yml`, profile files,
-directory `_metadata.yml` files and page front matter, so a page that selects a
-`page-policy` keeps the project's `mode`, `base-url`, `model` and `storage`.
+These settings combine key by key across `_quarto.yml`, the active profile's
+`_quarto-<profile>.yml`, directory `_metadata.yml` files and page front matter,
+so a page that selects a `page-policy` keeps the project's `mode`, `base-url`,
+`model` and `storage`. A value in the page's own front matter wins; values that
+only Quarto's merged metadata contains (notebook front matter, `format: html:`
+scoped settings) are used too. Settings supplied through `metadata-files` are
+not combined with a page's own `ai-feedback` mapping; put them in `_quarto.yml`
+or `_metadata.yml`.
+
 Rendering warns about unknown options (for example `base_url`), unsupported
-`mode`/`storage` values and anything that looks like a credential (`api-key`,
-`token`, ...); such values are ignored and never written into the page.
+`mode`/`storage` values, an invalid `base-url` (without repeating it) and
+anything that looks like a credential (`api-key`, `token`, ...); such values
+are ignored and never written into the page.
 
 Local storage shares settings across pages on the same origin. Session storage
 limits them to a browser tab. Users can edit settings and explicitly import old

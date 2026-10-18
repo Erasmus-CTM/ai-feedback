@@ -123,9 +123,11 @@ ai-feedback:
   model: your-model-id
 ```
 
-Options combine key by key across project, profile, `_metadata.yml` and page
-metadata; unknown options, unsupported values and credential-like keys produce a
-render warning and are ignored.
+Options combine key by key across `_quarto.yml`, the active profile file,
+`_metadata.yml` and page front matter (details in the
+[installation guide](installation.md#provider-settings-and-data-sent)); unknown
+options, unsupported values and credential-like keys produce a render warning
+and are ignored.
 
 Local storage shares settings across pages on the same origin. Session storage
 limits them to a browser tab. Users can edit settings and explicitly import old

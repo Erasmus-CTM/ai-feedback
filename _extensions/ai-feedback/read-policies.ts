@@ -5,10 +5,11 @@ import './feedback-core.js';
 
 const config = JSON.parse(Deno.args[0]);
 // Read author metadata before Pandoc's Markdown conversion. Quarto replaces a
-// whole custom metadata mapping at page (and _metadata) scope, so merge every
-// level here, key by key: project, profiles, directory _metadata, front matter.
+// whole custom metadata mapping when page front matter defines one, so merge
+// every level here, key by key: project, profiles, directory _metadata, front matter.
 const settings: Record<string, any> = {};
 const origins: Record<string, string> = {};
+const pageKeys = new Set<string>();
 function metadata(file: string, frontMatter = false) {
   let raw: string;
   try { raw = Deno.readTextFileSync(file); } catch (error) {
@@ -25,7 +26,7 @@ function metadata(file: string, frontMatter = false) {
     const value = document['ai-feedback'];
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('ai-feedback metadata must be a mapping: ' + file);
     Object.assign(settings, value);
-    for (const key of Object.keys(value)) origins[key] = file;
+    for (const key of Object.keys(value)) { origins[key] = file; if (frontMatter) pageKeys.add(key); }
   }
 }
 function metadataFile(stem: string) {
@@ -59,40 +60,69 @@ for (const [field,key] of [['project-policy','projectPolicy'],['page-policy','pa
 for (const field of ['defaults','integrations','policies','exercises']) {
   if (Object.hasOwn(settings,field)) throw new Error('ai-feedback: inline ' + field + ' is not supported; load definitions and select project-policy/page-policy');
 }
-// Runtime settings use the same key-by-key merge as policy selection, so a page
-// that selects a policy keeps the project's mode, provider defaults and storage.
+// Runtime settings. A key from the page's own front matter wins; otherwise the
+// value in Quarto's document metadata wins (it already merges project, profile,
+// _metadata, format-scoped and notebook metadata, but loses project keys when
+// the page defines its own mapping); otherwise the value merged from the files.
 const runtimeKeys = ['mode', 'storage', 'base-url', 'model', 'ui-language', 'feedback-language'];
 const policyKeys = ['policy-files', 'page-policy-files', 'project-policy', 'page-policy'];
+const documentMeta = config.documentMeta || {values: {}, keys: []};
 const warnings: string[] = [];
 const runtime: Record<string, string> = {};
-for (const [key, value] of Object.entries(settings)) {
-  const where = ' (' + relative(root, origins[key]) + ')';
+const origin: Record<string, string> = {};
+function scalar(value: unknown): string | undefined {
+  if (value === null || value === undefined) return undefined;
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (typeof value === 'object') return undefined;
+  return String(value);
+}
+const where = (key: string) => origins[key] ? relative(root, origins[key]) : 'document metadata';
+for (const key of new Set([...Object.keys(settings), ...documentMeta.keys])) {
   if (/^(api[-_]?key|apikey|key|token|secret|password|authorization)$/i.test(key)) {
-    warnings.push('ai-feedback: ' + key + where + ' looks like a credential. It is ignored and must not be stored in Quarto metadata, ' +
+    warnings.push('ai-feedback: ' + key + ' (' + where(key) + ') looks like a credential. It is ignored and must not be stored in Quarto metadata, ' +
       'which is published with the site; learners enter personal keys in the Feedback settings.');
-  } else if (runtimeKeys.includes(key)) {
-    if (value !== null && typeof value === 'object') warnings.push('ai-feedback: ' + key + where + ' must be a single value; it is ignored.');
-    else if (value !== null && value !== undefined) runtime[key] = String(value);
-  } else if (!policyKeys.includes(key)) {
-    warnings.push('ai-feedback: unknown option ' + key + where + ' is ignored. Known options: ' + [...runtimeKeys, ...policyKeys].join(', ') + '.');
+  } else if (!runtimeKeys.includes(key) && !policyKeys.includes(key)) {
+    warnings.push('ai-feedback: unknown option ' + key + ' (' + where(key) + ') is ignored. Known options: ' + [...runtimeKeys, ...policyKeys].join(', ') + '.');
   }
+}
+for (const key of runtimeKeys) {
+  let value: string | undefined;
+  if (pageKeys.has(key) || !Object.hasOwn(documentMeta.values, key)) {
+    if (Object.hasOwn(settings, key) && settings[key] !== null && scalar(settings[key]) === undefined) {
+      warnings.push('ai-feedback: ' + key + ' (' + where(key) + ') must be a single value; it is ignored.');
+    }
+    value = scalar(settings[key]);
+    origin[key] = where(key);
+  } else {
+    value = documentMeta.values[key];
+    origin[key] = 'document metadata';
+  }
+  if (value !== undefined) runtime[key] = value;
 }
 const allowed: Record<string, string[]> = { mode: ['copy', 'api'], storage: ['local', 'session'] };
 for (const [key, values] of Object.entries(allowed)) {
   if (Object.hasOwn(runtime, key) && !values.includes(runtime[key])) {
-    warnings.push('ai-feedback: ' + key + ' must be ' + values.join(' or ') + ' (found ' + JSON.stringify(runtime[key]) + '); using ' + values[0] + '.');
+    warnings.push('ai-feedback: ' + key + ' (' + origin[key] + ') must be ' + values.join(' or ') + ' (found ' + JSON.stringify(runtime[key]) + '); using ' + values[0] + '.');
     delete runtime[key];
   }
 }
 if (Object.hasOwn(runtime, 'base-url') && runtime['base-url'] !== '') {
+  // Never echo the value: a rejected URL may itself contain a secret.
   let url: URL | null = null;
   try { url = new URL(runtime['base-url']); } catch { url = null; }
-  if (!url || !['https:', 'http:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) {
-    warnings.push('ai-feedback: base-url must be an http(s) URL without credentials, query or fragment (found ' + JSON.stringify(runtime['base-url']) + '); it is ignored.');
+  const problems = !url ? ['is not a valid URL'] : [
+    ...(['https:', 'http:'].includes(url.protocol) ? [] : ['must use http or https']),
+    ...(url.username || url.password ? ['contains a user name or password'] : []),
+    ...(url.search ? ['contains a query'] : []),
+    ...(url.hash ? ['contains a fragment'] : []),
+  ];
+  if (problems.length) {
+    const shown = url && ['https:', 'http:'].includes(url.protocol) ? ' ' + url.origin.replace(/\/\/[^@/]*@/, '//') + url.pathname : '';
+    warnings.push('ai-feedback: base-url' + shown + ' (' + origin['base-url'] + ') ' + problems.join(', ') + '; it is ignored.');
     delete runtime['base-url'];
   }
 }
-delete config.projectDirectory; delete config.inputFile; delete config.profiles;
+delete config.projectDirectory; delete config.inputFile; delete config.profiles; delete config.documentMeta;
 for (const key of ['layers', 'pageLayers']) {
   config[key] = config[key].map((file: string) => {
     const document = parse(Deno.readTextFileSync(file)) as Record<string, unknown>;
@@ -108,4 +138,4 @@ for (const integration of ['plain-text', 'py-exercise', 'math-exercise', 'pyodid
   feedback.resolvePolicy(integration, 'en', {}, config);
 }
 // Policies stay a JSON string: Lua's JSON decoder would drop explicit nulls (extends: null).
-console.log(JSON.stringify({ policies: JSON.stringify(config), settings: runtime, read: Object.keys(settings), warnings }));
+console.log(JSON.stringify({ policies: JSON.stringify(config), settings: runtime, warnings }));
