@@ -7,9 +7,11 @@
 ```sh
 npm ci
 npm test
-python -m pip install PyYAML==6.0.2
+python -m pip install 'PyYAML>=6'
 python scripts/sync-feedback-defaults.py --check
 ```
+
+In VS Code, **Terminal → Run Task…** offers the same commands (`.vscode/tasks.json`): the default test task runs the tests.
 
 Edit `feedback-defaults.yml`, then run `python scripts/sync-feedback-defaults.py`
 to regenerate the embedded browser policy. This repository tests the shared

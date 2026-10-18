@@ -191,7 +191,7 @@
     const nodes = [...body.querySelectorAll('.ai-feedback-math')];
     if (!nodes.length) return;
     if (!katexPromise) {
-      const base = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/';
+      const base = 'https://cdn.jsdelivr.net/npm/katex@0.16/';
       if (![...document.querySelectorAll('link[rel="stylesheet"]')].some(link => link.href === base + 'dist/katex.min.css')) {
         const style = document.createElement('link');
         style.rel = 'stylesheet'; style.href = base + 'dist/katex.min.css'; document.head.append(style);
