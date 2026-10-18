@@ -52,8 +52,26 @@ test('profile files take part in the merge, for settings and project-policy', {s
     const r = render(dir, ['--profile', 'prod']);
     assert.equal(r.status, 0, r.stderr);
     for (const file of ['plain.qmd', 'selected.qmd']) {
-      assert.deepEqual(settings(dir, file), {baseUrl: 'https://prod.example/v1', mode: 'api', model: 'course-model', storage: 'local'}, file);
+      assert.deepEqual(settings(dir, file), {baseUrl: 'https://prod.example/v1', mode: 'api', model: 'course-model'}, file);
       assert.equal(policies(dir, file).projectPolicy, 'prodpol', file);
+    }
+  } finally { fs.rmSync(dir, {recursive: true, force: true}); }
+});
+
+test('several profiles: the first listed wins, as in Quarto; _quarto.yml.local applies; unset storage is not emitted', {skip}, () => {
+  const dir = project(['plain.qmd', 'selected.qmd'], 'filters: [ai-feedback]\nai-feedback:\n  model: course-model\n  policy-files: feedback.yml\n');
+  try {
+    fs.writeFileSync(path.join(dir, 'feedback.yml'), 'ai-feedback:\n  policies:\n    apol:\n      max-words: 70\n    bpol:\n      max-words: 60\n    brief:\n      max-words: 80\n');
+    fs.writeFileSync(path.join(dir, '_quarto-a.yml'), 'ai-feedback:\n  model: from-a\n  project-policy: apol\n');
+    fs.writeFileSync(path.join(dir, '_quarto-b.yml'), 'ai-feedback:\n  model: from-b\n  project-policy: bpol\n');
+    fs.writeFileSync(path.join(dir, '_quarto.yml.local'), 'ai-feedback:\n  mode: api\n  base-url: http://localhost:8080/v1\n');
+    page(dir, 'plain.qmd', '');
+    page(dir, 'selected.qmd', 'ai-feedback:\n  page-policy: brief\n');
+    const r = render(dir, ['--profile', 'a,b']);
+    assert.equal(r.status, 0, r.stderr);
+    for (const file of ['plain.qmd', 'selected.qmd']) {
+      assert.deepEqual(settings(dir, file), {baseUrl: 'http://localhost:8080/v1', mode: 'api', model: 'from-a'}, file);
+      assert.equal(policies(dir, file).projectPolicy, 'apol', file);
     }
   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
 });
@@ -71,7 +89,7 @@ test("Quarto's own metadata wins where the reader cannot see it (notebooks, late
     const r = render(dir);
     assert.equal(r.status, 0, r.stderr);
     for (const file of ['late.qmd', 'nb.ipynb']) {
-      assert.deepEqual(settings(dir, file), {baseUrl: '', mode: 'copy', model: 'page-model', storage: 'local'}, file);
+      assert.deepEqual(settings(dir, file), {baseUrl: '', mode: 'copy', model: 'page-model'}, file);
     }
     assert.equal(settings(dir, 'scoped.qmd').model, 'format-model');
   } finally { fs.rmSync(dir, {recursive: true, force: true}); }

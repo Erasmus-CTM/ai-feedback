@@ -160,7 +160,9 @@ function M.prepare(doc)
     scripts = {directory .. "/feedback-core.js", directory .. "/feedback-dom.js", directory .. "/ai-feedback.js"},
     stylesheets = {directory .. "/ai-feedback.css"}
   })
-  quarto.doc.include_text("before-body", '<script>window.__aiFeedbackConfig = ' .. json({ mode = str(cfg.mode, "copy"), storage = str(cfg.storage, "local"), baseUrl = str(cfg["base-url"], ""), model = str(cfg.model, "") }) .. ';</script>')
+  -- storage is emitted only when set, so a consumer's own default (pyodide:
+  -- feedback-storage) applies otherwise; the browser falls back to local.
+  quarto.doc.include_text("before-body", '<script>window.__aiFeedbackConfig = ' .. json({ mode = str(cfg.mode, "copy"), storage = cfg.storage and str(cfg.storage, nil) or nil, baseUrl = str(cfg["base-url"], ""), model = str(cfg.model, "") }) .. ';</script>')
   doc.blocks = walk(doc.blocks, {context = {}})
   return doc
 end

@@ -3,10 +3,12 @@ import { parse } from 'stdlib/yaml';
 import { resolve, dirname, join, relative } from 'stdlib/path';
 import './feedback-core.js';
 
-const config = JSON.parse(Deno.args[0]);
+// Read from stdin, never the command line (see feedback-policy.lua).
+const config = JSON.parse(await new Response(Deno.stdin.readable).text());
 // Read author metadata before Pandoc's Markdown conversion. Quarto replaces a
 // whole custom metadata mapping when page front matter defines one, so merge
-// every level here, key by key: project, profiles, directory _metadata, front matter.
+// every level here, key by key: project, profiles, _quarto.yml.local, directory
+// _metadata, front matter.
 const settings: Record<string, any> = {};
 const origins: Record<string, string> = {};
 const pageKeys = new Set<string>();
@@ -39,7 +41,9 @@ function metadataFile(stem: string) {
 const root = resolve(config.projectDirectory || dirname(config.inputFile));
 if (config.projectDirectory) {
   metadataFile(join(root, '_quarto'));
-  for (const profile of config.profiles || []) metadataFile(join(root, '_quarto-' + profile));
+  // Quarto gives the first listed profile precedence, then _quarto.yml.local.
+  for (const profile of [...(config.profiles || [])].reverse()) metadataFile(join(root, '_quarto-' + profile));
+  for (const local of ['_quarto.yml.local', '_quarto.yaml.local']) metadata(join(root, local));
 }
 const input = resolve(config.inputFile);
 const directories = relative(root, dirname(input)).split(/[\\/]/).filter(Boolean);

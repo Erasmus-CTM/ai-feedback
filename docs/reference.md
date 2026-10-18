@@ -130,7 +130,8 @@ options, unsupported values and credential-like keys produce a render warning
 and are ignored.
 
 Local storage shares settings across pages on the same origin. Session storage
-limits them to a browser tab. Users can edit settings and explicitly import old
+limits them to a browser tab. Without `storage:` the default is `local`, unless
+an integration sets its own default (`pyodide: feedback-storage:`). Users can edit settings and explicitly import old
 consumer settings. The chosen provider must allow browser CORS access; network
 or VPN requirements remain the institution's responsibility.
 

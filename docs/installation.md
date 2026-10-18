@@ -42,8 +42,10 @@ An enabled consumer automatically loads the installed ai-feedback module during
 HTML rendering, including text/image activities on that page. An explicit
 `ai-feedback` filter also works, in either order. Resources and settings load
 once. Flat and owner-qualified `_extensions` layouts and nested project pages
-are supported; duplicate installations or a missing shared dependency produce
-an actionable render error. Rendering does not download dependencies.
+are supported; installations with different versions or a missing shared
+dependency produce an actionable render error (copies of the same version may
+coexist, for example the CTM Assessment package next to a separately added
+component). Rendering does not download dependencies.
 
 `py-exercise` loads its browser Python runtime directly when used alone, or
 reuses the runtime from `pyodide-interaktiv` when both are present. Feedback-disabled Python/Pyodide pages do not require
@@ -66,8 +68,9 @@ ai-feedback:
   model: your-model-id
 ```
 
-These settings combine key by key across `_quarto.yml`, the active profile's
-`_quarto-<profile>.yml`, directory `_metadata.yml` files and page front matter,
+These settings combine key by key across `_quarto.yml`, the active profiles'
+`_quarto-<profile>.yml` (with several profiles the first listed wins, as in
+Quarto), `_quarto.yml.local`, directory `_metadata.yml` files and page front matter,
 so a page that selects a `page-policy` keeps the project's `mode`, `base-url`,
 `model` and `storage`. A value in the page's own front matter wins; values that
 only Quarto's merged metadata contains (notebook front matter, `format: html:`
@@ -81,7 +84,8 @@ anything that looks like a credential (`api-key`, `token`, ...); such values
 are ignored and never written into the page.
 
 Local storage shares settings across pages on the same origin. Session storage
-limits them to a browser tab. Users can edit settings and explicitly import old
+limits them to a browser tab. Without `storage:` the default is `local`, unless
+an integration sets its own default (`pyodide: feedback-storage:`). Users can edit settings and explicitly import old
 consumer settings. The chosen provider must allow browser CORS access; network
 or VPN requirements remain the institution's responsibility.
 

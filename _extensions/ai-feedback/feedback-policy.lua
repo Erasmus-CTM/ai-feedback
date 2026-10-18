@@ -57,7 +57,9 @@ function M.emit(meta)
   local parser=directory .. '/read-policies.ts'
   -- Use the running Quarto, which need not be on PATH (IDE-bundled installations).
   local cli=(quarto.config and quarto.config.cli_path and quarto.config.cli_path()) or 'quarto'
-  local result=quarto.json.decode((pandoc.pipe(cli,{'run',parser,quarto.json.encode(input)},''):gsub('%s+$','')))
+  -- The input travels on stdin: it can hold credentials an author put in
+  -- metadata by mistake, and command lines are visible to other local users.
+  local result=quarto.json.decode((pandoc.pipe(cli,{'run',parser},quarto.json.encode(input)):gsub('%s+$','')))
   for _,warning in ipairs(result.warnings or {}) do quarto.log.warning(warning) end
   local encoded=result.policies
   local config=quarto.json.decode(encoded)
