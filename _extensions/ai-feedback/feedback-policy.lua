@@ -45,9 +45,23 @@ function M.emit(meta)
     projectPolicy=selection(cfg['project-policy']),pagePolicy=selection(cfg['page-policy'])}
   input.projectDirectory=quarto.project.directory
   input.inputFile=quarto.doc.input_file
-  input.profiles=quarto.project.profiles
+  input.profiles=quarto.project.profile
+  -- Quarto's merged document metadata (see read-policies.ts for precedence).
+  local documentMeta={values={},keys={}}
+  for key,value in pairs(cfg) do
+    table.insert(documentMeta.keys,key)
+    local kind=pandoc.utils.type(value)
+    if kind~='table' and kind~='List' and kind~='Meta' then documentMeta.values[key]=text(value) end
+  end
+  input.documentMeta=documentMeta
   local parser=directory .. '/read-policies.ts'
-  local encoded=pandoc.pipe('quarto',{'run',parser,quarto.json.encode(input)},''):gsub('%s+$','')
+  -- Use the running Quarto, which need not be on PATH (IDE-bundled installations).
+  local cli=(quarto.config and quarto.config.cli_path and quarto.config.cli_path()) or 'quarto'
+  -- The input travels on stdin: it can hold credentials an author put in
+  -- metadata by mistake, and command lines are visible to other local users.
+  local result=quarto.json.decode((pandoc.pipe(cli,{'run',parser},quarto.json.encode(input)):gsub('%s+$','')))
+  for _,warning in ipairs(result.warnings or {}) do quarto.log.warning(warning) end
+  local encoded=result.policies
   local config=quarto.json.decode(encoded)
   local registry={}
   for _,layers in ipairs({config.layers or {},config.pageLayers or {}}) do
@@ -57,6 +71,9 @@ function M.emit(meta)
   _G.ctmFeedbackPolicyNames=registry
   encoded=encoded:gsub('<','\\u003c'):gsub('>','\\u003e'):gsub('&','\\u0026')
   quarto.doc.include_text('before-body','<script>window.__aiFeedbackPolicies = '..encoded..';</script>')
+  -- Runtime settings resolved and validated by the reader.
+  local settings=result.settings or {}
+  return settings
 end
 function M.selection(block,opts)
   local name=opts['feedback-policy'] or block.attributes['feedback-policy'] or ''

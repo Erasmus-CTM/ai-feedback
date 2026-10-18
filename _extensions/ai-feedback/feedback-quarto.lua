@@ -5,6 +5,27 @@ local directory = debug.getinfo(1, "S").source:sub(2):match("^(.*)[/\\]")
 local policy = dofile(directory .. "/feedback-policy.lua")
 local counter = 0
 local cfg = {}
+-- The installed manifest is the single source of the extension version.
+local function version()
+  local file = io.open(directory .. "/_extension.yml", "r")
+  local found = file and file:read("*a"):match("\nversion:%s*['\"]?([%w%.%-]+)") or "0"
+  if file then file:close() end
+  return found
+end
+-- One ai-feedback version per page. Consumers (their feedback-loader.lua)
+-- and the explicit ai-feedback filter both register the installation they
+-- load here (filters share Lua globals); a page that would combine two
+-- different versions stops instead of mixing them.
+do
+  local here = directory .. "/feedback-quarto.lua"
+  local loaded = _G.__ctmAiFeedbackInstallation
+  if loaded and pandoc.path.normalize(loaded.path) ~= pandoc.path.normalize(here) and loaded.version ~= version() then
+    assert(false, "This page combines filters that use different ai-feedback versions: " .. loaded.path .. " ("
+      .. loaded.version .. ") and " .. here .. " (" .. version() .. "). List the filters of one installation "
+      .. "(for example only ctm-assessment), or install the same ai-feedback version.")
+  end
+  _G.__ctmAiFeedbackInstallation = loaded or {path = here, version = version()}
+end
 local language = "en"
 local function str(v, fallback)
   if v == nil then return fallback end
@@ -146,15 +167,16 @@ function M.prepare(doc)
   if not quarto.doc.is_format("html") then return doc end
   if doc.meta["ctm-feedback-prepared"] then return doc end
   doc.meta["ctm-feedback-prepared"] = true
-  cfg = doc.meta["ai-feedback"] or {}
   language = str(doc.meta.lang, "en")
-  policy.emit(doc.meta)
+  cfg = policy.emit(doc.meta)
   quarto.doc.add_html_dependency({
-    name = "ai-feedback", version = "0.7.0",
+    name = "ai-feedback", version = version(),
     scripts = {directory .. "/feedback-core.js", directory .. "/feedback-dom.js", directory .. "/ai-feedback.js"},
     stylesheets = {directory .. "/ai-feedback.css"}
   })
-  quarto.doc.include_text("before-body", '<script>window.__aiFeedbackConfig = ' .. json({ mode = str(cfg.mode, "copy"), storage = str(cfg.storage, "local"), baseUrl = str(cfg["base-url"], ""), model = str(cfg.model, "") }) .. ';</script>')
+  -- storage is emitted only when set, so a consumer's own default (pyodide:
+  -- feedback-storage) applies otherwise; the browser falls back to local.
+  quarto.doc.include_text("before-body", '<script>window.__aiFeedbackConfig = ' .. json({ mode = str(cfg.mode, "copy"), storage = cfg.storage and str(cfg.storage, nil) or nil, baseUrl = str(cfg["base-url"], ""), model = str(cfg.model, "") }) .. ';</script>')
   doc.blocks = walk(doc.blocks, {context = {}})
   return doc
 end

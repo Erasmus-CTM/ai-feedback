@@ -14,10 +14,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: python -m pip install PyYAML==6.0.2
+      - run: python -m pip install 'PyYAML>=6'
       - run: python scripts/sync-feedback-defaults.py --check
       - uses: quarto-dev/quarto-actions/setup@v2
         with:
           version: "1.8.27"
       - run: npm ci --ignore-scripts
-      - run: npm test
+      - name: npm test
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee "$RUNNER_TEMP/test.log"
+      - name: Report failing tests as annotations
+        if: failure()
+        run: |
+          text=$(grep -A30 'not ok' "$RUNNER_TEMP/test.log" | head -c 3500 | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')
+          echo "::error title=Failing tests::$text"
