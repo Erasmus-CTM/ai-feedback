@@ -96,22 +96,34 @@ test("Quarto's own metadata wins where the reader cannot see it (notebooks, late
   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
 });
 
-test('credentials, unknown options and invalid values are reported, never published or echoed', {skip}, () => {
+test('unknown options and invalid values are reported, never published or echoed', {skip}, () => {
   const dir = project(['bad.qmd', 'date.qmd', 'url.qmd']);
   try {
-    page(dir, 'bad.qmd', 'ai-feedback:\n  api-key: sk-secret-value\n  base_url: https://typo.example\n  mode: API\n');
+    page(dir, 'bad.qmd', 'ai-feedback:\n  base_url: https://typo.example\n  mode: API\n');
     page(dir, 'date.qmd', 'ai-feedback:\n  model: 2024-08-06\n');
     page(dir, 'url.qmd', 'ai-feedback:\n  base-url: https://course:sk-proj-SECRET123@llm.example.edu/v1?api-key=sk-QUERYSECRET\n');
     const r = render(dir);
     assert.equal(r.status, 0, r.stderr);
-    assert.match(r.stderr, /api-key \(bad\.qmd\) looks like a credential/);
-    assert.match(r.stderr, /unknown option base_url \(bad\.qmd\)/);
+    assert.match(r.stderr, /unknown option base_url \(bad\.qmd\) is ignored; this becomes an error in CTM Assessment 1\.0\./);
     assert.match(r.stderr, /mode \(bad\.qmd\) must be copy or api \(found "API"\)/);
     assert.match(r.stderr, /base-url https:\/\/llm\.example\.edu\/v1 \(url\.qmd\) contains a user name or password, contains a query/);
-    assert.doesNotMatch(r.stderr + output(dir, 'url.qmd') + output(dir, 'bad.qmd'), /sk-secret-value|SECRET123|QUERYSECRET/);
+    assert.doesNotMatch(r.stderr + output(dir, 'url.qmd') + output(dir, 'bad.qmd'), /SECRET123|QUERYSECRET/);
     assert.equal(settings(dir, 'bad.qmd').mode, 'copy');
     assert.equal(settings(dir, 'url.qmd').baseUrl, '');
     assert.equal(settings(dir, 'date.qmd').model, '2024-08-06');
+  } finally { fs.rmSync(dir, {recursive: true, force: true}); }
+});
+
+test('a credential in the metadata stops the render without showing its value (A1)', {skip}, () => {
+  const dir = project(['bad.qmd']);
+  try {
+    page(dir, 'bad.qmd', 'ai-feedback:\n  api-key: sk-secret-value\n');
+    const r = render(dir);
+    assert.notEqual(r.status, 0);
+    assert.match(r.stderr, /ai-feedback: api-key in bad\.qmd looks like a credential\. Remove it: Quarto metadata is published with the site; learners enter their own key in the Feedback settings\./);
+    // (Quarto itself may print the page's metadata when a render fails; the message never holds the value.)
+    assert.doesNotMatch(r.stderr.split('\n').filter(line => /credential/.test(line)).join('\n'), /sk-secret-value/);
+    assert.equal(fs.existsSync(path.join(dir, 'bad.html')), false);
   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
 });
 

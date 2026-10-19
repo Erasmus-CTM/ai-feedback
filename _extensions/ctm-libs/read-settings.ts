@@ -144,12 +144,43 @@ function keysOf(section: string) {
 }
 
 const CREDENTIAL = /^(api[-_]?key|apikey|key|token|secret|password|authorization)$/i;
+// A3: unknown options warn in 0.9 and become errors in CTM Assessment 1.0.
+const UNKNOWN_IS_ERROR = false;
 const settings: Record<string, Record<string, Entry>> = {};
+
+// A1: a key that looks like a credential stops the render, in every CTM
+// section, at every level and in the merged metadata. Its value is never shown.
+function credentials() {
+  const message = (section: string, key: string, origin: string) => section + ': ' + key + ' in ' + origin
+    + ' looks like a credential. Remove it: Quarto metadata is published with the site; learners enter their own key in the Feedback settings.';
+  for (const section of sections) {
+    const reported = new Set<string>();
+    for (const level of levels) {
+      for (const key of Object.keys(level.sections[section] || {})) {
+        if (CREDENTIAL.test(key)) { reported.add(key); errors.push(message(section, key, level.origin)); }
+      }
+    }
+    for (const key of Object.keys(documentMeta[section] || {})) {
+      if (CREDENTIAL.test(key) && !reported.has(key)) errors.push(message(section, key, 'document metadata'));
+    }
+  }
+}
+function unknown(section: string, key: string, origin: string, known: string[]) {
+  if (UNKNOWN_IS_ERROR) errors.push(section + ': unknown option ' + key + ' (' + origin + '). Known options: ' + known.join(', ') + '.');
+  else warnings.push(section + ': unknown option ' + key + ' (' + origin + ') is ignored; this becomes an error in CTM Assessment 1.0. Known options: ' + known.join(', ') + '.');
+}
 
 // --- ai-feedback ------------------------------------------------------------
 const RUNTIME_KEYS = ['mode', 'storage', 'base-url', 'model', 'ui-language', 'feedback-language'];
-const POLICY_KEYS = ['policy-files', 'page-policy-files', 'project-policy', 'page-policy'];
 const SWITCH_KEYS = ['enabled'];
+// A2: policy-files adds up over the levels, policy selects (the nearest wins).
+const POLICY_KEYS = ['policy-files', 'policy'];
+const DEPRECATED: Record<string, string> = {
+  'project-policy': 'use policy (the nearest setting wins)',
+  'page-policy': "use policy, extending the project's policy where needed",
+  'page-policy-files': 'use policy-files, which now adds up across project, _metadata and page',
+};
+const KNOWN = [...RUNTIME_KEYS, ...SWITCH_KEYS, ...POLICY_KEYS];
 function scalar(value: unknown): string | undefined {
   if (value === null || value === undefined || typeof value === 'object') return undefined;
   return String(value);
@@ -157,13 +188,11 @@ function scalar(value: unknown): string | undefined {
 function feedbackSettings() {
   const out: Record<string, Entry> = {};
   for (const [key, origin] of keysOf('ai-feedback')) {
-    if (CREDENTIAL.test(key)) {
-      warnings.push('ai-feedback: ' + key + ' (' + origin + ') looks like a credential. It is ignored and must not be stored in Quarto metadata, ' +
-        'which is published with the site; learners enter personal keys in the Feedback settings.');
-    } else if (['defaults', 'integrations', 'policies', 'exercises'].includes(key)) {
-      errors.push('ai-feedback: inline ' + key + ' (' + origin + ') is not supported; load definitions and select project-policy/page-policy');
-    } else if (!RUNTIME_KEYS.includes(key) && !POLICY_KEYS.includes(key) && !SWITCH_KEYS.includes(key)) {
-      warnings.push('ai-feedback: unknown option ' + key + ' (' + origin + ') is ignored. Known options: ' + [...RUNTIME_KEYS, ...SWITCH_KEYS, ...POLICY_KEYS].join(', ') + '.');
+    if (CREDENTIAL.test(key)) continue;
+    if (['defaults', 'integrations', 'policies', 'exercises'].includes(key)) {
+      errors.push('ai-feedback: inline ' + key + ' (' + origin + ') is not supported; define named policies in a policy file (policy-files) and select one with policy');
+    } else if (!KNOWN.includes(key) && !Object.hasOwn(DEPRECATED, key)) {
+      unknown('ai-feedback', key, origin, KNOWN);
     }
   }
   feedbackSwitch(out);
@@ -231,11 +260,29 @@ function feedbackSwitch(out: Record<string, Entry>) {
   else if (last !== undefined) out.enabled = {value: true, origin: last};
 }
 
-// Policy selection and files. The merged metadata seeds them (so that
-// metadata-files and format-scoped settings keep working); a key set at a
-// file level replaces the seed.
+// Policy files and selections (A2), onto the browser contract
+// {layers, pageLayers, projectPolicy, pagePolicy}:
+//   policy-files       additive over the levels in order, duplicates dropped  -> layers
+//   page-policy-files  (deprecated) additive likewise, after all policy-files  -> pageLayers
+//   policy             the nearest level wins; project-policy (deprecated) is
+//                      the same slot, and at one level policy wins            -> projectPolicy
+//   page-policy        (deprecated) the nearest level wins                     -> pagePolicy
+// The merged metadata seeds each key that no file level sets (so that
+// metadata-files and format-scoped settings keep working).
 function policies() {
   const meta = documentMeta['ai-feedback'] || {};
+  const atLevels = (key: string): Entry[] => levels.flatMap(level => {
+    const values = level.sections['ai-feedback'];
+    return values && Object.hasOwn(values, key) ? [{value: values[key], origin: level.origin}] : [];
+  });
+  const seeded = (key: string): Entry[] => {
+    const entries = atLevels(key);
+    if (!entries.length && Object.hasOwn(meta, key)) entries.push({value: meta[key], origin: 'document metadata'});
+    return entries;
+  };
+  for (const [key, advice] of Object.entries(DEPRECATED)) {
+    for (const entry of seeded(key)) warnings.push('ai-feedback: ' + key + ' (in ' + entry.origin + ') is deprecated; ' + advice + '. It keeps working in 0.9.');
+  }
   const files = (value: unknown, key: string, origin: string): string[] | null => {
     if (!(typeof value === 'string' || Array.isArray(value) && value.every(file => typeof file === 'string'))) {
       errors.push('ai-feedback: ' + key + ' (' + origin + ') must be a path or ordered path list');
@@ -251,17 +298,29 @@ function policies() {
     return value;
   };
   const config: Record<string, unknown> = {layers: [], pageLayers: []};
-  const slots: [string, string, 'files' | 'selection'][] = [['policy-files', 'layers', 'files'], ['page-policy-files', 'pageLayers', 'files'],
-    ['project-policy', 'projectPolicy', 'selection'], ['page-policy', 'pagePolicy', 'selection']];
-  for (const [key, slot, kind] of slots) {
-    let entry: Entry | undefined;
-    for (const level of levels) {
-      const values = level.sections['ai-feedback'];
-      if (values && Object.hasOwn(values, key)) entry = {value: values[key], origin: level.origin};
+  const loaded: string[] = [];
+  for (const [key, slot] of [['policy-files', 'layers'], ['page-policy-files', 'pageLayers']]) {
+    for (const entry of seeded(key)) {
+      for (const file of files(entry.value, key, entry.origin) || []) {
+        if (!loaded.includes(file)) { loaded.push(file); (config[slot] as string[]).push(file); }
+      }
     }
-    if (!entry && Object.hasOwn(meta, key)) entry = {value: meta[key], origin: 'document metadata'};
+  }
+  // At one level `policy` wins over its deprecated spelling; the nearest level wins.
+  let project: Entry | undefined;
+  for (const level of levels) {
+    const values = level.sections['ai-feedback'];
+    if (!values) continue;
+    for (const key of ['project-policy', 'policy']) if (Object.hasOwn(values, key)) project = {value: values[key], origin: level.origin};
+  }
+  if (!project) {
+    const key = Object.hasOwn(meta, 'policy') ? 'policy' : Object.hasOwn(meta, 'project-policy') ? 'project-policy' : null;
+    if (key) project = {value: meta[key], origin: 'document metadata'};
+  }
+  const page = seeded('page-policy').at(-1);
+  for (const [slot, entry] of [['projectPolicy', project], ['pagePolicy', page]] as [string, Entry | undefined][]) {
     if (!entry) continue;
-    const value = kind === 'files' ? files(entry.value, key, entry.origin) : selection(entry.value, entry.origin);
+    const value = selection(entry.value, entry.origin);
     if (value !== undefined && value !== null) config[slot] = value;
   }
   for (const slot of ['layers', 'pageLayers']) {
@@ -300,13 +359,9 @@ const SHARED_KEYS = ['stop-after', 'lang'];
 function sectionSettings(section: string) {
   const out: Record<string, Entry> = {};
   for (const [key, origin] of keysOf(section)) {
-    if (CREDENTIAL.test(key)) {
-      warnings.push(section + ': ' + key + ' (' + origin + ') looks like a credential. It is ignored and must not be stored in Quarto metadata, ' +
-        'which is published with the site.');
-      continue;
-    }
+    if (CREDENTIAL.test(key)) continue;
     if (section === 'ctm-assessment' && !SHARED_KEYS.includes(key)) {
-      warnings.push('ctm-assessment: unknown option ' + key + ' (' + origin + ') is ignored. Known options: ' + SHARED_KEYS.join(', ') + '.');
+      unknown('ctm-assessment', key, origin, SHARED_KEYS);
       continue;
     }
     const entry = resolveKey(section, key);
@@ -317,6 +372,7 @@ function sectionSettings(section: string) {
 
 let policyResult = {config: {layers: [], pageLayers: []} as Record<string, unknown>, names: [] as string[]};
 try {
+  credentials();
   for (const section of sections) settings[section] = section === 'ai-feedback' ? feedbackSettings() : sectionSettings(section);
   if (sections.includes('ai-feedback')) policyResult = policies();
 } catch (error) {

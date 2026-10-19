@@ -47,7 +47,7 @@
       for (const layer of layers) {
         if (!layer || typeof layer !== 'object' || Array.isArray(layer)) fail('Policy file must be a mapping.');
         for (const key of Object.keys(layer)) {
-          if (!['policies', 'exercises'].includes(key)) fail('Policy files only define policies/exercises; use project-policy or page-policy to activate a named policy (found ' + key + ').');
+          if (!['policies', 'exercises'].includes(key)) fail('Policy files only define policies/exercises; select a named policy with policy (found ' + key + ').');
           if (!layer[key] || typeof layer[key] !== 'object' || Array.isArray(layer[key])) fail(key + ' must be a mapping.');
         }
         for (const [name, policy] of Object.entries(layer.policies || {})) {
@@ -91,7 +91,7 @@
       return [{name:value.default,common:true},{name:value[integration],common:false}].filter(s => s.name);
     }
     for (const integration of policyNames) {
-      selections(config.projectPolicy, 'project-policy', integration);
+      selections(config.projectPolicy, 'policy', integration);
       selections(config.pagePolicy, 'page-policy', integration);
     }
     return {config, resolved, chains, exercises, selections};
