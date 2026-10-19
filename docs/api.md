@@ -107,7 +107,7 @@ ctm.feedback.selection(block, opts)               -- {exercise = label or id, na
 ctm.feedback.context(block, opts, isPyodide)      -- {mode = auto|explicit|none, refs, text}
 ctm.feedback.enabled()                            -- true, or false and the reason (P22)
 ctm.feedback.request(component, wanted, origin)   -- wanted and enabled; a refused wish is named in the page's build message
-ctm.feedback.flush()                              -- prints that message now (ctm-libs-end.lua; the package lists it last)
+ctm.feedback.flush()                              -- prints that message now, or stops for without-ai (ctm-libs-end.lua; the package lists it last)
 ```
 
 `prepare` registers the `ai-feedback` dependency, `window.__aiFeedbackConfig`
@@ -133,17 +133,40 @@ is printed when Pandoc closes the page's Lua state. A CTM filter running after
 the end filter that leaves out something new produces a second message (from
 that fallback).
 
-Exercises that only AI feedback can assess (activities; math-exercise in
-`mode: custom` without a checker; py-exercise without tests; reference.md)
-are found by `prepare`'s walk, before the components see their blocks, and
-handled by `ai-feedback: without-ai` (`policy.withoutAI()`,
-`policy.withoutAIAction()` in `lua/policy.lua`): `text` (and `self-check`,
-for now) replaces each by its question with a localized note
-(`common.withoutAI`), `drop` removes it, and unset makes `flush()` stop the
-build with one error naming them all. Components need no code of their own
-for it. The end filter announces itself when Quarto loads it
-(`_G.__ctmLibsEnd`); where it is not listed, `prepare` stops the page
-itself.
+### ctm.policy.withoutAI: exercises that only AI feedback can assess
+
+In a build without AI feedback, an exercise without a static check could not
+be assessed at all; `ai-feedback: without-ai` decides what becomes of it
+(reference.md). ctm-libs finds its own `.ai-feedback` activities in
+`prepare`'s walk. A component decides about its exercises with its own parser
+and asks, for each exercise that has no static check:
+
+```lua
+local withoutAI = ctm.policy.withoutAI   -- nil in ctm-libs before it: check for it
+local decision = withoutAI and withoutAI({
+  component = "math-exercise",                              -- names it if the filter order is wrong
+  kind = "math-exercise in custom mode without a checker",  -- for the error
+  name = opts.label,                                        -- or nil: the start of `text` names it
+  text = questionText,
+  lang = lang,                                              -- the component's interface language
+})
+-- nil: AI feedback is on (or an older ctm-libs); render the exercise as usual.
+-- {action = "text", note = <Div>}: the question without answer box and Check
+--   button, followed by `note` (common.withoutAI, marked with lang where the
+--   page's language differs);
+-- {action = "drop"}: leave the exercise out.
+```
+
+ctm-libs names the exercise in the page's build message, or, when
+`without-ai` is unset, in the one error that stops the build (the action is
+then `text`). The error and the message come from `flush()` in
+`ctm-libs-end.lua`, which the package lists after every component; it
+announces itself when Quarto loads it (`_G.__ctmLibsEnd`) and when it runs
+(`_G.__ctmLibsEndRan`). Without it on the page the error comes at once (at
+the end of `prepare` for activities, at the first such exercise of a
+component); a CTM filter that runs after it stops the render with the
+expected order. Under `self-check` an exercise is `text` until it has a model
+answer to compare with; none has one yet.
 
 ### ctm.runtime
 
