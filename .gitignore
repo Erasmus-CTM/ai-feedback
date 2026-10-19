@@ -8,3 +8,5 @@ __pycache__/
 
 /.quarto/
 **/*.quarto_ipynb
+/_ctm-checkers-source/
+/_ci/
