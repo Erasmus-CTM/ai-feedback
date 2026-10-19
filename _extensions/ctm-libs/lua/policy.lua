@@ -1,6 +1,7 @@
--- Shared policy metadata loader; consumers use the installed shared extension.
+-- Teaching policies: reads and validates the policy settings at render time
+-- and emits them for the browser (window.__aiFeedbackPolicies).
+return function(ctm)
 local M = {}
-local directory = debug.getinfo(1, "S").source:sub(2):match("^(.*)[/\\]")
 local function fail(message) assert(false, message) end
 local function text(value)
   if type(value) == 'string' then return value end
@@ -54,7 +55,7 @@ function M.emit(meta)
     if kind~='table' and kind~='List' and kind~='Meta' then documentMeta.values[key]=text(value) end
   end
   input.documentMeta=documentMeta
-  local parser=pandoc.path.join({pandoc.path.directory(directory),'read-settings.ts'})
+  local parser=ctm.path('read-settings.ts')
   -- Use the running Quarto, which need not be on PATH (IDE-bundled installations).
   local cli=(quarto.config and quarto.config.cli_path and quarto.config.cli_path()) or 'quarto'
   -- The input travels on stdin: it can hold credentials an author put in
@@ -86,3 +87,4 @@ function M.selection(block,opts)
   return {exercise=id,name=name}
 end
 return M
+end

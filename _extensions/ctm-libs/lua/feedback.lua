@@ -1,32 +1,25 @@
--- AI Feedback: shared resources, context aliases and plain-text activities.
+-- AI feedback, folded in from the ai-feedback extension: activities, learning
+-- context and teaching policies for every component (ctm.feedback).
 -- AGPL-3.0-or-later. Context preservation follows math-exercise fc549d2.
+return function(ctm)
 local M = {}
--- This module lives in <ctm-libs>/lua; the extension's files are found from there.
-local directory = debug.getinfo(1, "S").source:sub(2):match("^(.*)[/\\]")
-local root = pandoc.path.directory(directory)
-local policy = dofile(pandoc.path.join({directory, "policy.lua"}))
+local policy = ctm.policy
 local counter = 0
 local cfg = {}
--- The installed manifest is the single source of the extension version.
-local function version()
-  local file = io.open(pandoc.path.join({root, "_extension.yml"}), "r")
-  local found = file and file:read("*a"):match("\nversion:%s*['\"]?([%w%.%-]+)") or "0"
-  if file then file:close() end
-  return found
-end
--- One ai-feedback version per page. Consumers (their feedback-loader.lua)
--- and the explicit ai-feedback filter both register the installation they
--- load here (filters share Lua globals); a page that would combine two
--- different versions stops instead of mixing them.
+-- One ai-feedback version per page. Older components' loaders
+-- (feedback-loader.lua, through the ai-feedback alias) and ctm-libs register
+-- the installation they load here (filters share Lua globals); a page that
+-- would combine two different versions, such as an old standalone
+-- ai-feedback 0.8 next to the package, stops instead of mixing them.
 do
-  local here = pandoc.path.join({directory, "feedback.lua"})
+  local here = ctm.path("lua", "feedback.lua")
   local loaded = _G.__ctmAiFeedbackInstallation
-  if loaded and pandoc.path.normalize(loaded.path) ~= pandoc.path.normalize(here) and loaded.version ~= version() then
+  if loaded and pandoc.path.normalize(loaded.path) ~= pandoc.path.normalize(here) and loaded.version ~= ctm.version then
     assert(false, "This page combines filters that use different ai-feedback versions: " .. loaded.path .. " ("
-      .. loaded.version .. ") and " .. here .. " (" .. version() .. "). List the filters of one installation "
+      .. loaded.version .. ") and " .. here .. " (" .. ctm.version .. "). List the filters of one installation "
       .. "(for example only ctm-assessment), or install the same ai-feedback version.")
   end
-  _G.__ctmAiFeedbackInstallation = loaded or {path = here, version = version()}
+  _G.__ctmAiFeedbackInstallation = loaded or {path = here, version = ctm.version}
 end
 local language = "en"
 local function str(v, fallback)
@@ -171,11 +164,10 @@ function M.prepare(doc)
   doc.meta["ctm-feedback-prepared"] = true
   language = str(doc.meta.lang, "en")
   cfg = policy.emit(doc.meta)
-  quarto.doc.add_html_dependency({
-    name = "ai-feedback", version = version(),
-    scripts = {pandoc.path.join({root, "feedback", "feedback-core.js"}), pandoc.path.join({root, "feedback", "feedback-dom.js"}),
-      pandoc.path.join({root, "feedback", "ai-feedback.js"})},
-    stylesheets = {pandoc.path.join({root, "feedback", "ai-feedback.css"})}
+  ctm.deps.html({
+    name = "ai-feedback",
+    scripts = {"feedback/feedback-core.js", "feedback/feedback-dom.js", "feedback/ai-feedback.js"},
+    stylesheets = {"feedback/ai-feedback.css"}
   })
   -- storage is emitted only when set, so a consumer's own default (pyodide:
   -- feedback-storage) applies otherwise; the browser falls back to local.
@@ -184,7 +176,7 @@ function M.prepare(doc)
   return doc
 end
 
-M.selection = policy.selection
+function M.selection(block, opts) return policy.selection(block, opts) end
 function M.context(block, opts, pyodide)
   local ref = opts["feedback-context"] or opts["context"] or "auto"
   ref = tostring(ref):gsub('^"(.*)"$', '%1'):gsub("^'(.*)'$", "%1")
@@ -193,3 +185,4 @@ function M.context(block, opts, pyodide)
     refs = ref, text = block.attributes["data-ai-feedback-context"] or ""}
 end
 return M
+end

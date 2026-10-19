@@ -1,38 +1,52 @@
-// The explicit filter and an older component's loader register the same
-// global: a page that would combine two ai-feedback versions stops.
-const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), path = require('node:path'), os = require('node:os'), {spawnSync} = require('node:child_process');
-const ctmLibs = require('./helpers/ctm-libs.cjs');
-const quarto = process.env.QUARTO_BIN || 'quarto';
-const skip = spawnSync(quarto, ['--version']).error ? 'Quarto required' : false;
+// One CTM installation per page. Two ctm-libs installations of different
+// versions stop the page (ctm.lua), and so does an older ai-feedback (0.8)
+// whose loader registered itself before ctm-libs (legacy registration).
+const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), path = require('node:path');
+const C = require('./helpers/ctm-libs.cjs');
+const skip = C.hasQuarto ? false : 'Quarto required';
 
 function project(otherVersion) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'feedback-mix-'));
-  ctmLibs.install(dir);
+  const dir = C.tempdir('feedback-mix-');
+  C.install(dir);
   // A second installation (ctm-libs with its alias) under an owner folder.
-  const other = ctmLibs.install(dir, {owner: 'other'});
-  for (const name of ['ctm-libs', 'ai-feedback']) {
-    const manifest = path.join(other, name, '_extension.yml');
-    fs.writeFileSync(manifest, fs.readFileSync(manifest, 'utf8').replace(/\nversion:.*\n/, '\nversion: ' + otherVersion + '\n'));
-  }
+  const other = C.install(dir, {owner: 'other'});
+  for (const name of ['ctm-libs', 'ai-feedback']) C.setVersion(path.join(other, name), otherVersion);
   // A second filter that loads the other installation, as an older component's loader would.
-  fs.writeFileSync(path.join(dir, 'consumer.lua'), 'local api = dofile(pandoc.path.join({pandoc.path.directory(PANDOC_SCRIPT_FILE), "_extensions", "other", "ai-feedback", "feedback-quarto.lua"}))\nreturn {}\n');
-  fs.writeFileSync(path.join(dir, 'page.qmd'), '---\ntitle: t\nfilters: [ctm-libs, consumer.lua]\n---\n\n::: {.ai-feedback}\nWrite.\n:::\n');
+  C.write(dir, {
+    'consumer.lua': 'local api = dofile(pandoc.path.join({pandoc.path.directory(PANDOC_SCRIPT_FILE), "_extensions", "other", "ai-feedback", "feedback-quarto.lua"}))\nreturn {}\n',
+    'page.qmd': '---\ntitle: t\nfilters: [ctm-libs, consumer.lua]\n---\n\n::: {.ai-feedback}\nWrite.\n:::\n',
+  });
   return dir;
 }
 
 test('the ctm-libs filter and another installation with a different version stop the page', {skip}, () => {
   const dir = project('9.9.9');
   try {
-    const r = spawnSync(quarto, ['render', 'page.qmd'], {cwd: dir, encoding: 'utf8', timeout: 120000});
+    const r = C.render(dir, ['page.qmd']);
     assert.notEqual(r.status, 0);
-    assert.match(r.stderr, /combines filters that use different ai-feedback versions/);
+    assert.match(r.stderr, /This page combines two CTM installations: .*\(0\.9\.0\) and .*other.ctm-libs \(9\.9\.9\)/s);
   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
 });
 
 test('the same version from two installations renders', {skip}, () => {
-  const dir = project(ctmLibs.version());
+  const dir = project(C.version());
   try {
-    const r = spawnSync(quarto, ['render', 'page.qmd'], {cwd: dir, encoding: 'utf8', timeout: 120000});
+    const r = C.render(dir, ['page.qmd']);
     assert.equal(r.status, 0, r.stderr);
+  } finally { fs.rmSync(dir, {recursive: true, force: true}); }
+});
+
+test('an ai-feedback 0.8 registered on the page before ctm-libs stops it with the old message', {skip}, () => {
+  const dir = C.tempdir('feedback-mix-');
+  try {
+    C.install(dir);
+    // What ai-feedback 0.8.1's feedback-quarto.lua registers when its filter loads first.
+    C.write(dir, {
+      'old.lua': '_G.__ctmAiFeedbackInstallation = {path = "/old/_extensions/Erasmus-CTM/ai-feedback/feedback-quarto.lua", version = "0.8.1"}\nreturn {}\n',
+      'page.qmd': '---\ntitle: t\nfilters: [old.lua, ctm-libs]\n---\n\n::: {.ai-feedback}\nWrite.\n:::\n',
+    });
+    const r = C.render(dir, ['page.qmd']);
+    assert.notEqual(r.status, 0);
+    assert.match(r.stderr, /This page combines filters that use different ai-feedback versions: \/old\/.* \(0\.8\.1\) and .*ctm-libs.lua.feedback\.lua \(0\.9\.0\)/s);
   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
 });

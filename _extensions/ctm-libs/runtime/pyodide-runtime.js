@@ -1,6 +1,7 @@
-// Shared classic-script bootstrap for math-exercise, py-exercise and stack-sympy.
-// py-exercise ships a byte-identical copy (checked in CI); stack-sympy vendors
-// a pinned revision (see its vendor/provenance.json).
+// Page-wide Python runtime of CTM Assessment (ctm-libs; HTML dependency
+// ctm-runtime, a classic script loaded once per page), used by math-exercise
+// and py-exercise. stack-sympy vendors a pinned revision (see its
+// vendor/provenance.json).
 (function (root) {
   'use strict';
 
