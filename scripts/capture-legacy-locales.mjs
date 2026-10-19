@@ -91,5 +91,11 @@ const golden = {
 };
 const target = path.join(ROOT, 'tests', 'goldens', 'legacy-locales.json');
 fs.mkdirSync(path.dirname(target), {recursive: true});
-fs.writeFileSync(target, JSON.stringify(golden, null, 1) + '\n');
+// One line per message (and per sample call list), so the file reads like the catalogues.
+function format(value, depth = 0) {
+  if (depth >= 4 || value === null || typeof value !== 'object' || Array.isArray(value)) return JSON.stringify(value);
+  const pad = ' '.repeat(depth + 1);
+  return '{\n' + Object.entries(value).map(([key, item]) => pad + JSON.stringify(key) + ': ' + format(item, depth + 1)).join(',\n') + '\n' + ' '.repeat(depth) + '}';
+}
+fs.writeFileSync(target, format(golden) + '\n');
 console.log('Wrote', path.relative(ROOT, target));
