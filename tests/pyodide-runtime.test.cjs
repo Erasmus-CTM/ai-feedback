@@ -8,7 +8,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const ctmLibs = require('./helpers/ctm-libs.cjs');
 
-const PYODIDE = '0.27.2';
+const PYODIDE = '0.28.3';
 const source = fs.readFileSync(path.join(ctmLibs.library, 'runtime', 'pyodide-runtime.js'), 'utf8');
 const cdn = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE}/full/`;
 

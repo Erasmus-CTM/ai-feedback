@@ -8,7 +8,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {chromium} from 'playwright';
 
-const EXPECTED = {pyodide: '0.27.2', python: '3.12', sympy: '1.13.3'};
+const EXPECTED = {pyodide: '0.28.3', python: '3.13', sympy: '1.13.3'};
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const runtime = fs.readFileSync(path.join(ROOT, '_extensions', 'ctm-libs', 'runtime', 'pyodide-runtime.js'), 'utf8');
 

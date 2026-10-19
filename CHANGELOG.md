@@ -36,6 +36,10 @@ locator). Course authors install CTM Assessment only.
   feedback files are HTML dependencies, loaded once per page.
 - **`filters: [ai-feedback]` is deprecated**: it keeps working in 0.9 with
   one build warning. Use `filters: [ctm-assessment]`.
+- **Pyodide 0.28.3** (Python 3.13, SymPy 1.13.3 as before) for the page's
+  Python runtime, the version pyodide-interaktiv already uses (D4). On pages
+  with pyodide-interaktiv the components use its Python, so a project that
+  pins `pyodide: base-url` keeps that version there.
 - **A component without CTM Assessment stops** with the install command
   (components' `ctm-bootstrap.lua`; `CTM_COMPONENT_DEV=1` for component
   development).

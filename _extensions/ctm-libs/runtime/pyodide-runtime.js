@@ -9,7 +9,7 @@
   // copy with the current interface replaces it (shared state lives on root).
   if (root.MathExerciseRuntime && typeof root.MathExerciseRuntime.whenSlow === 'function') return;
 
-  var indexURL = 'https://cdn.jsdelivr.net/pyodide/v0.27.2/full/';
+  var indexURL = 'https://cdn.jsdelivr.net/pyodide/v0.28.3/full/';
   var LOAD_TIMEOUT = root.__qExercisePyodideTimeout || 180000; // override for tests
 
   function loadScript(src) {
