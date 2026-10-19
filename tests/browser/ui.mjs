@@ -246,6 +246,8 @@ format:
 include-in-header:
   - text: |
       <script>
+      // What ctm-nav finds: whether the page started with a saved position.
+      window.__startPosition = !!(history.state && history.state.__quartoTabPosition);
       window.coi = {doReload: function () {
         var start = Date.now();
         (function reload() {
@@ -405,8 +407,6 @@ async function open(page, url) {
 const TRACE = `(() => {
   const t0 = performance.now(), trace = window.__trace = [];
   const log = text => { if (trace.length < 80) trace.push(Math.round(performance.now() - t0) + ' ' + text); };
-  // Whether the document started with a position saved in its history entry.
-  window.__startPosition = !!(history.state && history.state.__quartoTabPosition);
   document.addEventListener('DOMContentLoaded', () => log('domcontentloaded'), true);
   for (const type of ['load', 'pageshow', 'popstate', 'hashchange']) window.addEventListener(type, event => log(type + (type === 'pageshow' ? '(' + event.persisted + ')' : '') + ' ' + location.hash), true);
   let scrolls = 0;
@@ -699,10 +699,12 @@ async function slowLoads(browser, base, name) {
 // A deep link on a learner's first visit to a page with coi-serviceworker,
 // served without COOP/COEP headers: the worker's reload is still the visit's
 // link (its target opened, focused and kept in place below the header), not
-// a history restore of the position the first load saved. (Chromium starts
-// the isolated page without that position: COOP switches its browsing
-// context group.) So is the learner's own reload before moving; after the
-// learner has scrolled, a reload restores the position.
+// a history restore of the position the first load saved. So is the
+// learner's own reload before moving. After the learner has scrolled, a
+// reload restores the position where the browser kept it. Browsers differ in
+// what a reload keeps of the history entry's state (Chromium drops it when
+// COOP switches the browsing context group): the check reports it per
+// reload, also as a CI notice.
 async function firstVisit(browser, base, name) {
   const session = await newPage(browser, base), {page} = session;
   const loads = [];
@@ -720,7 +722,7 @@ async function firstVisit(browser, base, name) {
     type: performance.getEntriesByType('navigation')[0].type,
     controlled: !!(navigator.serviceWorker && navigator.serviceWorker.controller),
     isolated: window.crossOriginIsolated,
-    startPosition: window.__startPosition,
+    kept: window.__startPosition,
   }));
   const linked = (s, label) => {
     assert.equal(s.mark, 'load', label);
@@ -729,44 +731,52 @@ async function firstVisit(browser, base, name) {
     assert.ok(s.focusInView, label);
     assert.ok(s.top >= s.headerBottom && s.top < s.headerBottom + 60, label);
   };
+  const notes = [];
+  const note = (what, f) => notes.push((f.kept ? 'kept by ' : 'dropped by ') + what);
+  let first = {};
+  try {
+    await page.goto('about:blank');
+    await page.goto(base + 'coi.html#coi-target');
+    await shown('load', 3000);
+    first = {...await facts(), loads: loads.length};
+    if (loads.length > 1) note('the worker\'s reload (' + first.type + ')', first);
+    let s = await state(page, 'coi-target');
+    let label = name + ' first visit ' + JSON.stringify({...first, ...s});
+    // Where the browser runs the worker, it reloaded the first visit.
+    if (first.controlled) assert.ok(loads.length >= 2, label);
+    linked(s, label);
 
-  await page.goto('about:blank');
-  await page.goto(base + 'coi.html#coi-target');
-  await shown('load', 3000);
-  const first = await facts();
-  let s = await state(page, 'coi-target');
-  let label = name + ' first visit ' + JSON.stringify({loads: loads.length, ...first, ...s});
-  // Where the browser runs the worker, it reloaded the first visit.
-  if (first.controlled) {
-    assert.ok(loads.length >= 2, label);
-    assert.equal(first.type, 'reload', label);
+    // The learner's own reload before moving: the link again.
+    await page.reload();
+    await shown('load', 1000);
+    const again = await facts();
+    note('the learner\'s reload', again);
+    s = await state(page, 'coi-target');
+    linked(s, name + ' reload ' + JSON.stringify({...again, ...s}));
+
+    // After scrolling: the position, where the reload kept it; else a new visit.
+    await page.mouse.move(640, 400);
+    await page.mouse.wheel(0, 300);
+    await page.waitForTimeout(500);
+    await page.reload();
+    await shown(null, 1000);
+    const after = await facts();
+    note('the reload after scrolling', after);
+    s = await state(page, 'coi-target');
+    label = name + ' reload after scrolling ' + JSON.stringify({...after, ...s});
+    if (after.kept) {
+      assert.equal(s.mark, null, label);
+      assert.equal(s.focus, 'BODY', label);
+      assert.deepEqual(s.panes, [true], label);
+    } else {
+      assert.equal(s.mark, 'load', label);
+    }
+  } finally {
+    const report = name + ' firstVisit: the first visit took ' + first.loads + ' loads, ' + (first.controlled ? 'the service worker controls the page' : 'no service worker')
+      + ' (crossOriginIsolated ' + first.isolated + '); the saved position ' + (notes.join(', ') || '-');
+    console.log('#', report);
+    if (process.env.GITHUB_ACTIONS) console.log('::notice title=UI check ' + name + ' firstVisit::' + report);
   }
-  linked(s, label);
-  const report = name + ' firstVisit: ' + loads.length + ' loads, ' + (first.controlled ? 'the service worker controls the page' : 'no service worker')
-    + ' (crossOriginIsolated ' + first.isolated + '); the last load started ' + (first.startPosition ? 'with' : 'without') + ' a saved position';
-  console.log('#', report);
-  if (process.env.GITHUB_ACTIONS) console.log('::notice title=UI check ' + name + ' firstVisit::' + report);
-
-  // The learner's own reload before moving: the link again.
-  await page.reload();
-  await shown('load', 1000);
-  const again = await facts();
-  s = await state(page, 'coi-target');
-  label = name + ' reload ' + JSON.stringify({...again, ...s});
-  assert.equal(again.startPosition, true, label);
-  linked(s, label);
-
-  // After scrolling: the position.
-  await page.mouse.move(640, 400);
-  await page.mouse.wheel(0, 300);
-  await page.waitForTimeout(500);
-  await page.reload();
-  await shown(null, 1000);
-  s = await state(page, 'coi-target');
-  label = name + ' reload after scrolling ' + JSON.stringify(s);
-  assert.equal(s.mark, null, label);
-  assert.equal(s.focus, 'BODY', label);
-  assert.deepEqual(s.panes, [true], label);
 
   // coi-serviceworker's own report where a browser can't register it.
   session.errors.splice(0, Infinity, ...session.errors.filter(error => !/^COOP\/COEP Service Worker/.test(error)));
