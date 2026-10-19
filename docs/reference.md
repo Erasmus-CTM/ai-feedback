@@ -164,13 +164,17 @@ feedback criteria/starters, `.example-author-notes`, `.ai-feedback-ignore`,
 hidden content and generated cell output are excluded. Author callouts remain
 visible but are excluded from context. Heading boundaries apply inside nested
 containers too; a single oversized latest block is omitted rather than sliced.
+A tab of a tabset starts a section as a heading does (nested tabsets too), and
+after a tabset its section goes on without the tabs' prose. The content of
+`<details>` blocks (solutions, reading steps, hints) is not context.
 
 Explicit context uses a combined 6,000-character budget and preserves math
 through MathJax or KaTeX rendering. Missing, duplicate, untagged, empty or
 over-budget references are skipped with a browser-console warning. Since 0.9.0
 the listed blocks are followed by the prose of the exercise's own section
-(since its heading), without the listed blocks, so the task's data in the
-prose reaches the feedback too; the 1,500-character cap counts that prose
+(since its heading or tab), without context blocks (the listed ones are sent
+on their own, the others belong to other exercises), so the task's data in
+the prose reaches the feedback too; the 1,500-character cap counts that prose
 only.
 
 Reusable tagged blocks can be referenced by any integration. See the

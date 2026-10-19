@@ -1,6 +1,8 @@
 // A5 (P19): explicit context also sends the exercise's own section prose,
-// without the blocks it lists (they are sent on their own); the 1500-character
-// cap counts that prose only. Automatic context is unchanged.
+// without context blocks (the listed ones are sent on their own, the others
+// belong to other exercises); the 1500-character cap counts that prose only.
+// The section is the innermost heading or tab, in both modes; <details>
+// content (solutions, reading steps, hints) is never prose.
 const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), path = require('node:path');
 const {JSDOM} = require('jsdom');
 const C = require('./helpers/ctm-libs.cjs');
@@ -29,8 +31,9 @@ const cells = C.probe('cells', [
   'local out = {}',
   'doc.blocks:walk({CodeBlock = function(b) if b.identifier ~= "" and not b.classes:includes("ctm-probe") then out[b.identifier] = b.attributes["data-ai-feedback-context"] or "<none>" end end})',
   'return out'].join('\n'));
+const activities = html => Object.fromEntries([...html.matchAll(/<div id="([^"]+)" class="ai-feedback-activity">[\s\S]*?<script type="application\/json" class="ai-feedback-data">([\s\S]*?)<\/script>/g)].map(m => [m[1], JSON.parse(m[2])]));
 
-test('explicit context: the listed blocks are left out of the section prose, which is kept', {skip}, () => {
+test('explicit context: context blocks are left out of the section prose, which is kept', {skip}, () => {
   const dir = C.tempdir('ctm-context-');
   try {
     C.installPackage(dir); C.install(dir); C.installProbe(dir);
@@ -38,18 +41,81 @@ test('explicit context: the listed blocks are left out of the section prose, whi
     const r = C.render(dir, ['page.qmd']);
     assert.equal(r.status, 0, r.stderr);
     const html = C.html(dir, 'page.qmd');
-    const data = Object.fromEntries([...html.matchAll(/<div id="([^"]+)" class="ai-feedback-activity">[\s\S]*?<script type="application\/json" class="ai-feedback-data">([\s\S]*?)<\/script>/g)].map(m => [m[1], JSON.parse(m[2])]));
+    const data = activities(html);
     const all = 'Section\nProse one.\nNote text \\(n_1\\).\nProse two.';
     const own = 'Section\nProse one.\nProse two.';
     assert.equal(data.auto.context, all);
     assert.equal(data.explicit.context, own);
     assert.equal(data.explicit.contextMode, 'explicit');
-    assert.equal(data.elsewhere.context, all, 'a block from another section changes nothing');
+    assert.equal(data.elsewhere.context, own, 'another exercise\'s context block is not prose either');
     assert.equal(data.off.context, '');
     assert.equal(data['capped-explicit'].context, 'Long\nShort prose.', 'the cap counts the section prose only');
     // Unchanged for automatic context: whole blocks up to 1500 characters, from the latest back; an oversized latest block ends it.
     assert.equal(data['capped-auto'].context, '');
     assert.deepEqual(C.probes(html).cells, {listed: own, plain: all, pyodide: all, 'pyodide-feedback': own});
+  } finally { fs.rmSync(dir, {recursive: true, force: true}); }
+});
+
+// A tab starts a section, as a heading does (nested tabsets too); after a
+// tabset its enclosing section goes on without the tabs' prose. Closed
+// <details> (solution-block, reading-step, learning-hint), code and other
+// activities are no prose in either mode.
+const tabsets = [
+  '## Section', '', 'Section prose.', '',
+  '::: {.panel-tabset}', '### Tab one', '', 'Prose of tab one.', '',
+  '::: {#ctx-one .math-exercise-context}', 'Context block of tab one.', ':::', '',
+  '```{.python}', 'CODE_MARKER = 1', '```', '',
+  '<details class="solution-block">', '<summary>Solution</summary>', '', 'SOLUTION_MARKER of tab one.', '', '</details>', '',
+  '::: {.ai-feedback #auto-one}', 'Task one.', ':::', '',
+  '::: {.ai-feedback #explicit-one context="ctx-one"}', 'Task one, explicit.', ':::', '',
+  '### Tab two', '',
+  '::: {.panel-tabset}', '#### Inner A', '', 'Inner A prose.', '',
+  '<details class="reading-step">', '<summary>Read on</summary>', '', 'READING_MARKER.', '', '</details>', '',
+  '::: {.ai-feedback #auto-inner}', 'Task inner.', ':::', '',
+  '#### Inner B', '', 'Inner B prose.', ':::', '',
+  'Tab two prose after the inner tabset.', '',
+  '::: {#ctx-other .math-exercise-context}', 'Context block of another exercise.', ':::', '',
+  '::: {.ai-feedback #other-two context="ctx-other"}', 'Task other.', ':::', '',
+  '::: {#ctx-two .math-exercise-context}', 'Context block of tab two.', ':::', '',
+  '::: {.ai-feedback #explicit-two context="ctx-two"}', 'Task two.', ':::', '',
+  '```{.python #cell-two}', '#| context: ctx-two', 'print(2)', '```', '',
+  '::: {.ai-feedback #auto-two}', 'Task two, auto.', ':::', '',
+  ':::', '',
+  'Section prose after the tabset.', '',
+  '<details class="learning-hint">', '<summary>Hint</summary>', '', 'HINT_MARKER.', '', '</details>', '',
+  '::: {.ai-feedback #auto-after}', 'Task after.', ':::', '',
+  '```{.python #cell-after}', 'print(3)', '```', ''].join('\n');
+
+test('a tab is a section of its own, nested too; <details> content is no prose (explicit and auto)', {skip}, () => {
+  const dir = C.tempdir('ctm-context-tabs-');
+  try {
+    C.installPackage(dir); C.install(dir); C.installProbe(dir);
+    C.write(dir, {'page.qmd': '---\ntitle: t\nfilters: [ctm-libs, probe]\n---\n\n' + tabsets + cells});
+    let r = C.render(dir, ['page.qmd']);
+    assert.equal(r.status, 0, r.stderr);
+    let html = C.html(dir, 'page.qmd');
+    const data = activities(html);
+    const tabOne = 'Tab one\nProse of tab one.';
+    const tabTwo = 'Tab two\nTab two prose after the inner tabset.';
+    const after = 'Section\nSection prose.\nSection prose after the tabset.';
+    assert.deepEqual(Object.fromEntries(Object.entries(data).map(([id, d]) => [id, d.context])), {
+      'auto-one': tabOne + '\nContext block of tab one.',
+      'explicit-one': tabOne,
+      'auto-inner': 'Inner A\nInner A prose.',
+      'other-two': tabTwo,
+      'explicit-two': tabTwo,
+      'auto-two': tabTwo + '\nContext block of another exercise.\nContext block of tab two.',
+      'auto-after': after,
+    });
+    assert.deepEqual(C.probes(html).cells, {'cell-two': tabTwo, 'cell-after': after});
+    // The tabs are still rendered whole.
+    for (const text of ['Inner B prose.', 'SOLUTION_MARKER', 'READING_MARKER', 'HINT_MARKER', '>Inner A<', '>Tab two<']) assert.ok(html.includes(text), text);
+    // Without AI feedback (P22) the activities in tabs become tasks as well.
+    r = C.render(dir, ['page.qmd'], {CTM_FEEDBACK: 'off'});
+    assert.equal(r.status, 0, r.stderr);
+    html = C.html(dir, 'page.qmd');
+    for (const id of Object.keys(data)) assert.match(html, new RegExp('<div id="' + id + '" class="ai-feedback-task">'), id);
+    assert.doesNotMatch(html, /class="ai-feedback-data"|data-ai-feedback-context/);
   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
 });
 

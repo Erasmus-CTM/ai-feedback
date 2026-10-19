@@ -427,7 +427,7 @@
   }
 
   // auto: the section's prose; explicit: the listed blocks, then the section's
-  // own prose (without those blocks; A5); none: nothing.
+  // own prose (without context blocks; A5); none: nothing.
   function contextMaterials({mode = 'auto', refs = '', text = ''} = {}) {
     if (mode === 'none') return [];
     const section = text ? [{id:'section-context', role:'context', text}] : [];

@@ -114,7 +114,7 @@ ctm.feedback.flush()                              -- prints that message now (ct
 and `window.__aiFeedbackPolicies`, turns `.ai-feedback` activities into
 `.ai-feedback-activity` with their data, and records for every code cell the
 prose of its section (`data-ai-feedback-context`) before components convert
-the cells. With an explicit context the listed blocks are left out of that
+the cells. With an explicit context the context blocks are left out of that
 prose (A5). `selection` and `context` need the page's settings: call them
 after `prepare` or after `ctm.settings.load`.
 
@@ -336,9 +336,12 @@ IDs are included once, in reference order. Multiple alias classes on one block d
 duplicate it. `context="none"` disables learning context; an explicit `source`
 still supplies the source required for the task. Without `context`, recent
 section prose is collected at render time, capped at 1,500 Unicode characters
-without splitting blocks. Explicit references share a 6,000-character budget;
-since 0.9.0 they are followed by the section's own prose, without the listed
-blocks, under the same 1,500-character cap.
+without splitting blocks. The section is the innermost heading or tab (a tab
+of a tabset starts one, as a heading does); `<details>` content (solutions,
+reading steps, hints) is never section prose. Explicit references share a
+6,000-character budget; since 0.9.0 they are followed by the section's own
+prose, without context blocks (the listed ones are sent on their own, the
+others belong to other exercises), under the same 1,500-character cap.
 Missing, untagged, empty or oversized context blocks are skipped with warnings.
 An unavailable required translation source produces an error.
 
@@ -392,7 +395,7 @@ to `attach` rather than copying teaching prompts. See [policy authoring](feedbac
 `mode` is `auto`, `none` or `explicit`; `refs` is a comma-separated list of
 tagged element IDs; `text` is the section prose collected at render time.
 `auto` sends the prose; `explicit` sends the listed blocks (6,000-character
-budget) followed by the prose of the exercise's own section without those
+budget) followed by the prose of the exercise's own section without context
 blocks (0.9.0); `none` sends nothing. All integrations use this API; the Lua
 side is `ctm.feedback` (above).
 

@@ -176,18 +176,15 @@ end
 local function isContext(b)
   return b.t == "Div" and (b.classes:includes("ai-feedback-context") or b.classes:includes("ai-context") or b.classes:includes("math-exercise-context"))
 end
--- The section's prose since the nearest heading: entries {text, from}, where
--- `from` lists the ids of the context blocks the text sits in. Entries from
--- the blocks an exercise lists itself (`exclude`, A5) are left out: they are
--- sent on their own. The last 1500 characters are kept, whole entries only.
-local function bounded(entries, exclude)
+-- The prose of an exercise's section (its innermost heading or tab, see
+-- walk): entries {text, from}, where `from` lists the ids of the context
+-- blocks the text sits in. With an explicit context (A5) the context blocks
+-- are left out: the listed ones are sent on their own, the others belong to
+-- other exercises. The last 1500 characters are kept, whole entries only.
+local function bounded(entries, explicit)
   local texts = {}
   for _, entry in ipairs(entries) do
-    local listed = false
-    for _, id in ipairs(exclude and entry.from or {}) do
-      if exclude[id] then listed = true; break end
-    end
-    if not listed then texts[#texts + 1] = entry.text end
+    if not (explicit and #entry.from > 0) then texts[#texts + 1] = entry.text end
   end
   local kept, length = {}, 0
   for i = #texts, 1, -1 do
@@ -198,30 +195,22 @@ local function bounded(entries, exclude)
   end
   return table.concat(kept, "\n")
 end
--- The ids an explicit context lists ("notes, formula"; diagrams are not blocks).
-local function listed(refs)
-  local ids, any = {}, false
-  for part in tostring(refs or ""):gmatch("[^,]+") do
-    local id = part:match("^%s*(.-)%s*$")
-    if id ~= "" and id ~= "none" and id ~= "auto" and not id:match("^jsxgraph:") then ids[id] = true; any = true end
-  end
-  return any and ids or nil
-end
--- A code cell's explicit context: its first `#| feedback-context:`, else its
--- first `#| context:` line (as context() below). Pyodide's execution values
--- (setup, output, interactive) are not feedback context.
-local function cellContext(b)
+-- Whether a code cell's context is explicit: its first `#| feedback-context:`,
+-- else its first `#| context:` line, names blocks (as context() below).
+-- Pyodide's execution values (setup, output, interactive) are not feedback
+-- context.
+local function explicitCell(b)
   local found = {}
   for line in (b.text .. "\n"):gmatch("([^\r\n]*)\r?\n") do
     local key, value = line:match("^#|%s*([%w%-]+)%s*:%s*(.-)%s*$")
     if (key == "feedback-context" or key == "context") and found[key] == nil then found[key] = value end
   end
   local ref = found["feedback-context"] or found["context"]
-  if not ref then return nil end
+  if not ref then return false end
   ref = ref:gsub('^"(.*)"$', '%1'):gsub("^'(.*)'$", "%1")
   local pyodide = b.classes:includes("{pyodide-python}") or b.classes:includes("pyodide-python")
-  if pyodide and (ref == "setup" or ref == "output" or ref == "interactive") then return nil end
-  return listed(ref)
+  if pyodide and (ref == "setup" or ref == "output" or ref == "interactive") then return false end
+  return ref ~= "" and ref ~= "auto" and ref ~= "none"
 end
 local function activity(block, context)
   counter = counter + 1
@@ -258,7 +247,7 @@ local function activity(block, context)
     learnerLevel = attrs["learner-level"] or "", starter = starter,
     imageUpload = attrs["image-upload"] == "true", imageRole = attrs["image-role"] or "response",
     contextMode = contextMode, contextRefs = attrs["context"] or "",
-    context = contextMode ~= "none" and bounded(context, contextMode == "explicit" and listed(attrs["context"]) or nil) or "",
+    context = contextMode ~= "none" and bounded(context, contextMode == "explicit") or "",
     maxIssues = tonumber(attrs["max-issues"])
   }
   visible:insert(pandoc.RawBlock("html", '<script type="application/json" class="ai-feedback-data">' .. json(data) .. '</script>'))
@@ -279,19 +268,61 @@ local function task(block)
   end
   return pandoc.Div(visible, pandoc.Attr(id, {"ai-feedback-task"}))
 end
+-- The tabs of a Quarto tabset, or nil. In this pass a tabset is a Div that
+-- holds Quarto's slots; Quarto's accessor (the table a Tabset filter callback
+-- gets) names them tabs[i].title and tabs[i].content.
+local function tabsOf(b)
+  if b.t ~= "Div" or b.attributes["__quarto_custom"] ~= "true" or b.attributes["__quarto_custom_type"] ~= "Tabset" then return nil end
+  local ast = quarto._quarto and quarto._quarto.ast
+  local data = ast and ast.resolve_custom_data(b)
+  return data and data.tabs
+end
+-- Raw HTML <details> (solutions, hints, reading steps) keeps its content
+-- closed until the learner opens it: that content is not section prose.
+-- Returns the depth of open <details> after the raw block.
+local function detailsDepth(b, depth)
+  if not b.format:match("^html") then return depth end
+  local text = b.text:lower()
+  local _, opened = text:gsub("<details[%s>]", "")
+  local _, closed = text:gsub("</details%s*>", "")
+  return math.max(0, depth + opened - closed)
+end
+local function prose(state, text)
+  if text ~= "" and not state.quiet then table.insert(state.context, {text = text, from = state.from}) end
+end
 -- One source-order pass for every integration, before consumers transform cells.
--- With state.off (P22) activities become tasks and no context is written.
+-- The section of an exercise is its innermost heading or tab: its prose is
+-- what precedes the exercise there, without other tabs, <details> content,
+-- code and activities. With state.off (P22) activities become tasks and no
+-- context is written.
 local function walk(blocks, state)
   local out = pandoc.Blocks({})
+  local details = 0
   for _, b in ipairs(blocks) do
+    local quiet = state.quiet
+    state.quiet = quiet or details > 0
+    local tabs = tabsOf(b)
     if excluded(b, true) then
       -- Hidden, generated and author-only content does not change section state.
+    elseif b.t == "RawBlock" then
+      details = detailsDepth(b, details)
     elseif b.t == "Header" then
-      state.context = {{text = sourceText(b), from = {}}}
+      if not state.quiet then state.context = {{text = sourceText(b), from = {}}} end
+    elseif tabs then
+      -- Each tab is a section, as under a heading; after the tabset the
+      -- enclosing section goes on without the tabs' prose.
+      local outer = state.context
+      for i = 1, #tabs do
+        local tab = tabs[i]
+        local title = tab.title and sourceText(pandoc.Div(quarto.utils.as_blocks(tab.title))) or ""
+        state.context = (title ~= "" and not state.quiet) and {{text = title, from = {}}} or {}
+        if tab.content then tab.content = walk(quarto.utils.as_blocks(tab.content), state) end
+      end
+      state.context = outer
     elseif b.t == "Div" and b.classes:includes("ai-feedback") then
       if state.off then state.activities = state.activities + 1; b = task(b) else b = activity(b, state.context) end
     elseif b.t == "CodeBlock" then
-      if not state.off then b.attributes["data-ai-feedback-context"] = bounded(state.context, cellContext(b)) end
+      if not state.off then b.attributes["data-ai-feedback-context"] = bounded(state.context, explicitCell(b)) end
     elseif isContext(b) then
       if not state.off then b = preserveMath(b) end
       local outer = state.from
@@ -307,15 +338,16 @@ local function walk(blocks, state)
       for i, item in ipairs(b.content) do b.content[i] = walk(item, state) end
     elseif b.t == "DefinitionList" then
       for _, item in ipairs(b.content) do
-        local term = pandoc.utils.stringify(item[1]); if term ~= "" then table.insert(state.context, {text = term, from = state.from}) end
+        prose(state, pandoc.utils.stringify(item[1]))
         for i, definition in ipairs(item[2]) do item[2][i] = walk(definition, state) end
       end
-    elseif b.t ~= "RawBlock" then
+    else
       if not state.off then
-        b = b:walk({CodeBlock = function(code) code.attributes["data-ai-feedback-context"] = bounded(state.context, cellContext(code)); return code end})
+        b = b:walk({CodeBlock = function(code) code.attributes["data-ai-feedback-context"] = bounded(state.context, explicitCell(code)); return code end})
       end
-      local text = sourceText(b); if text ~= "" then table.insert(state.context, {text = text, from = state.from}) end
+      prose(state, sourceText(b))
     end
+    state.quiet = quiet
     out:insert(b)
   end
   return out
