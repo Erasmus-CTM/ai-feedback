@@ -270,56 +270,82 @@ local function task(block)
   end
   return pandoc.Div(visible, pandoc.Attr(id, {"ai-feedback-task"}))
 end
--- The tabs of a Quarto tabset, or nil. In this pass a tabset is a Div that
--- holds Quarto's slots; Quarto's accessor (the table a Tabset filter callback
--- gets) names them tabs[i].title and tabs[i].content.
-local function tabsOf(b)
-  if b.t ~= "Div" or b.attributes["__quarto_custom"] ~= "true" or b.attributes["__quarto_custom_type"] ~= "Tabset" then return nil end
-  local ast = quarto._quarto and quarto._quarto.ast
-  local data = ast and ast.resolve_custom_data(b)
-  return data and data.tabs
+-- Quarto's data of a custom node of type `kind` (the table a filter callback
+-- for that type gets; tabs[i].title and tabs[i].content of a Tabset): nil for
+-- any other block, false when it cannot be read. In this pass a custom node is
+-- a Div that holds Quarto's slots.
+local function custom(b, kind)
+  if b.t ~= "Div" or b.attributes["__quarto_custom"] ~= "true" or b.attributes["__quarto_custom_type"] ~= kind then return nil end
+  local ok, data = pcall(function() return quarto._quarto.ast.resolve_custom_data(b) end)
+  return ok and data or false
 end
--- Raw HTML <details> (solutions, hints, reading steps) keeps its content
--- closed until the learner opens it: that content is not section prose.
--- Returns the depth of open <details> after the raw block.
-local function detailsDepth(b, depth)
-  if not b.format:match("^html") then return depth end
-  local text = b.text:lower()
-  local _, opened = text:gsub("<details[%s>]", "")
-  local _, closed = text:gsub("</details%s*>", "")
-  return math.max(0, depth + opened - closed)
+-- A tabset's data (its tabs), or nil.
+local function tabset(b)
+  local data = custom(b, "Tabset")
+  return data and data.tabs and data or nil
+end
+-- Raw HTML <details> (solutions, hints, reading steps) and collapsed callouts
+-- stay closed until the learner opens them: their prose is context only for
+-- the exercises inside them (a scope). The <details> tags of a raw block, in
+-- order (true opens one).
+local function detailsTags(b)
+  local tags = {}
+  if b.format:match("^html") then
+    for slash in b.text:lower():gmatch("<(/?)details[%s>]") do tags[#tags + 1] = slash == "" end
+  end
+  return tags
+end
+local function collapsed(b)
+  local data = custom(b, "Callout")
+  local value = data and data.collapse
+  return value == true or (type(value) == "string" and value == "true")
+end
+local function copy(list)
+  local result = {}
+  for i, value in ipairs(list) do result[i] = value end
+  return result
 end
 local function prose(state, text)
-  if text ~= "" and not state.quiet then table.insert(state.context, {text = text, from = state.from}) end
+  if text ~= "" then table.insert(state.context, {text = text, from = state.from}) end
 end
 -- One source-order pass for every integration, before consumers transform cells.
 -- The section of an exercise is its innermost heading or tab: its prose is
--- what precedes the exercise there, without other tabs, <details> content,
--- code and activities. With state.off (P22) activities become tasks and no
--- context is written.
+-- what precedes the exercise there, without other tabs, closed material it is
+-- not in, code and activities. With state.off (P22) activities become tasks
+-- and no context is written.
 local function walk(blocks, state)
   local out = pandoc.Blocks({})
-  local details = 0
+  -- The context at each <details> still open in this list.
+  local scopes = {}
   for _, b in ipairs(blocks) do
-    local quiet = state.quiet
-    state.quiet = quiet or details > 0
-    local tabs = tabsOf(b)
+    local tabbed = tabset(b)
     if excluded(b, true) then
       -- Hidden, generated and author-only content does not change section state.
     elseif b.t == "RawBlock" then
-      details = detailsDepth(b, details)
+      for _, open in ipairs(detailsTags(b)) do
+        if open then
+          table.insert(scopes, state.context); state.context = copy(state.context)
+        elseif #scopes > 0 then
+          state.context = table.remove(scopes)
+        end
+      end
     elseif b.t == "Header" then
-      if not state.quiet then state.context = {{text = sourceText(b), from = {}}} end
-    elseif tabs then
+      state.context = {{text = sourceText(b), from = {}}}
+    elseif tabbed then
       -- Each tab is a section, as under a heading; after the tabset the
       -- enclosing section goes on without the tabs' prose.
       local outer = state.context
-      for i = 1, #tabs do
-        local tab = tabs[i]
+      for i = 1, #tabbed.tabs do
+        local tab = tabbed.tabs[i]
         local title = tab.title and sourceText(pandoc.Div(quarto.utils.as_blocks(tab.title))) or ""
-        state.context = (title ~= "" and not state.quiet) and {{text = title, from = {}}} or {}
+        state.context = title ~= "" and {{text = title, from = {}}} or {}
         if tab.content then tab.content = walk(quarto.utils.as_blocks(tab.content), state) end
       end
+      state.context = outer
+    elseif collapsed(b) then
+      local outer = state.context
+      state.context = copy(outer)
+      b.content = walk(b.content, state)
       state.context = outer
     elseif b.t == "Div" and b.classes:includes("ai-feedback") then
       if state.off then state.activities = state.activities + 1; b = task(b) else b = activity(b, state.context) end
@@ -349,9 +375,10 @@ local function walk(blocks, state)
       end
       prose(state, sourceText(b))
     end
-    state.quiet = quiet
     out:insert(b)
   end
+  -- A <details> left open ends with its list: nothing after it sees its prose.
+  if #scopes > 0 then state.context = scopes[1] end
   return out
 end
 -- This callback is a Quarto filter pass, not a Pandoc-only walk.

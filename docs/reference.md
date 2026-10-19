@@ -169,7 +169,9 @@ visible but are excluded from context. Heading boundaries apply inside nested
 containers too; a single oversized latest block is omitted rather than sliced.
 A tab of a tabset starts a section as a heading does (nested tabsets too), and
 after a tabset its section goes on without the tabs' prose. The content of
-`<details>` blocks (solutions, reading steps, hints) is not context.
+`<details>` blocks and collapsed callouts (`collapse="true"`: solutions,
+reading steps, hints) is not sent as section prose; blocks an exercise lists
+explicitly are still sent, and an exercise inside such a block gets its text.
 
 Explicit context uses a combined 6,000-character budget and preserves math
 through MathJax or KaTeX rendering. Missing, duplicate, untagged, empty or

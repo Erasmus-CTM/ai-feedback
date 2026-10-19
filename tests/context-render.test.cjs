@@ -119,6 +119,52 @@ test('a tab is a section of its own, nested too; <details> content is no prose (
   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
 });
 
+// Closed material (<details>, collapsed callouts) is a scope: an exercise in
+// it gets the section's prose and its block's prose; nothing after the block
+// sees it, also when a <details> is left open.
+const closed = [
+  '## Closed', '', 'Outer prose.', '',
+  '<details class="reading-step">', '<summary>Go deeper</summary>', '', 'Inner instructions.', '',
+  '::: {.ai-feedback #inside-details}', 'Task inside.', ':::', '',
+  '```{.python #cell-inside}', 'print(1)', '```', '',
+  '#### A heading in the block', '', 'DETAILS_TAIL_MARKER.', '',
+  '</details>', '',
+  '::: {.ai-feedback #after-details}', 'Task after the block.', ':::', '',
+  '::: {.callout-tip collapse="true"}', '## Worked solution', '', 'CALLOUT_SOLUTION_MARKER.', '',
+  '::: {.ai-feedback #inside-callout}', 'Task in the callout.', ':::', ':::', '',
+  '::: {.callout-note}', '## Open note', '', 'Open note prose.', ':::', '',
+  '::: {.ai-feedback #after-callout}', 'Task after the callout.', ':::', '',
+  '::: {.ai-feedback #explicit-after context="elsewhere"}', 'Task with an explicit context.', ':::', '',
+  '::: {.wrapper}', '```{=html}', '<details>', '```', '', 'UNCLOSED_MARKER.', ':::', '',
+  '::: {.ai-feedback #after-unclosed}', 'Task after the unclosed block.', ':::', '',
+  '## Elsewhere', '', '::: {#elsewhere .ai-feedback-context}', 'Far.', ':::', ''].join('\n');
+
+test('closed material is a scope: exercises in it get its prose, nothing after it does', {skip}, () => {
+  const dir = C.tempdir('ctm-context-closed-');
+  try {
+    C.installPackage(dir); C.install(dir); C.installProbe(dir);
+    C.write(dir, {'page.qmd': '---\ntitle: t\nfilters: [ctm-libs, probe]\n---\n\n' + closed + cells});
+    let r = C.render(dir, ['page.qmd']);
+    assert.equal(r.status, 0, r.stderr);
+    let html = C.html(dir, 'page.qmd');
+    const outer = 'Closed\nOuter prose.', inside = outer + '\nGo deeper\nInner instructions.', open = outer + '\nOpen note\nOpen note prose.';
+    assert.deepEqual(Object.fromEntries(Object.entries(activities(html)).map(([id, d]) => [id, d.context])), {
+      'inside-details': inside,
+      'after-details': outer,
+      'inside-callout': outer + '\nWorked solution\nCALLOUT_SOLUTION_MARKER.',
+      'after-callout': open,
+      'explicit-after': open,
+      'after-unclosed': open,
+    });
+    assert.deepEqual(C.probes(html).cells, {'cell-inside': inside});
+    // Without AI feedback (P22) the activities in closed material become tasks as well.
+    r = C.render(dir, ['page.qmd'], {CTM_FEEDBACK: 'off'});
+    assert.equal(r.status, 0, r.stderr);
+    html = C.html(dir, 'page.qmd');
+    for (const id of ['inside-details', 'inside-callout', 'after-unclosed']) assert.match(html, new RegExp('<div id="' + id + '" class="ai-feedback-task">'), id);
+  } finally { fs.rmSync(dir, {recursive: true, force: true}); }
+});
+
 test('contextMaterials: listed blocks first, then the section prose; auto and none unchanged', () => {
   const w = new JSDOM('<main><div id="notes" class="ai-feedback-context">Listed note.</div></main>', {url: 'https://example.invalid/', runScripts: 'outside-only'}).window;
   for (const file of ['feedback-core.js', 'feedback-dom.js', 'ai-feedback.js']) w.eval(fs.readFileSync(path.join(C.feedback, file), 'utf8'));

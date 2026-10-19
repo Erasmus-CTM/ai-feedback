@@ -26,13 +26,14 @@ locator). Course authors install CTM Assessment only.
   `context: notes`, the feedback request holds the listed blocks and then the
   prose of the exercise's own section, without context blocks (the listed
   ones come first, the others belong to other exercises).
-- **The AI context stays in the exercise's tab and leaves out `<details>`**,
-  for automatic and explicit context alike: a tab of a tabset starts a
-  section as a heading does (nested tabsets too), and after a tabset its
-  section goes on without the tabs' prose; the content of `<details>` blocks
-  (solutions, reading steps, hints) is never sent. Before, automatic context
-  could carry other tabs' prose and closed solutions. This changes what a
-  feedback request contains, not grading.
+- **The AI context stays in the exercise's tab and leaves out closed
+  material**, for automatic and explicit context alike: a tab of a tabset
+  starts a section as a heading does (nested tabsets too), and after a
+  tabset its section goes on without the tabs' prose; the content of
+  `<details>` blocks and collapsed callouts (solutions, reading steps,
+  hints) is not sent as section prose, except to an exercise inside such a
+  block. Before, automatic context could carry other tabs' prose and closed
+  solutions. This changes what a feedback request contains, not grading.
 - **A site without AI feedback** (P22): `ai-feedback: enabled: false` (for
   example in a profile) or `CTM_FEEDBACK=off`. No page can turn it back on;
   nothing of AI feedback reaches the HTML; pages that asked for it get one

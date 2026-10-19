@@ -338,8 +338,10 @@ duplicate it. `context="none"` disables learning context; an explicit `source`
 still supplies the source required for the task. Without `context`, recent
 section prose is collected at render time, capped at 1,500 Unicode characters
 without splitting blocks. The section is the innermost heading or tab (a tab
-of a tabset starts one, as a heading does); `<details>` content (solutions,
-reading steps, hints) is never section prose. Explicit references share a
+of a tabset starts one, as a heading does). The content of `<details>` blocks
+and collapsed callouts (solutions, reading steps, hints) is not sent as
+section prose; blocks an exercise lists explicitly are still sent, and an
+exercise inside such a block gets its text. Explicit references share a
 6,000-character budget; since 0.9.0 they are followed by the section's own
 prose, without context blocks (the listed ones are sent on their own, the
 others belong to other exercises), under the same 1,500-character cap.
