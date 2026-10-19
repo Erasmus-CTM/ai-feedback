@@ -13,6 +13,24 @@
         "kind": "test",
         "isDefault": true
       }
+    },
+    {
+      "label": "Check generated files and versions",
+      "type": "shell",
+      "command": "python scripts/sync-feedback-defaults.py --check",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Regenerate generated files and versions",
+      "type": "shell",
+      "command": "python scripts/sync-feedback-defaults.py",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
     }
   ]
 }
