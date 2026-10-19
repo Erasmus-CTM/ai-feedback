@@ -29,44 +29,67 @@ end
 -- both builds fail alike; nothing of AI feedback reaches the HTML.
 local switch = nil
 local pyodideWanted = nil
--- What the page asked for but left out; printed once, as one build message,
--- when the page's filters have finished (the table's finalizer runs when
--- Pandoc closes the page's Lua state).
-local leftOut = nil
+-- What the page asked for but did not get: one build message per page, never
+-- an error. Items are only what is on the page: the activities and cells a
+-- component found (request()), pyodide cells, and the page's own
+-- ai-feedback: enabled: true (not a project-wide setting).
+--
+-- The message is printed by flush(), which ctm-libs-end.lua calls after every
+-- component (the CTM Assessment package lists that file last). Where it is not
+-- listed (component development builds, filters: [ai-feedback]), the table's
+-- finalizer prints it instead: Pandoc closes the page's Lua state when its
+-- filters have run, and closing runs the finalizers (Lua 5.4). Should a
+-- future Pandoc or Quarto keep the state open, only that fallback is lost.
+local leftOut = {items = {}, seen = {}, reason = ""}
+local function message()
+  if #leftOut.items == 0 then return nil end
+  local text = "AI feedback is off for this build (" .. leftOut.reason .. "); left out on this page: "
+    .. table.concat(leftOut.items, ", ") .. "."
+  leftOut.items = {}
+  return text
+end
+setmetatable(leftOut, {__gc = function()
+  local text = message()
+  if text then quarto.log.warning(text) end
+end})
 local function leaveOut(item)
-  if not leftOut then
-    leftOut = setmetatable({items = {}, seen = {}, reason = switch and switch.reason or ""}, {__gc = function(self)
-      if #self.items > 0 then
-        quarto.log.warning("AI feedback is off for this build (" .. self.reason .. "); left out on this page: "
-          .. table.concat(self.items, ", ") .. ".")
-      end
-    end})
-  end
+  leftOut.reason = switch and switch.reason or leftOut.reason
   if not leftOut.seen[item] then
     leftOut.seen[item] = true
     table.insert(leftOut.items, item)
   end
 end
 
+-- Prints the page's build message now (once); true when there was one.
+function M.flush()
+  local text = message()
+  if text then quarto.log.warning(text) end
+  return text ~= nil
+end
+
 -- true, or false and the reason (naming the setting that turned it off).
 function M.enabled()
   if switch then return switch.on, switch.reason end
+  local html = quarto.doc.is_format("html")
   local env = os.getenv("CTM_FEEDBACK")
+  local entry = nil
   if env == "off" then
     switch = {on = false, reason = "CTM_FEEDBACK=off"}
+    if html and ctm.settings.loaded() then entry = ctm.settings.entry("ai-feedback", "enabled") end
   else
     if env and env ~= "" and env ~= "on" then
       quarto.log.warning("CTM_FEEDBACK=" .. env .. " is not understood (use off); AI feedback follows the project's settings.")
     end
     switch = {on = true}
-    if quarto.doc.is_format("html") then
-      local entry = ctm.settings.entry("ai-feedback", "enabled")
+    if html then
+      -- Stops when the page's settings were not loaded (a component bug).
+      entry = ctm.settings.entry("ai-feedback", "enabled")
       if entry and entry.value == false then
         switch = {on = false, reason = "ai-feedback: enabled: false (" .. tostring(entry.origin) .. ")"}
-        if entry.wanted then leaveOut("ai-feedback: enabled: true (" .. entry.wanted .. ")") end
       end
     end
   end
+  if not switch.on and entry and entry.asked then leaveOut("ai-feedback: enabled: true (" .. entry.asked .. ")") end
   return switch.on, switch.reason
 end
 

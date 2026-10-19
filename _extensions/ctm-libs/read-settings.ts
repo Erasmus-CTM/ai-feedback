@@ -149,7 +149,8 @@ const UNKNOWN_IS_ERROR = false;
 const settings: Record<string, Record<string, Entry>> = {};
 
 // A1: a key that looks like a credential stops the render, in every CTM
-// section, at every level and in the merged metadata. Its value is never shown.
+// section, at every level and in the merged metadata. The messages never
+// repeat its value.
 function credentials() {
   const message = (section: string, key: string, origin: string) => section + ': ' + key + ' in ' + origin
     + ' looks like a credential. Remove it: Quarto metadata is published with the site; learners enter their own key in the Feedback settings.';
@@ -235,29 +236,32 @@ function feedbackSettings() {
 
 // ai-feedback: enabled (P22) is AND over every level and the merged metadata:
 // any level can turn AI feedback off for the build, none can turn it back on.
-// origin names the first level that turned it off; wanted, the nearest level
-// that asked for it anyway (the page then gets a build message).
+// origin names the first level that turned it off. asked names the page's own
+// front matter when it says enabled: true: only that is a request of the page
+// (a project-wide enabled: true is the normal configuration, not a request of
+// every page), reported in the page's build message whichever switch is off.
 function feedbackSwitch(out: Record<string, Entry>) {
-  const found: Entry[] = [];
+  const found: (Entry & {page: boolean})[] = [];
   for (const level of levels) {
     const values = level.sections['ai-feedback'];
-    if (values && Object.hasOwn(values, 'enabled')) found.push({value: values.enabled, origin: level.origin});
+    if (values && Object.hasOwn(values, 'enabled')) found.push({value: values.enabled, origin: level.origin, page: level.page});
   }
   const meta = documentMeta['ai-feedback'];
-  if (meta && Object.hasOwn(meta, 'enabled')) found.push({value: meta.enabled, origin: 'document metadata'});
-  let off: string | undefined, wanted: string | undefined, last: string | undefined;
-  for (const {value, origin} of found) {
+  if (meta && Object.hasOwn(meta, 'enabled')) found.push({value: meta.enabled, origin: 'document metadata', page: false});
+  let off: string | undefined, asked: string | undefined, last: string | undefined;
+  for (const {value, origin, page} of found) {
     const on = value === true || value === 'true' ? true : value === false || value === 'false' ? false : null;
     if (on === null) {
       errors.push('ai-feedback: enabled (' + origin + ') must be true or false (found ' + JSON.stringify(value) + ')');
       continue;
     }
     if (!on && off === undefined) off = origin;
-    if (on && (wanted === undefined || origin !== 'document metadata')) wanted = origin;
+    if (on && page) asked = origin;
     last = origin;
   }
-  if (off !== undefined) out.enabled = wanted ? {value: false, origin: off, wanted} as Entry : {value: false, origin: off};
-  else if (last !== undefined) out.enabled = {value: true, origin: last};
+  const request = asked ? {asked} : {};
+  if (off !== undefined) out.enabled = {value: false, origin: off, ...request} as Entry;
+  else if (last !== undefined) out.enabled = {value: true, origin: last, ...request} as Entry;
 }
 
 // Policy files and selections (A2), onto the browser contract

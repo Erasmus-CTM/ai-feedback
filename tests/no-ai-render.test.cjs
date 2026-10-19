@@ -81,12 +81,66 @@ test('a profile with ai-feedback: enabled: false builds the site without AI feed
   ]);
 }));
 
-test('CTM_FEEDBACK=off does the same without any metadata', {skip}, () => withProject(dir => {
+test('CTM_FEEDBACK=off does the same without any metadata, with the same build messages', {skip}, () => withProject(dir => {
   const r = C.render(dir, [], {CTM_FEEDBACK: 'off'});
   assert.equal(r.status, 0, r.stderr);
   checkOff(dir, 'CTM_FEEDBACK=off');
-  assert.equal(messages(r.stderr).length, 2);
+  const found = messages(r.stderr);
+  assert.deepEqual(found.map(m => m.reason), Array(3).fill('CTM_FEEDBACK=off'));
+  assert.deepEqual(found.map(m => m.items).sort(), [
+    '1 AI feedback activity, math-exercise feedback (feedback: auto)',
+    'ai-feedback: enabled: true (asks.qmd)',
+    'pyodide-interaktiv feedback',
+  ]);
 }));
+
+// Only what is on the page is a request: a project-wide or folder-wide
+// enabled: true is configuration, and pages without AI content stay quiet.
+function withSite(run) {
+  const dir = C.tempdir('ctm-no-ai-site-');
+  try {
+    C.installPackage(dir); C.install(dir); C.installProbe(dir);
+    C.write(dir, {
+      '_quarto.yml': 'project:\n  type: website\nfilters: [ctm-libs, probe, _extensions/ctm-libs/ctm-libs-end.lua]\nai-feedback:\n  enabled: true\n',
+      '_quarto-no-ai.yml': 'ai-feedback:\n  enabled: false\n',
+      'index.qmd': '---\ntitle: Home\n---\nNo feedback here.\n',
+      'own.qmd': '---\ntitle: Own\nai-feedback:\n  enabled: true\n---\nAlso no activity.\n',
+      'sub/_metadata.yml': 'ai-feedback:\n  enabled: true\n',
+      'sub/chapter.qmd': '---\ntitle: Chapter\n---\nNothing either.\n',
+      'sub/activity.qmd': '---\ntitle: Activity\n---\n\n::: {.ai-feedback}\nExplain.\n:::\n',
+    });
+    return run(dir);
+  } finally { fs.rmSync(dir, {recursive: true, force: true}); }
+}
+for (const [label, args, env, reason] of [['--profile no-ai', ['--profile', 'no-ai'], {}, 'ai-feedback: enabled: false (_quarto-no-ai.yml)'],
+  ['CTM_FEEDBACK=off', [], {CTM_FEEDBACK: 'off'}, 'CTM_FEEDBACK=off']]) {
+  test('build messages name only what is on the page (' + label + ')', {skip}, () => withSite(dir => {
+    const r = C.render(dir, args, env);
+    assert.equal(r.status, 0, r.stderr);
+    const found = messages(r.stderr);
+    assert.deepEqual(found.map(m => m.reason), [reason, reason]);
+    assert.deepEqual(found.map(m => m.items).sort(), ['1 AI feedback activity', 'ai-feedback: enabled: true (own.qmd)']);
+    assert.doesNotMatch(r.stderr, /enabled: true \((_quarto\.yml|sub\/_metadata\.yml|document metadata)\)/);
+  }));
+}
+
+test('flush() prints the message once, at once; the end filter and the fallback do not repeat it', {skip}, () => {
+  const dir = C.tempdir('ctm-no-ai-flush-');
+  try {
+    C.installPackage(dir); C.install(dir); C.installProbe(dir);
+    C.write(dir, {
+      'early.qmd': '---\ntitle: t\nfilters: [ctm-libs, probe, _extensions/ctm-libs/ctm-libs-end.lua]\n---\n'
+        + C.probe('flush', 'ctm.feedback.request("math-exercise", true, "feedback: auto"); return {ctm.feedback.flush(), ctm.feedback.flush()}'),
+      'fallback.qmd': '---\ntitle: t\nfilters: [ctm-libs, probe]\n---\n' + C.probe('ask', 'return ctm.feedback.request("py-exercise", true, "feedback: true")'),
+    });
+    for (const [file, item] of [['early.qmd', 'math-exercise feedback (feedback: auto)'], ['fallback.qmd', 'py-exercise feedback (feedback: true)']]) {
+      const r = C.render(dir, [file], {CTM_FEEDBACK: 'off'});
+      assert.equal(r.status, 0, r.stderr);
+      assert.deepEqual(messages(r.stderr).map(m => m.items), [item], file);
+    }
+    assert.deepEqual(C.probes(C.html(dir, 'early.qmd')).flush, [true, false]);
+  } finally { fs.rmSync(dir, {recursive: true, force: true}); }
+});
 
 test('the normal build keeps AI feedback; an unknown CTM_FEEDBACK value warns', {skip}, () => withProject(dir => {
   const r = C.render(dir, [], {CTM_FEEDBACK: 'maybe'});

@@ -107,6 +107,7 @@ ctm.feedback.selection(block, opts)               -- {exercise = label or id, na
 ctm.feedback.context(block, opts, isPyodide)      -- {mode = auto|explicit|none, refs, text}
 ctm.feedback.enabled()                            -- true, or false and the reason (P22)
 ctm.feedback.request(component, wanted, origin)   -- wanted and enabled; a refused wish is named in the page's build message
+ctm.feedback.flush()                              -- prints that message now (ctm-libs-end.lua; the package lists it last)
 ```
 
 `prepare` registers the `ai-feedback` dependency, `window.__aiFeedbackConfig`
@@ -122,8 +123,12 @@ Without AI feedback (P22: `ai-feedback: enabled: false` or `CTM_FEEDBACK=off`)
 as `.ai-feedback-task`), `selection` still checks the policy name and leaves
 it out, `context` returns mode `none`, and the Meta pass sets
 `pyodide: feedback: false` for pyodide-interaktiv 1.8. A component asks with
-`request("math-exercise", wanted, "feedback: true in _quarto.yml")`; whatever
-a page asked for but did not get is listed in one build message per page.
+`request("math-exercise", wanted, "feedback: true in _quarto.yml")`, and only
+for blocks that are on the page; whatever a page asked for but did not get
+(those requests, its activities and pyodide cells, its own
+`ai-feedback: enabled: true`) is listed in one build message per page. The
+package prints it from its last filter, `ctm-libs-end.lua`; elsewhere it is
+printed when Pandoc closes the page's Lua state.
 
 ### ctm.runtime
 

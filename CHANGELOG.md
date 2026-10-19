@@ -60,6 +60,8 @@ locator). Course authors install CTM Assessment only.
   math-exercise, byte-identical at first); `locales/` (`CTMLocales` and the
   catalogues `common`, `math-exercise`, `py-exercise` with Bokmål, `feedback`).
 - `bootstrap/ctm-bootstrap.lua`: the file components copy byte for byte.
+- `ctm-libs-end.lua`: listed last by the package, prints the page's build
+  message about AI feedback left out.
 - `_extensions/ai-feedback`: alias for 0.9.x (`feedback-quarto.lua` for
   older components' loaders, `ai-feedback.lua` for `filters: [ai-feedback]`).
 - `scripts/sync-feedback-defaults.py` also generates the feedback interface
