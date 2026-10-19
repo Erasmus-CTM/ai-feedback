@@ -217,6 +217,7 @@ async function state(page, id) {
       focus: focused === document.body ? 'BODY' : (focused.tagName + (focused.id ? '#' + focused.id : '') + (focused.getAttribute('role') ? '[' + focused.getAttribute('role') + ']' : '')),
       focusInView: !!rect && rect.height > 0 && rect.top >= headerBottom - 1 && rect.top < innerHeight,
       focusInTarget: !!focused && (target.contains(focused) || focused.contains(target)),
+      trace: (window.__trace || []).join(' | '),
     };
   }, id);
 }
@@ -230,8 +231,31 @@ async function open(page, url) {
 
 // A fresh browser context and page; external requests are blocked, and
 // uncaught errors and console errors of the site are collected.
+// A trace of what happened on the page, for failure messages: events,
+// history calls, focus calls, the script's marks.
+const TRACE = `(() => {
+  const t0 = performance.now(), trace = window.__trace = [];
+  const log = text => { if (trace.length < 80) trace.push(Math.round(performance.now() - t0) + ' ' + text); };
+  document.addEventListener('DOMContentLoaded', () => log('domcontentloaded'), true);
+  for (const type of ['load', 'pageshow', 'popstate', 'hashchange']) window.addEventListener(type, event => log(type + (type === 'pageshow' ? '(' + event.persisted + ')' : '') + ' ' + location.hash), true);
+  let scrolls = 0;
+  window.addEventListener('scroll', () => { if (scrolls++ < 8) log('scroll ' + Math.round(scrollY)); }, true);
+  window.addEventListener('unhandledrejection', event => log('rejection ' + (event.reason && event.reason.message || event.reason)));
+  window.addEventListener('error', event => log('error ' + event.message));
+  const push = history.pushState, replace = history.replaceState;
+  history.pushState = function (state, title, url) { log('push ' + url); return push.apply(this, arguments); };
+  history.replaceState = function (state) { log('replace ' + (state && state.__quartoTabPosition ? state.__quartoTabPosition.y : '-')); return replace.apply(this, arguments); };
+  const focus = HTMLElement.prototype.focus;
+  HTMLElement.prototype.focus = function () { log('focus ' + this.tagName + (this.id ? '#' + this.id : '')); return focus.apply(this, arguments); };
+  const set = Element.prototype.setAttribute;
+  Element.prototype.setAttribute = function (name, value) { if (name === 'data-ctm-nav') log('mark ' + value); return set.apply(this, arguments); };
+  const rects = Element.prototype.getClientRects;
+  Element.prototype.getClientRects = function () { const found = rects.apply(this, arguments); if (this.tagName === 'SECTION' && this.id) log('rects ' + this.id + ' ' + found.length); return found; };
+})();`;
+
 async function newPage(browser, base) {
   const context = await browser.newContext({viewport: {width: 1280, height: 800}});
+  await context.addInitScript(TRACE);
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
