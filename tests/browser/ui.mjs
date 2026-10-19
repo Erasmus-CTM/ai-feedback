@@ -247,6 +247,8 @@ include-in-header:
   - text: |
       <script>
       // What ctm-nav finds: whether the page started with a saved position.
+      // (Read here: Playwright's init scripts run before Firefox restores
+      // history.state.)
       window.__startPosition = !!(history.state && history.state.__quartoTabPosition);
       window.coi = {doReload: function () {
         var start = Date.now();
