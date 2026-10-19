@@ -179,3 +179,45 @@ test('ctm-nav: CTMNav.reveal opens an element\'s tabs without changing the addre
   assert.equal(w.location.hash, '');
   w.close();
 });
+
+// Review B1: what a load restores is the position the history entry had
+// when the page was loaded, not one saved while the page was still loading
+// (the browser's jump to the fragment scrolls, and scrolling saves).
+function loadNav(hash, before) {
+  const w = new JSDOM('<!doctype html><html><head></head><body>' + TABS + '</body></html>', {url: 'https://example.invalid/c/p.html' + hash, runScripts: 'outside-only', pretendToBeVisual: true}).window;
+  w.scrollTo = () => {};
+  if (before) before(w);
+  w.eval(script('ctm-nav.js'));
+  return w;
+}
+const position = panes => ({__quartoTabPosition: {x: 0, y: 0, panes}});
+// The page's load, then its pageshow (dispatched here: jsdom does not always
+// send one), as a browser shows a page.
+async function shown(w) {
+  if (w.document.readyState !== 'complete') {
+    await new Promise(resolve => { w.addEventListener('load', resolve); setTimeout(resolve, 3000); });
+  }
+  w.dispatchEvent(new w.PageTransitionEvent('pageshow', {persisted: false}));
+}
+
+test('ctm-nav: a new visit goes to the link\'s target, even when a position was saved while the page loaded', async () => {
+  const w = loadNav('#deep');
+  // Scrolling while the page loads saves nothing; a position written by
+  // anything else before pageshow is not this visit's either.
+  w.dispatchEvent(new w.Event('scroll'));
+  w.history.replaceState(position(['t1', 'i1']), '', w.location.href);
+  await shown(w);
+  await wait(200);
+  assert.deepEqual(active(w), ['t2', 'i2'], 'the target\'s tabs');
+  assert.equal(w.document.getElementById('closed').open, true);
+  w.close();
+});
+
+test('ctm-nav: a reload or Back/Forward restores the position the entry had', async () => {
+  const w = loadNav('#deep', w => w.history.replaceState(position(['t2', 'i1']), '', w.location.href));
+  await shown(w);
+  await wait(200);
+  assert.deepEqual(active(w), ['t2', 'i1'], 'the saved tabs, not the target\'s');
+  assert.equal(w.document.getElementById('closed').open, false);
+  w.close();
+});

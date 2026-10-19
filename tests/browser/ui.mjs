@@ -25,7 +25,7 @@ const browsers = process.argv.slice(2).length ? process.argv.slice(2) : ['chromi
 // --- the site ---------------------------------------------------------------
 const filler = n => Array.from({length: n}, (_, i) => `Avsnitt ${i + 1} med litt tekst, slik at siden blir lang nok til å rulle.`).join('\n\n');
 const SITE = {
-  '_quarto.yml': 'project:\n  type: website\nwebsite:\n  title: UI\n  navbar:\n    left: [index.qmd, other.qmd, group.qmd, plain.qmd]\n'
+  '_quarto.yml': 'project:\n  type: website\nwebsite:\n  title: UI\n  navbar:\n    left: [index.qmd, other.qmd, group.qmd, plain.qmd, slow.qmd]\n'
     + 'format:\n  html:\n    theme: cosmo\nfilters: [ctm-libs]\nlang: nb\n',
   'index.qmd': `---
 title: Faner og lenker
@@ -120,7 +120,63 @@ Målet langt nede.
 
 ${filler(12)}
 `,
-  'other.qmd': '---\ntitle: En annen side\n---\n\n[Eksempel 3](index.qmd#eks-3), [det dype](index.qmd#deep-head), [fane B](index.qmd#tab-b).\n',
+  'other.qmd': '---\ntitle: En annen side\n---\n\n[Eksempel 3](index.qmd#eks-3), [det dype](index.qmd#deep-head), [fane B](index.qmd#tab-b).\n\n'
+    + '[Første fane](slow.qmd#first-start), [løsningen](slow.qmd#sol-1), [utenfor faner](slow.qmd#outside).\n',
+  // A page whose load waits for a slow image: the browser jumps to the
+  // fragment long before pageshow (uke5#uke5-start, uke8#oversikt-like
+  // targets in the first tab; outside tabs; in closed reveals).
+  'slow.qmd': `---
+title: Treg side
+---
+
+![Et sakte bilde](slow.png){width=1 height=1}
+
+${filler(10)}
+
+::: {.panel-tabset}
+
+## Første fane
+
+::: {#tab-one .ctm-tab-target}
+:::
+
+::: {#first-start}
+:::
+
+Tekst i første fane.
+
+${filler(4)}
+
+## Andre fane
+
+Andre.
+
+:::
+
+${filler(10)}
+
+## Utenfor faner {#outside}
+
+Tekst utenfor faner.
+
+${filler(10)}
+
+::: {.solution #sol-1}
+Løsningen.
+:::
+
+${filler(10)}
+
+::: {.reading-step title="Gå i dybden"}
+Innledning.
+
+#### Dypt {#slow-deep}
+
+Mer.
+:::
+
+${filler(12)}
+`,
   'group.qmd': `---
 title: Grupperte faner
 ---
@@ -171,21 +227,28 @@ function build() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ctm-ui-browser-'));
   fs.cpSync(path.join(ROOT, '_extensions', 'ctm-libs'), path.join(dir, '_extensions', 'ctm-libs'), {recursive: true});
   for (const [name, text] of Object.entries(SITE)) fs.writeFileSync(path.join(dir, name), text);
+  // A 1x1 PNG.
+  fs.writeFileSync(path.join(dir, 'slow.png'), Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64'));
   const result = spawnSync(QUARTO, ['render'], {cwd: dir, encoding: 'utf8', timeout: 300000});
   if (result.status !== 0) throw new Error('quarto render failed:\n' + result.stderr);
   return dir;
 }
 
 function serve(root) {
-  const types = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.woff': 'font/woff', '.woff2': 'font/woff2', '.svg': 'image/svg+xml'};
+  const types = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.woff': 'font/woff', '.woff2': 'font/woff2', '.svg': 'image/svg+xml', '.png': 'image/png'};
   const server = http.createServer((request, response) => {
     // As GitHub Pages: a folder serves its index.html, x serves x.html.
     let file = path.join(root, decodeURIComponent(new URL(request.url, 'http://x').pathname));
     if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, 'index.html');
     else if (!fs.existsSync(file) && fs.existsSync(file + '.html')) file += '.html';
     if (!file.startsWith(root) || !fs.existsSync(file)) { response.writeHead(404); response.end(); return; }
-    response.writeHead(200, {'content-type': types[path.extname(file)] || 'application/octet-stream'});
-    response.end(fs.readFileSync(file));
+    const send = () => {
+      response.writeHead(200, {'content-type': types[path.extname(file)] || 'application/octet-stream'});
+      response.end(fs.readFileSync(file));
+    };
+    // The slow image holds the page's load event back.
+    if (file.endsWith('slow.png')) setTimeout(send, 1500);
+    else send();
   });
   return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
@@ -216,6 +279,8 @@ async function state(page, id) {
       panes, details, mark: target.getAttribute('data-ctm-nav'), hash: location.hash,
       focus: focused === document.body ? 'BODY' : (focused.tagName + (focused.id ? '#' + focused.id : '') + (focused.getAttribute('role') ? '[' + focused.getAttribute('role') + ']' : '')),
       focusInView: !!rect && rect.height > 0 && rect.top >= headerBottom - 1 && rect.top < innerHeight,
+      // An empty anchor has no height: its top must be in view.
+      focusTopInView: !!rect && rect.top >= headerBottom - 1 && rect.top < innerHeight,
       focusInTarget: !!focused && (target.contains(focused) || focused.contains(target)),
       trace: (window.__trace || []).join(' | '),
     };
@@ -496,6 +561,42 @@ async function reveals(browser, base, name) {
   await done(session, name);
 }
 
+// B1 of the review: the browser jumps to the fragment while the page still
+// loads (a slow image), and scrolls; the load must still be handled as a new
+// visit, not as a history restore.
+async function slowLoads(browser, base, name) {
+  const session = await newPage(browser, base), {page} = session;
+  const expectations = {
+    'first-start': {panes: [true], details: [], focus: 'DIV#first-start'},
+    'tab-one': {panes: [true], details: [], focus: /^DIV#tabset-\d+-1\[tabpanel\]$/},
+    'outside': {panes: [], details: [], focus: 'H2'},
+    'sol-1': {panes: [], details: [true], focus: 'SUMMARY'},
+    'slow-deep': {panes: [], details: [true], focus: 'H4'},
+  };
+  const check = (id, s, how, where) => {
+    const expected = expectations[id], label = name + ' ' + where + ' #' + id + ' ' + JSON.stringify(s);
+    assert.equal(s.mark, how, label);
+    assert.deepEqual(s.panes, expected.panes, label);
+    assert.deepEqual(s.details, expected.details, label);
+    if (expected.focus instanceof RegExp) assert.match(s.focus, expected.focus, label);
+    else assert.equal(s.focus, expected.focus, label);
+    assert.ok(s.focusTopInView, label);
+    assert.ok(s.top >= s.headerBottom, label);
+  };
+  for (const id of Object.keys(expectations)) {
+    await open(page, base + 'slow.html#' + id);
+    check(id, await state(page, id), 'load', 'typed');
+  }
+  for (const id of ['first-start', 'sol-1', 'outside']) {
+    await open(page, base + 'other.html');
+    await page.click('main a[href$="slow.html#' + id + '"]');
+    await page.waitForURL(new RegExp('slow\\.html#' + id + '$'));
+    await handled(page, id, 'load');
+    check(id, await state(page, id), 'load', 'from another page');
+  }
+  await done(session, name);
+}
+
 // --- run --------------------------------------------------------------------
 const dir = build();
 const server = await serve(path.join(dir, '_site'));
@@ -507,7 +608,7 @@ try {
     const browser = await playwright[name].launch(options);
     try {
       // Each check on its own, so that one run reports every failure.
-      for (const check of [loads, inPage, otherPage, withoutTabs, pinned, groups, reveals]) {
+      for (const check of [loads, inPage, otherPage, withoutTabs, pinned, slowLoads, groups, reveals]) {
         try {
           await check(browser, base, name);
           console.log('ok', name, check.name);

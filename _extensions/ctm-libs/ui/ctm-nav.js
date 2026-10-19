@@ -30,7 +30,13 @@
   var PIN_MS = 2000;
   var STOP_PIN = ['wheel', 'touchstart', 'keydown', 'mousedown'];
   var FOCUSABLE = 'a[href], area[href], button, input, select, textarea, iframe, summary, [tabindex], [contenteditable]';
-  var navigation = 0, restoring = false, scrollTimer = 0, handledURL = location.href, pinned = null;
+  // `restoring` holds saves back until the page's first navigation has run:
+  // while the page loads, the browser's own jump to the fragment scrolls, and
+  // a position saved then would make the load look like a history restore.
+  var navigation = 0, restoring = true, scrollTimer = 0, handledURL = location.href, pinned = null;
+  // The entry's position as the page was loaded: a reload or Back/Forward
+  // restores it; a new visit (a link, a typed address) has none.
+  var loaded = history.state && history.state[KEY] || null, shown = false;
   try { history.scrollRestoration = 'manual'; } catch (error) { /* older browsers: the browser restores */ }
 
   // The next frame, or 100 ms where frames come slowly or not at all (a
@@ -289,9 +295,13 @@
       handledURL = location.href;
       navigate(null, targetFor(location.hash), 'hash');
     });
-    var show = function () {
+    var show = function (event) {
       handledURL = location.href;
-      navigate(history.state && history.state[KEY] || null, targetFor(location.hash), 'load');
+      // First shown: the position the entry had when the page loaded. From
+      // the back-forward cache: the one it has now.
+      var position = !shown && !(event && event.persisted) ? loaded : (history.state && history.state[KEY] || null);
+      shown = true;
+      navigate(position, targetFor(location.hash), 'load');
     };
     window.addEventListener('pageshow', show);
     // Loaded late, after the page was shown.
