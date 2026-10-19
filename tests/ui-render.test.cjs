@@ -22,9 +22,11 @@ const documentOf = html => new JSDOM(html).window.document;
 const summaries = doc => [...doc.querySelectorAll('details.ctm-reveal')].map(d => [d.className, d.querySelector(':scope > summary').textContent.trim()]);
 const dependencies = html => ['ctm-ui', 'ctm-reveal', 'ctm-nav'].filter(name => new RegExp('/' + name + '-[\\d.]+/' + name + '\\.(css|js)"').test(html));
 const warnings = stderr => stderr.split('\n').map(line => line.replace(/\x1b\[[0-9;]*m/g, '').trim()).filter(line => /^(WARN|\(W\))/.test(line));
+// The line of `needle` in `text` (1-based).
+const lineOf = (text, needle) => text.slice(0, text.indexOf(needle)).split('\n').length;
 
 const KINDS = '::: {.reading-step}\nStep.\n:::\n\n::: {.hint}\nHint.\n:::\n\n::: {.solution}\nSolution.\n:::\n\n'
-  + '::: {.details title="Own *title*"}\nDetails.\n:::\n';
+  + '::: {.details title="Own *title*"}\nDetails.\n:::\n\n::: {.details}\nUntitled.\n:::\n';
 
 test('reveals: four kinds, closed, with default titles in English, German, Bokmål and Nynorsk', {skip}, () => withProject({
   'en.qmd': front('lang: en\n') + KINDS,
@@ -36,13 +38,14 @@ test('reveals: four kinds, closed, with default titles in English, German, Bokm�
   const r = C.render(dir);
   assert.equal(r.status, 0, r.stderr);
   const titles = {
-    en: ['Go deeper', 'Hint', 'Solution'], de: ['Vertiefung', 'Hinweis', 'Lösungsvorschlag'],
-    nb: ['Gå i dybden', 'Hint', 'Løsningsforslag'], nn: ['Gå i djupna', 'Hint', 'Løysingsforslag'], setting: ['Vertiefung', 'Hinweis', 'Lösungsvorschlag'],
+    en: ['Go deeper', 'Hint', 'Solution', 'Details'], de: ['Vertiefung', 'Hinweis', 'Lösungsvorschlag', 'Details'],
+    nb: ['Gå i dybden', 'Hint', 'Løsningsforslag', 'Detaljer'], nn: ['Gå i djupna', 'Hint', 'Løysingsforslag', 'Detaljar'],
+    setting: ['Vertiefung', 'Hinweis', 'Lösungsvorschlag', 'Details'],
   };
-  for (const [page, [step, hint, solution]] of Object.entries(titles)) {
+  for (const [page, [step, hint, solution, details]] of Object.entries(titles)) {
     const doc = documentOf(C.html(dir, page + '.qmd'));
     assert.deepEqual(summaries(doc), [['ctm-reveal reading-step', step], ['ctm-reveal hint', hint], ['ctm-reveal solution', solution],
-      ['ctm-reveal details', 'Own title']], page);
+      ['ctm-reveal details', 'Own title'], ['ctm-reveal details', details]], page);
     for (const details of doc.querySelectorAll('details.ctm-reveal')) {
       assert.equal(details.open, false, page + ': closed');
       assert.equal(details.children.length, 2, page + ': a summary and the body');
@@ -51,6 +54,7 @@ test('reveals: four kinds, closed, with default titles in English, German, Bokm�
     assert.equal(doc.querySelector('details.details summary em').textContent, 'title', 'the title is Markdown');
   }
   assert.doesNotMatch(r.stderr, /has no (nn|de|nb) text/);
+  assert.deepEqual(warnings(r.stderr), [], 'a .details without a title is no error and, without markdown-lint, no warning');
 }));
 
 // B2: Pandoc's sections would swallow a raw </details>; the inner Div keeps a
@@ -73,15 +77,23 @@ test('a heading inside a reveal stays inside it, and what follows stays in main'
   assert.ok(doc.querySelector('main section#next').textContent.includes('Next text.'), 'the next section is in main');
 }));
 
-test('titles: Pandoc reads backslash escapes in attributes, so TeX takes doubled backslashes', {skip}, () => withProject({
-  'page.qmd': front() + '::: {.hint title="Bruk $\\\\mathbf{A}\\\\,x$"}\nDoubled.\n:::\n\n::: {.hint title="Bruk $\\mathbf{A}\\,x$"}\nSingle.\n:::\n',
+// Titles are inline: what would start a block there is text (review S3).
+const BLOCKISH = ['2. forsøk', '2) forsøk', '(a) del', 'iv. del', '- punkt', '* punkt', '+ punkt', '# Overskrift', '> sitat', '% rabatt', '| linje', '***',
+  '2. forsøk med *x*'];
+
+test('titles: inline Markdown only; Pandoc reads backslash escapes in attributes, so TeX takes doubled backslashes', {skip}, () => withProject({
+  'page.qmd': front() + '::: {.hint title="Bruk $\\\\mathbf{A}\\\\,x$"}\nDoubled.\n:::\n\n::: {.hint title="Bruk $\\mathbf{A}\\,x$"}\nSingle.\n:::\n\n'
+    + BLOCKISH.map(title => '::: {.hint title="' + title + '"}\nText.\n:::\n').join('\n'),
 }, dir => {
   const r = C.render(dir);
   assert.equal(r.status, 0, r.stderr);
   const html = C.html(dir, 'page.qmd');
-  const [doubled, single] = [...html.matchAll(/<summary>\n([\s\S]*?)\n<\/summary>/g)].map(m => m[1]);
+  const [doubled, single, ...rest] = [...html.matchAll(/<summary>\n([\s\S]*?)\n<\/summary>/g)].map(m => m[1]);
   assert.equal(doubled, 'Bruk <span class="math inline">\\(\\mathbf{A}\\,x\\)</span>');
   assert.equal(single, 'Bruk <span class="math inline">\\(\\mathbf{A},x\\)</span>', 'a single backslash before , is Pandoc\'s escape');
+  const text = value => new JSDOM('<p>' + value + '</p>').window.document.querySelector('p').textContent;
+  assert.deepEqual(rest.map(text), BLOCKISH.map(title => title.replace('*x*', 'x')));
+  assert.equal(rest.at(-1), '2. forsøk med <em>x</em>', 'and the rest of the title is still Markdown');
 }));
 
 test('.solution: Quarto\'s Solution becomes a reveal; name= and a leading heading name it; other formats keep Quarto\'s', {skip}, () => withProject({
@@ -122,14 +134,15 @@ test('other formats show reveals open: the title in bold, then the content', {sk
   assert.doesNotMatch(tex, /ctm-modes|Explore/);
 }));
 
-test('.details needs a title: the error names the file and line, also in an included file', {skip}, () => withProject({
-  'page.qmd': front() + 'Intro.\n\n{{< include _parts/part.md >}}\n',
-  '_parts/part.md': 'Part.\n\n::: {.details}\nNo title.\n:::\n\n```markdown\n::: {.details}\n```\n',
+test('.details without a title shows the default title; markdown-lint names it, with file and line (also in an included file)', {skip}, () => withProject({
+  'pages/page.qmd': front('lang: nb\n') + 'Intro.\n\n{{< include ../_parts/part.md >}}\n',
+  '_parts/part.md': 'Part.\n\n::: {.details}\nNo title.\n:::\n\n::: {.details title="Med tittel"}\nTitled.\n:::\n\n```markdown\n::: {.details}\n```\n',
 }, dir => {
   const r = C.render(dir);
-  assert.notEqual(r.status, 0);
-  assert.match(r.stderr, /A \.details block needs a title: ::: \{\.details title="…"\} \(_parts\/part\.md:3\)\./);
-}));
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(summaries(documentOf(C.html(dir, 'pages/page.qmd'))), [['ctm-reveal details', 'Detaljer'], ['ctm-reveal details', 'Med tittel']]);
+  assert.deepEqual(warnings(r.stderr), ['(W) markdown-lint: .details without a title (_parts/part.md:3) shows "Detaljer": say what it holds with ::: {.details title="…"}.']);
+}, 'ctm-assessment:\n  markdown-lint: true\n'));
 
 test('a reveal in a list item, in a tab and in a callout', {skip}, () => withProject({
   'page.qmd': front('lang: en\n') + '- Item\n\n  ::: {.hint title="Item hint"}\n  In the item.\n  :::\n\n'
@@ -261,12 +274,18 @@ test('ctm-assessment: tab-links, modes and markdown-lint take true or false', {s
 }, 'ctm-assessment:\n  tab-links: "false"\n'));
 
 // markdown-lint: raw HTML that has a Markdown form, in the page and the files
-// it includes, outside code and comments; tabsets without tab-ids.lua.
+// it includes, outside code (fenced or indented) and comments, each block
+// once; tabsets without tab-ids.lua; .details without a title.
 const LEGACY = OLD + '\n```html\n<details><summary>Code, not linted</summary></details>\n```\n\n'
-  + 'Inline `<iframe>` is code.\n\n<!-- <details> in a comment -->\n\n```{=html}\n<details class="solution-block">\n```\n\n';
+  + 'Inline `<iframe>` is code.\n\n<!-- <details> in a comment -->\n\n'
+  + 'Indented code:\n\n    <details>\n    <summary>Code, not linted</summary>\n    </details>\n\n'
+  + 'The attribute data-learning-mode, named in prose, is no switch.\n\n'
+  + '- In a list:\n\n    <details><summary>In the list, linted</summary>\n\n    Text.\n\n    </details>\n\n'
+  + '```{=html}\n<details class="solution-block">\n```\n\n'
+  + '::: {.details}\nNo title.\n:::\n';
 
 test('markdown-lint: true names raw HTML with a Markdown form, and tabsets without the tab-ids line', {skip}, () => withProject({
-  'page.qmd': front() + 'Intro.\n\n{{< include _inc/old.md >}}\n\n::: {.panel-tabset}\n## A\n\nA.\n\n## B\n\nB.\n:::\n',
+  'pages/page.qmd': front() + 'Intro.\n\n{{< include ../_inc/old.md >}}\n\n::: {.panel-tabset}\n## A\n\nA.\n\n## B\n\nB.\n:::\n',
   '_inc/old.md': LEGACY,
   'clean.qmd': front() + '::: {.reading-step}\nStep.\n:::\n\n::: {.panel-tabset}\n## A\n\nA.\n\n## B\n\nB.\n:::\n',
   'tab-ids.lua': '-- Stand-in for ctm-assessment\'s pre-ast tab-ids.lua: it marks the page.\nfunction Meta(meta) if quarto.doc.input_file:match("clean") then meta["ctm-tab-ids"] = true end return meta end\n',
@@ -274,10 +293,14 @@ test('markdown-lint: true names raw HTML with a Markdown form, and tabsets witho
   const r = C.render(dir);
   assert.equal(r.status, 0, r.stderr);
   const lint = warnings(r.stderr).join('\n');
-  assert.match(lint, /markdown-lint: raw HTML <details>\/<summary> \(_inc\/old\.md:9, _inc\/old\.md:10, _inc\/old\.md:27\): write ::: \{\.reading-step title="…"\}, ::: \{\.hint\}, ::: \{\.solution\} or ::: \{\.details title="…"\}, closed with :::, instead\./);
-  assert.match(lint, /markdown-lint: raw HTML <div id="…"><\/div> \(_inc\/old\.md:7\): write ::: \{#id\} and ::: on the next line instead\./);
-  assert.match(lint, /markdown-lint: raw HTML <iframe> \(_inc\/old\.md:16\): write ::: \{\.embed src="…" title="…" height="…"\} and ::: instead\./);
-  assert.match(lint, /markdown-lint: a hand-written lecture\/reading switch \(data-learning-mode, _inc\/old\.md:1\): remove it\. Pages with \.reading-step blocks get the switch; ::: \{\.modes\} places it\./);
-  assert.match(lint, /markdown-lint: page\.qmd \(or a file it includes\) has tabsets, but Quarto drops the ids of their tab headings: list ctm-assessment's tab-ids\.lua first in _quarto\.yml/);
-  assert.equal(lint.match(/markdown-lint/g).length, 5, 'one warning per kind, none for clean.qmd: ' + lint);
+  const at = needle => '_inc\\/old\\.md:' + lineOf(LEGACY, needle);
+  // The <summary> right after a <details> is the same block; the path has no pages/../.
+  assert.match(lint, new RegExp('markdown-lint: raw HTML <details>\\/<summary> \\(' + [at('<details class="reading-step">'), at('<details><summary>In the list'), at('<details class="solution-block">')].join(', ')
+    + '\\): write ::: \\{\\.reading-step title="…"\\}, ::: \\{\\.hint\\}, ::: \\{\\.solution\\} or ::: \\{\\.details title="…"\\}, closed with :::, instead\\.'));
+  assert.match(lint, new RegExp('markdown-lint: raw HTML <div id="…"><\\/div> \\(' + at('<div id="anchor">') + '\\): write ::: \\{#id\\} and ::: on the next line instead\\.'));
+  assert.match(lint, new RegExp('markdown-lint: raw HTML <iframe> \\(' + at('<iframe src') + '\\): write ::: \\{\\.embed src="…" title="…" height="…"\\} and ::: instead\\.'));
+  assert.match(lint, new RegExp('markdown-lint: a hand-written lecture\\/reading switch \\(data-learning-mode, ' + at('<div class="learning-mode"') + '\\): remove it\\. Pages with \\.reading-step blocks get the switch; ::: \\{\\.modes\\} places it\\.'));
+  assert.match(lint, new RegExp('markdown-lint: \\.details without a title \\(' + at('::: {.details}') + '\\) shows "Details": say what it holds'));
+  assert.match(lint, /markdown-lint: pages\/page\.qmd \(or a file it includes\) has tabsets, but Quarto drops the ids of their tab headings: list ctm-assessment's tab-ids\.lua first in _quarto\.yml/);
+  assert.equal(lint.match(/markdown-lint/g).length, 6, 'one warning per kind, none for clean.qmd: ' + lint);
 }, 'ctm-assessment:\n  markdown-lint: true\nfilters:\n  - path: tab-ids.lua\n    at: pre-ast\n  - ctm-libs\n'));

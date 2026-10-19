@@ -19,9 +19,9 @@ return function(ctm)
 
   -- The classes of reveals that are Divs; .solution arrives as Quarto's Proof.
   local KINDS = {"reading-step", "hint", "details"}
-  local DEFAULT_TITLE = {["reading-step"] = "readingStep", hint = "hint", solution = "solution"}
+  local DEFAULT_TITLE = {["reading-step"] = "readingStep", hint = "hint", solution = "solution", details = "details"}
   -- What pass 1 found on the page.
-  local page = {reveals = 0, readingSteps = 0, embeds = 0, markers = {}, tabsets = 0}
+  local page = {reveals = 0, readingSteps = 0, embeds = 0, markers = {}, tabsets = 0, untitled = 0}
 
   local function html() return quarto.doc.is_format("html") end
   local function fail(message) assert(false, message) end
@@ -46,13 +46,21 @@ return function(ctm)
     return #found > 0 and table.concat(found, ", ") or ctm.source.pageName()
   end
 
-  -- A title attribute is inline Markdown. Pandoc has already applied
-  -- backslash escapes to attribute values: title="$\\mathbf{A}$" arrives as
-  -- $\mathbf{A}$ (and title="$a\,b$" as $a,b$).
+  -- A title attribute is inline Markdown: what would start a block there
+  -- ("2. forsøk", "(a) …", "- …", "# …", "> …", "% …") is text. Anything that
+  -- still reads as more than one paragraph is shown as written. Pandoc has
+  -- already applied backslash escapes to attribute values:
+  -- title="$\\mathbf{A}$" arrives as $\mathbf{A}$ (and title="$a\,b$" as $a,b$).
   local function markdown(value)
-    if value == nil or value == "" then return nil end
-    local inlines = pandoc.utils.blocks_to_inlines(pandoc.read(value, "markdown").blocks)
-    return #inlines > 0 and inlines or nil
+    local written = value and value:match("^%s*(.-)%s*$") or ""
+    if written == "" then return nil end
+    local inline = written:gsub("^([%w@]+)([%.%)])(%s)", "%1\\%2%3"):gsub("^%(([%w@]+)%)(%s)", "\\(%1)%2")
+      :gsub("^([%-+*])(%s)", "\\%1%2"):gsub("^([#>%%|:])", "\\%1")
+    local blocks = pandoc.read(inline, "markdown").blocks
+    if #blocks == 1 and (blocks[1].t == "Para" or blocks[1].t == "Plain") and #blocks[1].content > 0 then
+      return blocks[1].content
+    end
+    return pandoc.Inlines(written)
   end
 
   -- The <details> element's attributes: its id, "ctm-reveal <kind>" and the
@@ -108,12 +116,12 @@ return function(ctm)
     return found
   end
 
+  -- The title, or the kind's default title in the page's language. A
+  -- .details should say what it holds: markdown-lint names one without.
   local function titleOf(kind, attr)
     local title = markdown(attr.attributes.title)
     if title then return title end
-    if not DEFAULT_TITLE[kind] then
-      fail("A ." .. kind .. ' block needs a title: ::: {.' .. kind .. ' title="…"} (' .. places(kind, "title") .. ").")
-    end
+    if kind == "details" then page.untitled = page.untitled + 1 end
     return pandoc.Inlines(text(DEFAULT_TITLE[kind]))
   end
 
@@ -227,23 +235,34 @@ return function(ctm)
   -- Markdown form, and on tabsets whose tab-heading ids Quarto drops (the
   -- project lacks ctm-assessment's pre-ast tab-ids.lua).
   local LINT = {
-    {name = "details", find = function(t) return t:match("<details[%s>]") or t:match("<summary[%s>]") end,
+    -- A <summary> right after its <details> is the same block.
+    {name = "details", find = function(t, state)
+      if t:match("<details[%s>]") then
+        state.summary = not t:match("<summary[%s>]")
+        return true
+      end
+      local follows = state.summary
+      state.summary = false
+      return t:match("<summary[%s>]") and not follows
+    end,
       advice = 'raw HTML <details>/<summary> (%s): write ::: {.reading-step title="…"}, ::: {.hint}, ::: {.solution} or '
         .. '::: {.details title="…"}, closed with :::, instead.'},
     {name = "anchor", find = function(t) return t:match('<div%s+id%s*=%s*"[^"]*"%s*>%s*</div>') end,
       advice = "raw HTML <div id=\"…\"></div> (%s): write ::: {#id} and ::: on the next line instead."},
     {name = "iframe", find = function(t) return t:match("<iframe[%s>]") end,
       advice = 'raw HTML <iframe> (%s): write ::: {.embed src="…" title="…" height="…"} and ::: instead.'},
-    {name = "switch", find = function(t) return t:match("data%-learning%-mode") end,
+    {name = "switch", find = function(t) return t:match("<[^>]*data%-learning%-mode") end,
       advice = "a hand-written lecture/reading switch (data-learning-mode, %s): remove it. Pages with "
         .. ".reading-step blocks get the switch; ::: {.modes} places it."},
   }
   local function lint(meta)
-    local found = {}
+    local found, states = {}, {}
     ctm.source.scan(function(line, file, number)
       local lower = line:lower()
       for _, rule in ipairs(LINT) do
-        if rule.find(lower) then
+        local key = rule.name .. "|" .. file.path
+        states[key] = states[key] or {}
+        if rule.find(lower, states[key]) then
           found[rule.name] = found[rule.name] or {}
           table.insert(found[rule.name], file.label .. ":" .. number)
         end
@@ -257,6 +276,10 @@ return function(ctm)
         local list = table.concat(shown, ", ") .. (#where > 5 and (" and " .. (#where - 5) .. " more") or "")
         quarto.log.warning("markdown-lint: " .. rule.advice:format(list))
       end
+    end
+    if page.untitled > 0 then
+      quarto.log.warning("markdown-lint: .details without a title (" .. places("details", "title") .. ') shows "'
+        .. text("details") .. '": say what it holds with ::: {.details title="…"}.')
     end
     if page.tabsets > 0 and meta["ctm-tab-ids"] == nil then
       quarto.log.warning("markdown-lint: " .. ctm.source.pageName() .. " has tabsets, but Quarto drops the ids of "

@@ -4,16 +4,30 @@
 --   ctm.source.pageName()        "pages/x.qmd", followed by " (or a file it includes)" when it does
 --   ctm.source.files()           the page and the files it includes ({{< include >}}), in order:
 --                                {{path, label, lines}}; labels are relative to the project
---   ctm.source.scan(visit)       visit(text, file, line, raw) for every line outside code,
---                                comments and front matter; `raw` is true inside ```{=html}
+--   ctm.source.scan(visit)       visit(text, file, line, raw) for every line outside code
+--                                (fenced or indented), comments and front matter; `raw` is
+--                                true inside ```{=html}
 --   ctm.source.fences(class)     "file:line" of each fenced div with the class, with its attributes
 --                                ({where, attributes = "{...}"})
 return function(ctm)
   local M = {}
 
+  -- a/b/../c -> a/c (pandoc.path.normalize keeps "..").
+  local function tidy(path)
+    local parts = {}
+    for part in path:gmatch("[^/\\]+") do
+      if part == ".." and #parts > 0 and parts[#parts] ~= ".." then
+        table.remove(parts)
+      elseif part ~= "." then
+        parts[#parts + 1] = part
+      end
+    end
+    return (path:match("^[/\\]") and "/" or "") .. table.concat(parts, "/")
+  end
+
   local function label(path)
     local root = quarto.project and quarto.project.directory
-    if root and root ~= "" then return pandoc.path.make_relative(path, root) end
+    if root and root ~= "" then return pandoc.path.make_relative(tidy(path), tidy(root)) end
     return pandoc.path.filename(path)
   end
 
@@ -33,7 +47,7 @@ return function(ctm)
     cached = {}
     local seen = {}
     local function add(path)
-      path = pandoc.path.normalize(path)
+      path = tidy(pandoc.path.normalize(path))
       if seen[path] then return end
       seen[path] = true
       local lines = readLines(path)
@@ -65,12 +79,22 @@ return function(ctm)
     return name
   end
 
-  -- Lines outside code blocks, inline code, HTML comments and front matter.
+  -- A list item's first line.
+  local function item(line)
+    return line:match("^%s*[-+*]%s+%S") or line:match("^%s*%d+[.)]%s+%S")
+  end
+
+  -- Lines outside code blocks (fenced, or indented by four spaces or a tab
+  -- after a blank line outside a list), inline code, HTML comments and front
+  -- matter.
   function M.scan(visit)
     for _, file in ipairs(M.files()) do
       local fence, raw, comment = nil, false, false
+      local afterBlank, inList, indented = true, false, false
       for number, line in ipairs(file.lines) do
         local skip = false
+        local blank = not line:match("%S")
+        local deep = line:match("^    ") or line:match("^ *\t")
         if number == 1 and line:match("^%-%-%-%s*$") then
           fence = "front matter"
           skip = true
@@ -85,7 +109,12 @@ return function(ctm)
           else
             skip = not raw
           end
+        elseif indented and (blank or deep) then
+          skip = true
+        elseif deep and afterBlank and not inList and not blank then
+          indented, skip = true, true
         else
+          indented = false
           local open, info = line:match("^%s*(```+)%s*(.-)%s*$")
           if not open then open, info = line:match("^%s*(~~~+)%s*(.-)%s*$") end
           if open then
@@ -93,6 +122,14 @@ return function(ctm)
             skip = true
           end
         end
+        if not fence and not indented and not blank then
+          if item(line) then
+            inList = true
+          elseif not line:match("^%s") then
+            inList = false
+          end
+        end
+        afterBlank = blank
         if not skip then
           local text = line
           if comment then
