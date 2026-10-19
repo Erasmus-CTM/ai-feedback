@@ -1,9 +1,9 @@
 // Quarto supplies its offline YAML parser and Deno runtime; no author-installed dependency.
 import { parse } from 'stdlib/yaml';
 import { resolve, dirname, join, relative } from 'stdlib/path';
-import './feedback-core.js';
+import './feedback/feedback-core.js';
 
-// Read from stdin, never the command line (see feedback-policy.lua).
+// Read from stdin, never the command line (see lua/policy.lua).
 const config = JSON.parse(await new Response(Deno.stdin.readable).text());
 // Read author metadata before Pandoc's Markdown conversion. Quarto replaces a
 // whole custom metadata mapping when page front matter defines one, so merge

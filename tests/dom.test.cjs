@@ -8,7 +8,7 @@ function page(html = '') {
   const dom = new JSDOM('<main>' + html + '</main>', { url: 'https://example.invalid/course', runScripts: 'outside-only' });
   const w = dom.window;
   w.AbortController = AbortController;
-  for (const file of ['feedback-core.js', 'feedback-dom.js', 'ai-feedback.js']) w.eval(fs.readFileSync(path.join(__dirname, '../_extensions/ai-feedback', file), 'utf8'));
+  for (const file of ['feedback-core.js', 'feedback-dom.js', 'ai-feedback.js']) w.eval(fs.readFileSync(path.join(__dirname, '../_extensions/ctm-libs/feedback', file), 'utf8'));
   return { dom, w, F: w.AIFeedback };
 }
 test('canonical and legacy contexts deduplicate and preserve LaTeX source', () => {

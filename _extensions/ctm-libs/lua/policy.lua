@@ -46,7 +46,7 @@ function M.emit(meta)
   input.projectDirectory=quarto.project.directory
   input.inputFile=quarto.doc.input_file
   input.profiles=quarto.project.profile
-  -- Quarto's merged document metadata (see read-policies.ts for precedence).
+  -- Quarto's merged document metadata (see read-settings.ts for precedence).
   local documentMeta={values={},keys={}}
   for key,value in pairs(cfg) do
     table.insert(documentMeta.keys,key)
@@ -54,7 +54,7 @@ function M.emit(meta)
     if kind~='table' and kind~='List' and kind~='Meta' then documentMeta.values[key]=text(value) end
   end
   input.documentMeta=documentMeta
-  local parser=directory .. '/read-policies.ts'
+  local parser=pandoc.path.join({pandoc.path.directory(directory),'read-settings.ts'})
   -- Use the running Quarto, which need not be on PATH (IDE-bundled installations).
   local cli=(quarto.config and quarto.config.cli_path and quarto.config.cli_path()) or 'quarto'
   -- The input travels on stdin: it can hold credentials an author put in

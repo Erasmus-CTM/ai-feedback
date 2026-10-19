@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const F = require('../_extensions/ai-feedback/feedback-core.js');
+const F = require('../_extensions/ctm-libs/feedback/feedback-core.js');
 const fixtures = require('./fixtures.cjs');
 const response = (status = 200, text = 'Check the verb ending.', finish_reason = 'stop') => ({ ok: status < 400, status, text: async () => 'unsupported parameter', json: async () => ({ choices: [{ finish_reason, message: { content: text } }] }) });
 function client(fetch, extra = {}) { return F.createClient({ baseUrl: 'https://example.invalid/v1', model: 'custom-chat', apiKey: 'test-only' }, { fetch, ...extra }); }

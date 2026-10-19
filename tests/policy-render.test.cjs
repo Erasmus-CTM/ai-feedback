@@ -1,11 +1,12 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os'),{spawnSync}=require('node:child_process');
-const F=require('../_extensions/ai-feedback/feedback-core.js');
+const F=require('../_extensions/ctm-libs/feedback/feedback-core.js');
+const ctmLibs=require('./helpers/ctm-libs.cjs');
 const quarto=process.env.QUARTO_BIN||'quarto';
 const available=!spawnSync(quarto,['--version']).error;
 test('Quarto validates explicit selections, inheritance and renamed prompts before browser use',{skip:available?false:'Quarto required'},()=>{
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'feedback-policies-'));
  try{
-  fs.cpSync(path.join(__dirname,'../_extensions/ai-feedback'),path.join(dir,'_extensions/ai-feedback'),{recursive:true});
+  ctmLibs.install(dir);
   const yaml=String.raw`ai-feedback:
   policies:
     child:
@@ -23,7 +24,7 @@ test('Quarto validates explicit selections, inheritance and renamed prompts befo
   fs.writeFileSync(path.join(dir,'base.yml'),yaml);
   fs.writeFileSync(path.join(dir,'page.yml'),'ai-feedback:\n  policies:\n    reset:\n      extends: null\n      max-words: 95\n');
   function render(metadata,policyFile='base.yml'){
-   fs.writeFileSync(path.join(dir,'lesson.qmd'),'---\nformat: html\nfilters: [ai-feedback]\nai-feedback:\n  policy-files: '+policyFile+'\n'+metadata+'---\n\n::: {.ai-feedback}\nExplain a half.\n:::\n');
+   fs.writeFileSync(path.join(dir,'lesson.qmd'),'---\nformat: html\nfilters: [ctm-libs]\nai-feedback:\n  policy-files: '+policyFile+'\n'+metadata+'---\n\n::: {.ai-feedback}\nExplain a half.\n:::\n');
    return spawnSync(quarto,['render','lesson.qmd'],{cwd:dir,encoding:'utf8',timeout:60000});
   }
   function config(){const html=fs.readFileSync(path.join(dir,'lesson.html'),'utf8');return JSON.parse(html.match(/window\.__aiFeedbackPolicies = (.*?);<\/script>/s)[1]);}
@@ -49,7 +50,7 @@ test('Quarto validates explicit selections, inheritance and renamed prompts befo
   r=render('  page-policy: [child]\n','raw.yml');assert.notEqual(r.status,0);
   assert.equal(fs.existsSync(path.join(dir,'deno.lock')),false);
   fs.writeFileSync(path.join(dir,'_quarto.yaml'),'project:\n  type: default\n  render: [lesson.qmd]\nai-feedback:\n  policy-files: raw.yml\n  project-policy: _parent_\n');
-  fs.writeFileSync(path.join(dir,'lesson.qmd'),'---\nformat: html\nfilters: [ai-feedback]\nai-feedback:\n  page-policy: child\n---\nExplain a half.\n');
+  fs.writeFileSync(path.join(dir,'lesson.qmd'),'---\nformat: html\nfilters: [ctm-libs]\nai-feedback:\n  page-policy: child\n---\nExplain a half.\n');
   r=spawnSync(quarto,['render'],{cwd:dir,encoding:'utf8',timeout:60000});assert.equal(r.status,0,r.stderr);assert.equal(config().projectPolicy,'_parent_');assert.equal(config().layers.length,1);assert.equal(config().pagePolicy,'child');
   fs.unlinkSync(path.join(dir,'_quarto.yaml'));
   for(const [body,pattern] of [
