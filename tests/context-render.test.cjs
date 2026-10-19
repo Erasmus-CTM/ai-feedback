@@ -173,6 +173,64 @@ test('closed material is a scope: exercises in it get its prose, nothing after i
   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
 });
 
+// Reveals (lua/ui.lua) become <details> tags around a Div that holds their
+// content: the AI context of every exercise is that of the same page written
+// with raw <details>, byte for byte, also with headings inside the blocks
+// (which the raw form cannot render, but the context walk reads alike).
+function revealPage(form) {
+  const block = (kind, rawClass, title, body) => form === 'raw'
+    ? ['<details' + (rawClass ? ' class="' + rawClass + '"' : '') + '>', '<summary>' + title + '</summary>', '', ...body, '', '</details>']
+    : ['::: {.' + kind + (title ? ' title="' + title.replace(/\\/g, '\\\\') + '"' : '') + '}', ...body, ':::'];
+  const indent = lines => lines.map(line => line ? '  ' + line : line);
+  return ['## Reveals', '', 'Section prose.', '',
+    ...block('reading-step', 'reading-step', 'Gå i dybden: *skaler* $x^2$', ['Step prose.', '', '```{.python #cell-step-top}', 'print(0)', '```', '', '#### A heading in the step', '', 'Prose under it.', '',
+      '::: {.ai-feedback #in-step}', 'Task in the step.', ':::', '', '```{.python #cell-in-step}', 'print(1)', '```']), '',
+    '::: {.ai-feedback #after-step}', 'Task after the step.', ':::', '',
+    '::: {.panel-tabset}', '### Tab one', '', 'Tab one prose.', '',
+    ...block('hint', 'learning-hint', 'Hint', ['Hint prose.', '', '##### Hint heading', '', '::: {.ai-feedback #in-hint}', 'Task in the hint.', ':::']), '',
+    '::: {.ai-feedback #after-hint}', 'Task after the hint.', ':::', '',
+    '### Tab two', '',
+    ...block('solution', 'solution-block', form === 'raw' ? 'Løsningsforslag' : '', ['Solution prose.', '', '```{.python #cell-in-solution}', 'print(2)', '```']), '',
+    '```{.python #cell-tab-two}', 'print(3)', '```', ':::', '',
+    'Prose after the tabset.', '',
+    '- An item', '', ...indent(block('hint', 'learning-hint', 'Item hint', ['Item hint prose.', '', '::: {.ai-feedback #in-item}', 'Task in the item.', ':::'])), '',
+    ...block('details', '', 'SciPy-oppslag: $\\mathbf{A}$', ['```{.python #cell-details-top}', 'print(5)', '```', '', '#### Lookup', '', 'Lookup prose.', '', '::: {.ai-feedback #in-details}', 'Task in the details.', ':::']), '',
+    '::: {.ai-feedback #at-end}', 'Task at the end.', ':::', '',
+    '```{.python #cell-at-end}', 'print(4)', '```', ''].join('\n');
+}
+
+test('reveals give the AI context of raw <details>, byte for byte, headings inside them included', {skip}, () => {
+  const dir = C.tempdir('ctm-context-reveals-');
+  try {
+    C.installPackage(dir); C.install(dir); C.installProbe(dir);
+    const front = '---\ntitle: t\nlang: nb\nfilters: [ctm-libs, probe]\n---\n\n';
+    C.write(dir, {'raw.qmd': front + revealPage('raw') + cells, 'reveal.qmd': front + revealPage('reveal') + cells});
+    const r = C.render(dir, ['raw.qmd']);
+    assert.equal(r.status, 0, r.stderr);
+    const s = C.render(dir, ['reveal.qmd']);
+    assert.equal(s.status, 0, s.stderr);
+    const raw = C.html(dir, 'raw.qmd'), reveal = C.html(dir, 'reveal.qmd');
+    assert.equal((reveal.match(/<details class="ctm-reveal /g) || []).length, 5, 'the reveal page has five reveals');
+    const contexts = html => ({
+      activities: Object.fromEntries(Object.entries(activities(html)).map(([id, d]) => [id, d.context])),
+      cells: C.probes(html).cells,
+      attributes: [...html.matchAll(/data-ai-feedback-context="([^"]*)"/g)].map(m => m[1]),
+    });
+    const expected = contexts(raw);
+    assert.deepEqual(Object.keys(expected.activities), ['in-step', 'after-step', 'in-hint', 'after-hint', 'in-item', 'in-details', 'at-end']);
+    // A heading inside a block starts a section there; after the block the outer section goes on.
+    assert.equal(expected.activities['in-step'], 'A heading in the step\nProse under it.');
+    assert.equal(expected.activities['after-step'], 'Reveals\nSection prose.');
+    assert.equal(expected.activities['in-details'], 'Lookup\nLookup prose.');
+    assert.equal(expected.activities['at-end'], 'Reveals\nSection prose.\nProse after the tabset.\nAn item');
+    // Titles with Markdown and mathematics (backslashes doubled in title=) read alike.
+    assert.equal(expected.cells['cell-step-top'], 'Reveals\nSection prose.\nGå i dybden: skaler \\(x^2\\)\nStep prose.');
+    assert.equal(expected.cells['cell-details-top'], 'Reveals\nSection prose.\nProse after the tabset.\nAn item\nSciPy-oppslag: \\(\\mathbf{A}\\)');
+    assert.equal(expected.cells['cell-in-solution'], 'Tab two\nLøsningsforslag\nSolution prose.', 'the default title, in the page\'s language');
+    assert.deepEqual(contexts(reveal), expected);
+  } finally { fs.rmSync(dir, {recursive: true, force: true}); }
+});
+
 test('a tabset whose tabs cannot be read is walked whole, with one warning', {skip}, () => {
   const dir = C.tempdir('ctm-context-unreadable-');
   try {
