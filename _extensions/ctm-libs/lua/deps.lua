@@ -62,7 +62,7 @@ return function(ctm)
   -- the boards would be published as plain code.
   function M.requireUsed(doc, component)
     if M.uses(doc).jsxgraph and not M.installed("jsxgraph") then
-      assert(false, component .. ": this page uses JSXGraph boards (`.jsxgraph` blocks), but the jsxgraph"
+      ctm.fail(component .. ": this page uses JSXGraph boards (`.jsxgraph` blocks), but the jsxgraph"
         .. " extension is not installed. Run: " .. M.INSTALL.jsxgraph)
     end
   end

@@ -3,7 +3,7 @@
 -- browser as window.__aiFeedbackPolicies, and an exercise's own selection.
 return function(ctm)
   local M = {}
-  local function fail(message) assert(false, message) end
+  local fail = ctm.fail
 
   -- window.__aiFeedbackPolicies for the browser (once per page, by feedback.prepare).
   function M.emit()

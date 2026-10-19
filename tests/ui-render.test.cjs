@@ -22,6 +22,9 @@ const documentOf = html => new JSDOM(html).window.document;
 const summaries = doc => [...doc.querySelectorAll('details.ctm-reveal')].map(d => [d.className, d.querySelector(':scope > summary').textContent.trim()]);
 const dependencies = html => ['ctm-ui', 'ctm-reveal', 'ctm-nav'].filter(name => new RegExp('/' + name + '-[\\d.]+/' + name + '\\.(css|js)"').test(html));
 const warnings = stderr => stderr.split('\n').map(line => line.replace(/\x1b\[[0-9;]*m/g, '').trim()).filter(line => /^(WARN|\(W\))/.test(line));
+// A render error for authors: the message, without ctm-libs' Lua file and
+// line in front of it (the stack traceback below it is Quarto's).
+const noLuaLocation = stderr => assert.doesNotMatch(stderr, /\.lua:\d+: (?!in )/, stderr);
 // The line of `needle` in `text` (1-based).
 const lineOf = (text, needle) => text.slice(0, text.indexOf(needle)).split('\n').length;
 
@@ -119,6 +122,7 @@ test('.solution: Quarto\'s Solution becomes a reveal; name= and a leading headin
   r = C.render(dir, ['both.qmd']);
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /A \.solution block has both title= and a name \(name="…", or a heading as its first block, which Quarto takes as the name\): use one \(both\.qmd:7\)\./);
+  noLuaLocation(r.stderr);
 }));
 
 test('other formats show reveals open: the title in bold, then the content', {skip}, () => withProject({
@@ -178,6 +182,7 @@ test('.embed: a lazy iframe with its title; src and title are required, the heig
   assert.match(r.stderr, /An \.embed block needs src=: .* \(nosrc\.qmd:5\)\./);
   r = C.render(dir, ['height.qmd']);
   assert.match(r.stderr, /\.embed: height must be a length such as "920px", "40rem" or "80vh" \(found tall in height\.qmd:5\)\./);
+  noLuaLocation(r.stderr);
 }));
 
 const SWITCH_NB = '<div class="ctm-modes" role="group" aria-label="Velg lesemodus" hidden="">\n'
@@ -234,6 +239,7 @@ test('the switch: one marker per page, and it takes no content', {skip}, () => w
   r = C.render(dir, ['content.qmd']);
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /::: \{\.modes\} marks where the lecture\/reading switch goes and takes no content \(content\.qmd:5\)\./);
+  noLuaLocation(r.stderr);
 }));
 
 // Today's pages (raw HTML, no tabsets) render as before; tab links come with
@@ -271,6 +277,7 @@ test('ctm-assessment: tab-links, modes and markdown-lint take true or false', {s
   const r = C.render(dir);
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /ctm-assessment: modes must be true or false \(found maybe in page\.qmd\)/);
+  noLuaLocation(r.stderr);
 }, 'ctm-assessment:\n  tab-links: "false"\n'));
 
 // markdown-lint: raw HTML that has a Markdown form, in the page and the files

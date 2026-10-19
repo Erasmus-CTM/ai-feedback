@@ -24,7 +24,7 @@ return function(ctm)
   local page = {reveals = 0, readingSteps = 0, embeds = 0, markers = {}, tabsets = 0, untitled = 0}
 
   local function html() return quarto.doc.is_format("html") end
-  local function fail(message) assert(false, message) end
+  local fail = ctm.fail
   local function escape(value)
     return (tostring(value):gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;"):gsub('"', "&quot;"))
   end

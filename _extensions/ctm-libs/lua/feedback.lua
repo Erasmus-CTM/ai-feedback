@@ -16,7 +16,7 @@ do
   local here = ctm.path("lua", "feedback.lua")
   local loaded = _G.__ctmAiFeedbackInstallation
   if loaded and pandoc.path.normalize(loaded.path) ~= pandoc.path.normalize(here) and loaded.version ~= ctm.version then
-    assert(false, "This page combines filters that use different ai-feedback versions: " .. loaded.path .. " ("
+    ctm.fail("This page combines filters that use different ai-feedback versions: " .. loaded.path .. " ("
       .. loaded.version .. ") and " .. here .. " (" .. ctm.version .. "). List the filters of one installation "
       .. "(for example only ctm-assessment), or install the same ai-feedback version.")
   end
@@ -74,7 +74,7 @@ function M.flush()
   local stop = policy.withoutAIStop()
   if stop then
     leftOut.items = {}
-    assert(false, stop)
+    ctm.fail(stop)
   end
   local text = message()
   if text then quarto.log.warning(text) end
