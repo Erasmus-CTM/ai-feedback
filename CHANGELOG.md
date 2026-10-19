@@ -26,7 +26,11 @@
   from another page, also Back/Forward, opens every enclosing tab and reveal,
   scrolls the target into view below the header, keeps it there while the
   page settles, and focuses it. A link wins over a grouped tabset's
-  remembered tab without changing it. Links to a tab's own heading need CTM
+  remembered tab without changing it. A reload returns to where the reader
+  was, or, before the reader has scrolled, typed, clicked or touched, follows
+  the link again: so does the reload with which coi-serviceworker makes a
+  learner's first visit cross-origin isolated (hosts without COOP/COEP
+  headers, such as GitHub Pages). Links to a tab's own heading need CTM
   Assessment's `tab-ids.lua` pre-ast filter.
 - **`ctm-assessment: markdown-lint: true`** warns at render time about raw
   HTML that has a Markdown form (`<details>`, `<summary>`, `<div id>`

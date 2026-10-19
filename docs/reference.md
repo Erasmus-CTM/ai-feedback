@@ -120,7 +120,11 @@ the settings and before AI feedback's preparation (`lua/ui.lua`).
   in the page, from another page, Back/Forward, reload — opens every
   enclosing tab and `<details>`, scrolls the target below the header, keeps
   it there while the layout above it settles (2 s at most, until the reader
-  scrolls, types or clicks), and focuses it. It runs after Quarto's grouped
+  scrolls, types or clicks), and focuses it. Back/Forward and a reload return
+  to the position the history entry had, except a reload before the reader
+  has scrolled, typed, clicked or touched: it follows the link again, as
+  after the reload with which coi-serviceworker makes a learner's first
+  visit cross-origin isolated. It runs after Quarto's grouped
   tabsets, and wins over their remembered tab without changing it. A tab's
   own id needs CTM Assessment's pre-ast `tab-ids.lua` (Quarto drops ids on
   tab headings); its target is a `div.ctm-tab-target` at the start of the

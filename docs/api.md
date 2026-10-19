@@ -296,7 +296,9 @@ CTMReveal.course()             // the course's root path ("/ingmat3a_ntnu/"), fr
 
 Each history entry keeps its scroll position and open tabs in
 `history.state.__quartoTabPosition` (the courses' former `tab-links.html`
-used the same key). A target the script handled carries `data-ctm-nav`
+used the same key), and while it still shows its link's target, that hash
+(`at`): a reload then follows the link again instead of restoring the
+position. A target the script handled carries `data-ctm-nav`
 (`load`, `link`, `hash`, `history` or `api`). `ctm-ui.css` sets its colours
 as custom properties (`--ctm-reveal-*`, `--ctm-modes-*`, `--ctm-embed-border`)
 on `:root`, and again under `.quarto-dark`.
