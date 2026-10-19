@@ -220,17 +220,23 @@
   }
   // Removes the request whatever happened to it (no name lookups either).
   var CHECKERS_CLEANUP = '_ctm_request = None\ndel _ctm_request';
+  // An error that ctm-checkers' call raised (its traceback passes through
+  // ctm_checkers/browser.py's call): the answer of the request, for example
+  // a learner string the admission rule rejects. Installing again would not
+  // change it.
+  var RAISED_BY_CALL = /ctm_checkers[\\/]browser\.py", line \d+, in call\b/;
   var checkerCalls = typeof WeakMap === 'function' ? new WeakMap() : null;
 
   // Runs ctm-checkers' call `name` (for example "math_exercise.check") on
   // `request` (an object; ctm-checkers docs/api.md) in the runtime `py` and
   // returns the JSON text it returns. Installs ctm-checkers first (once per
   // runtime). The calls of one runtime run one after another, since the
-  // request travels in one global (_ctm_request). When the call fails, for
-  // example because learner code removed or rebound what it uses, ctm-checkers
-  // is installed again and the call is repeated once, unless the learner
-  // stopped the runtime meanwhile; the second failure reaches the caller. The
-  // request is removed from the namespace in every case.
+  // request travels in one global (_ctm_request). When the call text fails
+  // before it reaches ctm-checkers' call (learner code removed ctm-checkers
+  // or rebound what the import uses), ctm-checkers is installed again and the
+  // call is repeated once, unless the learner stopped the runtime meanwhile;
+  // the second failure, and any error the call itself raised, reaches the
+  // caller. The request is removed from the namespace in every case.
   function callCheckers(py, name, request, payload) {
     var text = typeof request === 'string' ? request : JSON.stringify(request);
     var epoch = stops;
@@ -241,7 +247,7 @@
           await py.globals.set('_ctm_request', text);
           return await py.runPythonAsync(checkersCall(name));
         } catch (error) {
-          if (tries > 0 || stops !== epoch) throw error;
+          if (tries > 0 || stops !== epoch || RAISED_BY_CALL.test(String(error && error.message || error))) throw error;
           var done = installed && installed.get(py);
           if (done) delete done['ctm-checkers'];
         } finally {

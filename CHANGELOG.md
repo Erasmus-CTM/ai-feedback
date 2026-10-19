@@ -101,8 +101,9 @@
   `MathExerciseRuntime.ensureCheckers(py)` installs it once per runtime with
   the install code of its page script, and `callCheckers(py, name, request)`
   runs a call with a call text that learner code cannot break (it looks up no
-  name in the shared namespace), installs again and repeats a failed call
-  once, and removes the request in every case. `_ctm_guard` keeps
+  name in the shared namespace), installs again and repeats a call that
+  failed before reaching ctm-checkers once, and removes the request in every
+  case. `_ctm_guard` keeps
   `ctm_checkers` modules; `scriptURL` is the runtime script's URL;
   `ctm.deps.folder(name)`; `ctm.deps.html` takes absolute paths of another
   installation's files. Check that `ctm.checkers` exists (older ctm-libs have

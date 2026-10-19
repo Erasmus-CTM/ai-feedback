@@ -99,6 +99,26 @@ test('callCheckers installs again and repeats a failed call once; a second failu
   assert.equal(checkers.installs.length, 4);
 });
 
+test('callCheckers does not repeat a call whose error ctm-checkers\' call raised (the answer of the request)', async () => {
+  const context = runtime();
+  const R = context.MathExerciseRuntime;
+  const checkers = payload();
+  context.CTMCheckers = checkers;
+  const py = fakePy();
+  py.runPythonAsync = async (code) => {
+    py.runs.push(code);
+    if (code.includes('.call(')) {
+      throw new Error('Traceback (most recent call last):\n  File "<exec>", line 2, in <module>\n'
+        + '  File "/tmp/ctm-checkers/be41199f84e499ac/ctm_checkers-0.1.1.dev0-py3-none-any.whl/ctm_checkers/browser.py", line 52, in call\n'
+        + '    admission(request)\nValueError: SyntaxError: unsupported input');
+    }
+  };
+  await assert.rejects(R.callCheckers(py, 'math_exercise.check', { student: '__x' }), /SyntaxError: unsupported input/);
+  assert.equal(py.runs.filter((code) => code.includes('.call(')).length, 1);
+  assert.equal(checkers.installs.length, 1);
+  assert.equal(py.runs[py.runs.length - 1], '_ctm_request = None\ndel _ctm_request');
+});
+
 test('callCheckers does not repeat a call that the learner stopped', async () => {
   const context = runtime();
   const R = context.MathExerciseRuntime;
@@ -217,6 +237,12 @@ test('Pyodide: ctm-checkers installs through globals.set and runPythonAsync only
   py.runPython('import sys\nfor name in [n for n in sys.modules if n == "ctm_checkers" or n.startswith("ctm_checkers.")]: del sys.modules[name]\n'
     + 'sys.path[:] = [p for p in sys.path if not p.startswith("/tmp/ctm-checkers/")]');
   assert.deepEqual(JSON.parse(await R.callCheckers(proxy, 'math_exercise.check', REQUEST, counted)), { status: 'correct', score: 1.0 });
+  assert.equal(installs.length, 1);
+  assert.equal(py.runPython('"_ctm_request" in globals()'), false);
+
+  // An answer the admission rule rejects: the call's own error, not repeated.
+  await assert.rejects(R.callCheckers(proxy, 'math_exercise.check', { ...REQUEST, student: '__import__("os")' }, counted),
+    /ValueError: SyntaxError: unsupported input/);
   assert.equal(installs.length, 1);
   assert.equal(py.runPython('"_ctm_request" in globals()'), false);
 

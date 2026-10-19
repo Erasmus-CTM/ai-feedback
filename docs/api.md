@@ -341,11 +341,13 @@ MathExerciseRuntime.forgetModules(py);                 // the next ensure* insta
   namespace learner code shares (`import builtins as _ctm_builtins`, then
   `_ctm_builtins.__import__("ctm_checkers.browser", …).call(name,
   _ctm_builtins.globals())`), in the same namespace as the request. The
-  calls of one runtime run one after another. When the call fails (learner
-  code removed ctm-checkers or rebound a name), ctm-checkers is installed
-  again and the call repeated once, unless the learner stopped the runtime
-  meanwhile; the second failure reaches the caller. The request is removed
-  from the namespace in every case.
+  calls of one runtime run one after another. When the call fails before it
+  reaches ctm-checkers' `call` (learner code removed ctm-checkers or rebound
+  what the import uses), ctm-checkers is installed again and the call
+  repeated once, unless the learner stopped the runtime meanwhile; the second
+  failure reaches the caller, as does an error that `call` raised itself (the
+  answer to the request, such as the admission rule's `ValueError`). The
+  request is removed from the namespace in every case.
 - `_ctm_guard`'s snapshot keeps the modules named `_ctm_…` and
   `ctm_checkers…`: a checker that removes them is undone after its call.
 - `scriptURL` is the runtime script's own URL on a page (for a worker that
