@@ -52,7 +52,7 @@ function readLevel(file: string, page = false) {
     throw error;
   }
   if (page) {
-    const match = raw.match(/^﻿?---\s*\r?\n([\s\S]*?)\r?\n(?:---|\.\.\.)\s*(?:\r?\n|$)/);
+    const match = raw.match(/^\uFEFF?---\s*\r?\n([\s\S]*?)\r?\n(?:---|\.\.\.)\s*(?:\r?\n|$)/);
     if (!match) return;
     raw = match[1];
   }
