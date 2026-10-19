@@ -153,15 +153,52 @@ end
 local function isContext(b)
   return b.t == "Div" and (b.classes:includes("ai-feedback-context") or b.classes:includes("ai-context") or b.classes:includes("math-exercise-context"))
 end
-local function bounded(blocks)
+-- The section's prose since the nearest heading: entries {text, from}, where
+-- `from` lists the ids of the context blocks the text sits in. Entries from
+-- the blocks an exercise lists itself (`exclude`, A5) are left out: they are
+-- sent on their own. The last 1500 characters are kept, whole entries only.
+local function bounded(entries, exclude)
+  local texts = {}
+  for _, entry in ipairs(entries) do
+    local listed = false
+    for _, id in ipairs(exclude and entry.from or {}) do
+      if exclude[id] then listed = true; break end
+    end
+    if not listed then texts[#texts + 1] = entry.text end
+  end
   local kept, length = {}, 0
-  for i = #blocks, 1, -1 do
-    local size = utf8.len(blocks[i])
+  for i = #texts, 1, -1 do
+    local size = utf8.len(texts[i])
     local sep = #kept > 0 and 1 or 0
     if length + size + sep > 1500 then break end
-    table.insert(kept, 1, blocks[i]); length = length + size + sep
+    table.insert(kept, 1, texts[i]); length = length + size + sep
   end
   return table.concat(kept, "\n")
+end
+-- The ids an explicit context lists ("notes, formula"; diagrams are not blocks).
+local function listed(refs)
+  local ids, any = {}, false
+  for part in tostring(refs or ""):gmatch("[^,]+") do
+    local id = part:match("^%s*(.-)%s*$")
+    if id ~= "" and id ~= "none" and id ~= "auto" and not id:match("^jsxgraph:") then ids[id] = true; any = true end
+  end
+  return any and ids or nil
+end
+-- A code cell's explicit context: its first `#| feedback-context:`, else its
+-- first `#| context:` line (as context() below). Pyodide's execution values
+-- (setup, output, interactive) are not feedback context.
+local function cellContext(b)
+  local found = {}
+  for line in (b.text .. "\n"):gmatch("([^\r\n]*)\r?\n") do
+    local key, value = line:match("^#|%s*([%w%-]+)%s*:%s*(.-)%s*$")
+    if (key == "feedback-context" or key == "context") and found[key] == nil then found[key] = value end
+  end
+  local ref = found["feedback-context"] or found["context"]
+  if not ref then return nil end
+  ref = ref:gsub('^"(.*)"$', '%1'):gsub("^'(.*)'$", "%1")
+  local pyodide = b.classes:includes("{pyodide-python}") or b.classes:includes("pyodide-python")
+  if pyodide and (ref == "setup" or ref == "output" or ref == "interactive") then return nil end
+  return listed(ref)
 end
 local function activity(block, context)
   counter = counter + 1
@@ -197,7 +234,8 @@ local function activity(block, context)
     sourceLanguage = attrs["source-language"] or "", sourceRef = attrs["source"],
     learnerLevel = attrs["learner-level"] or "", starter = starter,
     imageUpload = attrs["image-upload"] == "true", imageRole = attrs["image-role"] or "response",
-    contextMode = contextMode, contextRefs = attrs["context"] or "", context = contextMode == "auto" and bounded(context) or "",
+    contextMode = contextMode, contextRefs = attrs["context"] or "",
+    context = contextMode ~= "none" and bounded(context, contextMode == "explicit" and listed(attrs["context"]) or nil) or "",
     maxIssues = tonumber(attrs["max-issues"])
   }
   visible:insert(pandoc.RawBlock("html", '<script type="application/json" class="ai-feedback-data">' .. json(data) .. '</script>'))
@@ -226,28 +264,34 @@ local function walk(blocks, state)
     if excluded(b, true) then
       -- Hidden, generated and author-only content does not change section state.
     elseif b.t == "Header" then
-      state.context = {sourceText(b)}
+      state.context = {{text = sourceText(b), from = {}}}
     elseif b.t == "Div" and b.classes:includes("ai-feedback") then
       if state.off then state.activities = state.activities + 1; b = task(b) else b = activity(b, state.context) end
     elseif b.t == "CodeBlock" then
-      if not state.off then b.attributes["data-ai-feedback-context"] = bounded(state.context) end
+      if not state.off then b.attributes["data-ai-feedback-context"] = bounded(state.context, cellContext(b)) end
     elseif isContext(b) then
       if not state.off then b = preserveMath(b) end
+      local outer = state.from
+      if b.identifier ~= "" then
+        state.from = {table.unpack(outer)}
+        table.insert(state.from, b.identifier)
+      end
       b.content = walk(b.content, state)
+      state.from = outer
     elseif b.t == "Div" or b.t == "BlockQuote" then
       b.content = walk(b.content, state)
     elseif b.t == "BulletList" or b.t == "OrderedList" then
       for i, item in ipairs(b.content) do b.content[i] = walk(item, state) end
     elseif b.t == "DefinitionList" then
       for _, item in ipairs(b.content) do
-        local term = pandoc.utils.stringify(item[1]); if term ~= "" then table.insert(state.context, term) end
+        local term = pandoc.utils.stringify(item[1]); if term ~= "" then table.insert(state.context, {text = term, from = state.from}) end
         for i, definition in ipairs(item[2]) do item[2][i] = walk(definition, state) end
       end
     elseif b.t ~= "RawBlock" then
       if not state.off then
-        b = b:walk({CodeBlock = function(code) code.attributes["data-ai-feedback-context"] = bounded(state.context); return code end})
+        b = b:walk({CodeBlock = function(code) code.attributes["data-ai-feedback-context"] = bounded(state.context, cellContext(code)); return code end})
       end
-      local text = sourceText(b); if text ~= "" then table.insert(state.context, text) end
+      local text = sourceText(b); if text ~= "" then table.insert(state.context, {text = text, from = state.from}) end
     end
     out:insert(b)
   end
@@ -270,7 +314,7 @@ function M.prepare(doc)
   ctm.settings.load(doc.meta)
   if not M.enabled() then
     ctm.settings.policies()
-    local state = {context = {}, off = true, activities = 0}
+    local state = {context = {}, from = {}, off = true, activities = 0}
     doc.blocks = walk(doc.blocks, state)
     if state.activities > 0 then
       leaveOut(state.activities .. " AI feedback " .. (state.activities == 1 and "activity" or "activities"))
@@ -299,7 +343,7 @@ function M.prepare(doc)
   -- storage is emitted only when set, so a consumer's own default (pyodide:
   -- feedback-storage) applies otherwise; the browser falls back to local.
   quarto.doc.include_text("before-body", '<script>window.__aiFeedbackConfig = ' .. json({ mode = str(cfg.mode, "copy"), storage = cfg.storage and str(cfg.storage, nil) or nil, baseUrl = str(cfg["base-url"], ""), model = str(cfg.model, "") }) .. ';</script>')
-  doc.blocks = walk(doc.blocks, {context = {}})
+  doc.blocks = walk(doc.blocks, {context = {}, from = {}})
   return doc
 end
 
