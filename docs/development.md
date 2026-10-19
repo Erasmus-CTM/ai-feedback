@@ -7,7 +7,7 @@
 ```
 _extensions/ctm-libs/            the library (authors never list it; the package does)
   _extension.yml                 version of everything below
-  ctm-libs.lua                   filter entry: ctm.filters() (Meta, Callout, Pandoc)
+  ctm-libs.lua                   filter entry: ctm.filters() (Meta, Callout, the page's interface, Pandoc)
   ctm-libs-end.lua               listed by the package after every CTM filter: prints the page's P22 build message, or stops for without-ai
   read-settings.ts, deno.json    settings reader (quarto run), with its isolated Deno configuration
   lua/ctm.lua                    the page's instance; lazily loaded modules:
@@ -15,6 +15,9 @@ _extensions/ctm-libs/            the library (authors never list it; the package
   lua/locale.lua                 ctm.locale
   lua/feedback.lua, policy.lua   ctm.feedback (activities, context, policies, P22, without-ai)
   lua/runtime.lua, deps.lua      ctm.runtime, ctm.deps
+  lua/ui.lua                     ctm.ui: reveals, the lecture/reading switch, embedded pages, tab links, markdown-lint
+  lua/sections.lua, source.lua   ctm.sections (headings, tabs, scopes), ctm.source (the page's Markdown, file:line)
+  ui/                            ctm-ui.css, ctm-reveal.js (CTMReveal), ctm-nav.js (CTMNav)
   feedback/                      AIFeedback browser files, feedback-defaults.yml
   runtime/pyodide-runtime.js     MathExerciseRuntime
   locales/                       ctm-locale.js (CTMLocales) and the message catalogues
@@ -49,7 +52,11 @@ CI (`.github/workflows`):
   1.8 (`8a16aa7`) render through the ai-feedback alias; pyodide-interaktiv's
   own tests run with `AI_FEEDBACK_EXTENSION=_extensions/ctm-libs/feedback`;
   `quarto add Erasmus-CTM/ai-feedback@<branch>` still installs both extensions;
-- `browser.yml`: the runtime loads Pyodide from jsDelivr in Chromium.
+- `browser.yml`: the runtime loads Pyodide from jsDelivr in Chromium; the
+  page's interface (`tests/browser/ui.mjs`: links into tabs and reveals, the
+  switch, printing) on a rendered site, in Chromium, Firefox and WebKit.
+  Locally: `node tests/browser/ui.mjs chromium firefox webkit` (Quarto and
+  Playwright's browsers; `CHROMIUM_PATH` selects a local Chromium).
 
 The CTM Assessment umbrella runs `npm test` here as well, against the
 package it builds.

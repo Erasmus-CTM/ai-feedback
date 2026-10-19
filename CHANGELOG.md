@@ -2,7 +2,42 @@
 
 ## Unreleased
 
+### Added for authors
+
+- **Reveals, in Markdown** (P18, F1): `::: {.reading-step title="…"}`
+  ("Gå i dybden"), `::: {.hint}`, `::: {.solution}` and
+  `::: {.details title="…"}` become closed boxes (`<details>`) in HTML, in
+  the courses' look; `.details` is drawn related but distinct (a dashed line,
+  no fill), since the switch leaves it alone. Titles are Markdown, with
+  default titles in English, German, Bokmål and Nynorsk; `.details` needs
+  one. Headings inside a reveal stay inside it. AI feedback reads a reveal as
+  it reads hand-written `<details>`. Other formats show reveals open, with
+  the title in bold; `.solution` stays Quarto's Solution there.
+- **The lecture/reading switch** (F2) appears at the top of every page with
+  a reading step, or where `::: {.modes}` + `:::` puts it;
+  `ctm-assessment: modes: false` leaves it out. The mode lasts for the
+  browser tab, per course; printing opens the reading steps.
+- **Embedded pages**: `::: {.embed src="…" title="…" height="920px"}` + `:::`.
+- **Links into tabs and reveals, on by default** (AC): a link to a heading,
+  an anchor or an exercise inside tabs or a closed reveal, from the page or
+  from another page, also Back/Forward, opens every enclosing tab and reveal,
+  scrolls the target into view below the header, keeps it there while the
+  page settles, and focuses it. A link wins over a grouped tabset's
+  remembered tab without changing it. Links to a tab's own heading need CTM
+  Assessment's `tab-ids.lua` pre-ast filter.
+- **`ctm-assessment: markdown-lint: true`** warns at render time about raw
+  HTML that has a Markdown form (`<details>`, `<summary>`, `<div id>`
+  anchors, `<iframe>`, a hand-written switch) and about tabsets without the
+  `tab-ids.lua` line, naming files and lines.
+
 ### Changed for authors
+
+- **Pages with a tabset load the tab links** (`ctm-ui.css`, `ctm-nav.js`;
+  nothing else changes on pages without the new syntax).
+  `ctm-assessment: tab-links: false` turns them off; a site that still has
+  its own tab-link script sets it until it removes the script. `tab-links`,
+  `modes` and `markdown-lint` take `true` or `false`; another value stops
+  the render.
 
 - **A build without AI feedback stops at exercises that only AI feedback can
   assess** (breaking for builds without AI feedback; there are no such sites
@@ -32,6 +67,12 @@
 
 ### For component developers
 
+- `ctm.ui` (the page's interface, two passes of `ctm.filters()` before
+  `ctm.feedback.prepare`), `ctm.sections` (the walk AI feedback's context
+  follows: headings, tabs, scopes; lifted from `feedback.lua`) and
+  `ctm.source` (the page's Markdown with its included files, for messages
+  that name a file and line). In the browser: `CTMNav.reveal(element)` and
+  `CTMReveal`. A new catalogue, `ui`, has en, de, nb and nn.
 - `ctm.policy.withoutAI({component, kind, name, text, lang})`: a component
   asks about each of its exercises without a static check and gets nil (AI
   feedback on), `{action = "text", note}` or `{action = "drop"}`; ctm-libs
