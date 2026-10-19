@@ -222,11 +222,22 @@ async function state(page, id) {
   }, id);
 }
 const settle = page => page.waitForTimeout(600);
+// Until the script has handled the target (`how`: its data-ctm-nav mark),
+// then until the page has settled. Renderers in CI can be slow.
+async function handled(page, id, how) {
+  await page.waitForFunction(([id, how]) => {
+    const target = document.getElementById(id);
+    return !!target && target.getAttribute('data-ctm-nav') === how;
+  }, [id, how], {timeout: 10000}).catch(() => {});
+  await settle(page);
+}
 // A full load (not a fragment navigation within the page already shown).
 async function open(page, url) {
   await page.goto('about:blank');
   await page.goto(url);
-  await settle(page);
+  const id = new URL(url).hash.slice(1);
+  if (id) await handled(page, id, 'load');
+  else await settle(page);
 }
 
 // A fresh browser context and page; external requests are blocked, and
@@ -326,7 +337,7 @@ async function inPage(browser, base, name) {
   await page.evaluate(() => { window.__hashchanges = 0; addEventListener('hashchange', () => window.__hashchanges++); });
   const length = await page.evaluate(() => history.length);
   await page.click('main a[href$="#deep-head"] >> nth=0');
-  await settle(page);
+  await handled(page, 'deep-head', 'link');
   s = await state(page, 'deep-head');
   assert.deepEqual(s.panes, [true, true], name + ' click: tabs' + ' ' + JSON.stringify(s));
   assert.deepEqual(s.details, [true], name + ' click: the reading step opened' + ' ' + JSON.stringify(s));
@@ -374,7 +385,7 @@ async function otherPage(browser, base, name) {
   await settle(page);
   await page.click('main a[href$="#eks-3"]');
   await page.waitForURL(/\/(index\.html)?#eks-3$/);
-  await settle(page);
+  await handled(page, 'eks-3', 'load');
   s = await state(page, 'eks-3');
   assert.deepEqual(s.panes, [true, true], name + ' from another page' + ' ' + JSON.stringify(s));
   assert.equal(s.mark, 'load', name + ' ' + JSON.stringify(s));
@@ -400,7 +411,8 @@ async function pinned(browser, base, name) {
   const session = await newPage(browser, base), {page} = session;
   // Late layout above the target: it stays where the link put it.
   await page.goto(base + 'index.html#far');
-  await page.waitForTimeout(300);
+  await page.waitForFunction(() => document.getElementById('far').hasAttribute('data-ctm-nav'), null, {timeout: 10000}).catch(() => {});
+  await page.waitForTimeout(100);
   const early = await state(page, 'far');
   await page.waitForTimeout(1700);
   const late = await state(page, 'far');

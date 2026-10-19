@@ -33,8 +33,15 @@
   var navigation = 0, restoring = false, scrollTimer = 0, handledURL = location.href, pinned = null;
   try { history.scrollRestoration = 'manual'; } catch (error) { /* older browsers: the browser restores */ }
 
+  // The next frame, or 100 ms where frames come slowly or not at all (a
+  // page in the background, a slow renderer).
   function frame() {
-    return new Promise(function (resolve) { requestAnimationFrame(function () { resolve(); }); });
+    return new Promise(function (resolve) {
+      var done = false;
+      var finish = function () { if (!done) { done = true; resolve(); } };
+      requestAnimationFrame(finish);
+      setTimeout(finish, 100);
+    });
   }
   function each(list, visit) { Array.prototype.forEach.call(list, visit); }
 
