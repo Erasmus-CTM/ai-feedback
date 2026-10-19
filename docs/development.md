@@ -15,6 +15,7 @@ _extensions/ctm-libs/            the library (authors never list it; the package
   lua/locale.lua                 ctm.locale
   lua/feedback.lua, policy.lua   ctm.feedback (activities, context, policies, P22, without-ai)
   lua/runtime.lua, deps.lua      ctm.runtime, ctm.deps
+  lua/checkers.lua               ctm.checkers: ctm-checkers (the checker library's folder, wheel, page script)
   lua/ui.lua                     ctm.ui: reveals, the lecture/reading switch, embedded pages, tab links, markdown-lint
   lua/sections.lua, source.lua   ctm.sections (headings, tabs, scopes), ctm.source (the page's Markdown, file:line)
   ui/                            ctm-ui.css, ctm-reveal.js (CTMReveal), ctm-nav.js (CTMNav)
@@ -43,9 +44,26 @@ folders with this repository's extensions and a probe component
 (`tests/fixtures/probe`) that loads ctm-libs through the canonical bootstrap
 and evaluates Lua against it.
 
+The ctm-checkers tests (`tests/checkers-*.test.cjs`: installs and calls in
+Pyodide 0.28.3, the `pyodide` package of `package.json`; the render
+fixture) use ctm-checkers at the commit in `tests/pins.json`, checked out
+into `_ctm-checkers-source` (or `CTM_CHECKERS_SOURCE`); without it they are
+skipped locally:
+
+```sh
+git clone https://github.com/Erasmus-CTM/ctm-checkers _ctm-checkers-source
+git -C _ctm-checkers-source checkout <ctm-checkers commit in tests/pins.json>
+```
+
+They load SymPy into Pyodide from jsDelivr; `PYODIDE_PACKAGES=<folder>`
+loads it from a folder with the wheels of Pyodide's lock file instead.
+
 CI (`.github/workflows`):
 
-- `test.yml`: the checks above;
+- `test.yml`: the checks above, with ctm-checkers at the commit in
+  `tests/pins.json` (a head commit's `CTM-Review-Refs` trailer can name
+  another for review, read by the umbrella's
+  `tools/ci/review-dependencies.py` at the pinned umbrella commit);
 - `example.yml`: renders `example.qmd`;
 - `legacy-consumers.yml`: the components as merged before the consolidation
   (math-exercise `bf6caf3`, py-exercise `c14c5f4`) and pyodide-interaktiv
