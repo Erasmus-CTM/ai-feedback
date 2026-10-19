@@ -29,12 +29,13 @@ end
 -- both builds fail alike; nothing of AI feedback reaches the HTML.
 local switch = nil
 local pyodideWanted = nil
--- What the page asked for but did not get: one build message per page, never
--- an error. Items are only what is on the page: its exercises that only AI
--- feedback can assess, shown as text or dropped (without-ai, below), the
--- exercises and cells a component found (request()), pyodide cells under
--- pyodide: feedback: true, and the page's own ai-feedback: enabled: true
--- (not a project-wide setting).
+-- One build message per page: its exercises that only AI feedback can
+-- assess, shown as text or removed (ai-feedback: without-ai, lua/policy.lua),
+-- and what it asked for but did not get. Those items are only what is on the
+-- page: the exercises and cells a component found (request()), pyodide cells
+-- under pyodide: feedback: true, and the page's own ai-feedback: enabled:
+-- true (not a project-wide setting). With without-ai unset, exercises that
+-- only AI feedback can assess stop the build instead (flush).
 --
 -- The message is printed by flush(), which ctm-libs-end.lua calls after every
 -- component (the CTM Assessment package lists that file last). Where it is not
@@ -44,11 +45,15 @@ local pyodideWanted = nil
 -- future Pandoc or Quarto keep the state open, only that fallback is lost.
 local leftOut = {items = {}, seen = {}, reason = ""}
 local function message()
-  if #leftOut.items == 0 then return nil end
-  local text = "AI feedback is off for this build (" .. leftOut.reason .. "); left out on this page: "
-    .. table.concat(leftOut.items, ", ") .. "."
+  local shown = policy.withoutAIMessage()
+  if #leftOut.items == 0 and not shown then return nil end
+  local parts = {shown}
+  if #leftOut.items > 0 then
+    parts[#parts + 1] = (shown and "Left out" or "left out") .. " on this page: " .. table.concat(leftOut.items, ", ")
+  end
   leftOut.items = {}
-  return text
+  return "AI feedback is off for this build (" .. (switch and switch.reason or leftOut.reason) .. "); "
+    .. table.concat(parts, ". ") .. "."
 end
 setmetatable(leftOut, {__gc = function()
   local text = message()
@@ -62,31 +67,14 @@ local function leaveOut(item)
   end
 end
 
--- The page's exercises that only AI feedback can assess (see aiOnly below);
--- stop: without-ai is unset, so the build stops with one error naming them.
-local withoutAI = {exercises = {}, stop = false}
-local function stopMessage()
-  local names, n = {}, #withoutAI.exercises
-  for _, exercise in ipairs(withoutAI.exercises) do names[#names + 1] = exercise.name .. " (" .. exercise.kind .. ")" end
-  local file = quarto.doc.input_file or ""
-  local root = quarto.project and quarto.project.directory
-  local page = root and root ~= "" and pandoc.path.make_relative(file, root) or pandoc.path.filename(file)
-  return "AI feedback is off for this build (" .. (switch and switch.reason or "") .. "), and " .. page .. " has "
-    .. (n == 1 and "an exercise" or (n .. " exercises")) .. " that only AI feedback can assess: " .. table.concat(names, ", ")
-    .. ". Choose what a build without AI feedback does with " .. (n == 1 and "it" or "them")
-    .. ", under ai-feedback: in _quarto.yml or in the page's front matter: without-ai: text shows the question without "
-    .. "answer box and Check button; without-ai: self-check is the same for now (self-check comes in a later version); "
-    .. "without-ai: drop removes the exercise from the page (a last resort)."
-end
-
 -- Prints the page's build message now (once); true when there was one. When
 -- without-ai is unset and the page has exercises only AI feedback can assess,
 -- stops the build instead, with one error that names them all.
 function M.flush()
-  if withoutAI.stop then
-    withoutAI.stop = false
+  local stop = policy.withoutAIStop()
+  if stop then
     leftOut.items = {}
-    assert(false, stopMessage())
+    assert(false, stop)
   end
   local text = message()
   if text then quarto.log.warning(text) end
@@ -283,131 +271,25 @@ local function activity(block, context)
   visible:insert(pandoc.RawBlock("html", '<noscript>Enable JavaScript to use this feedback activity.</noscript>'))
   return pandoc.Div(visible, pandoc.Attr(id, {"ai-feedback-activity"}))
 end
--- P22: an activity keeps its visible task (and source) and loses its answer
--- box, button, criteria, starter and data; its policy selection is still checked.
-local function visibleTask(block)
+-- P22: an activity is assessed by AI feedback only, so ai-feedback:
+-- without-ai decides (lua/policy.lua): shown as text it keeps its visible task
+-- (and source), with a note, and loses its answer box, button, criteria,
+-- starter and data; under drop it is left out. Its policy selection is still
+-- checked.
+local function task(block)
+  policy.selection(block, block.attributes)
   local visible = pandoc.Blocks({})
   for _, child in ipairs(block.content) do
     if not (child.t == "Div" and (child.classes:includes("feedback-criteria") or child.classes:includes("feedback-starter"))) then
       visible:insert(child)
     end
   end
-  return visible
-end
-local function task(block, note)
+  local decision = policy.withoutAIRecord({kind = "AI feedback activity", name = block.identifier,
+    text = sourceText(pandoc.Div(visible)), lang = block.attributes["ui-language"] or ctm.locale.tag("ai-feedback", "ui-language")})
   counter = counter + 1
-  local id = block.identifier ~= "" and block.identifier or "ai-feedback-" .. counter
-  local visible = visibleTask(block)
-  if note then visible:insert(note) end
-  return pandoc.Div(visible, pandoc.Attr(id, {"ai-feedback-task"}))
-end
-
--- Exercises that only AI feedback can assess, without a static check, and
--- what a build without AI feedback does with them (ai-feedback: without-ai,
--- policy.withoutAIAction):
---   .ai-feedback activities     the learner's text is assessed by the model only
---   math-exercise, mode: custom without a checker (its Check stops with "mode
---                               custom requires a checker"), where its
---                               feedback is on (math-exercise: feedback not false)
---   py-exercise without tests   (nothing after ## TESTS ##: its Check only
---                               runs the code), where py-exercise: feedback: true
--- The walk finds them, also in tabs, <details> and collapsed callouts (not in
--- hidden or author-only blocks), and shows each as text or drops it. When
--- without-ai is unset the build stops with one error that names them all:
--- flush() raises it, which ctm-libs-end.lua calls after every component; a
--- page whose filters do not include that file (component development builds,
--- filters: [ai-feedback]) stops at the end of prepare instead.
-
--- An unnamed exercise in messages: the start of its text, cut at a word.
-local function snippet(text)
-  local plain = text:gsub("%s+", " "):match("^%s*(.-)%s*$")
-  if (utf8.len(plain) or 0) > 40 then
-    plain = plain:sub(1, utf8.offset(plain, 41) - 1)
-    plain = (plain:match("^(.+)%s%S*$") or plain) .. "…"
-  end
-  return '"' .. plain .. '"'
-end
--- The note under such an exercise shown as text, in the given language tag.
-local function note(tag)
-  local lang = ctm.locale.language("common", tag)
-  return pandoc.Div({pandoc.Para({pandoc.Emph(ctm.locale.text("common", "withoutAI", lang))})}, pandoc.Attr("", {"ctm-without-ai"}))
-end
--- A component's `#| key: value` options (math-exercise's `|` blocks continue
--- on "#|   " lines) and the remaining lines.
-local function blockOptions(text)
-  local opts, rest, lines, i = {}, {}, {}, 1
-  for line in (text .. "\n"):gmatch("([^\r\n]*)\r?\n") do lines[#lines + 1] = line end
-  while i <= #lines do
-    local key, value = lines[i]:match("^#|%s*(.-):%s*(.-)%s*$")
-    i = i + 1
-    if key and value == "|" then
-      local block = {}
-      while i <= #lines and (lines[i]:match("^#|%s*$") or lines[i]:sub(1, 5) == "#|   ") do
-        block[#block + 1] = lines[i]:sub(6); i = i + 1
-      end
-      opts[key] = table.concat(block, "\n")
-    elseif key then
-      opts[key] = value
-    else
-      rest[#rest + 1] = lines[i - 1]
-    end
-  end
-  return opts, table.concat(rest, "\n")
-end
-local function feedbackOn(component)
-  local value = ctm.settings.get(component, "feedback")
-  if component == "py-exercise" then return value == true or value == "true" end
-  return not (value == false or value == "false")
-end
--- The exercise record of a block that only AI feedback can assess, or nil:
--- {name, kind, text = function(withNote) -> what the page shows as text}.
-local function aiOnly(b)
-  if b.t == "Div" then
-    local name = b.identifier ~= "" and b.identifier or snippet(sourceText(pandoc.Div(visibleTask(b))))
-    return {name = name, kind = "AI feedback activity", text = function(withNote)
-      local tag = b.attributes["ui-language"] or ctm.locale.tag("ai-feedback", "ui-language")
-      return task(b, withNote and note(tag) or nil)
-    end}
-  end
-  if b.classes:includes("{math-exercise}") then
-    local opts, question = blockOptions(b.text)
-    if opts.mode ~= "custom" or (opts.checker or ""):match("%S") or not feedbackOn("math-exercise") then return nil end
-    return {name = opts.label or snippet(question), kind = "math-exercise in custom mode without a checker", text = function(withNote)
-      -- The question (a pool's first task) without its answer fields.
-      local first = opts.pool == "true" and (question .. "\n"):match("^(.-)\n%s*%-%-%-%s*\n") or question
-      first = first:gsub("_+%b[]", "…"):gsub("vec%b[]", "…"):gsub("mat%b[]", "…"):gsub("mat%b{}", "…")
-      local blocks = pandoc.Blocks({})
-      if opts.caption then blocks:insert(pandoc.Para({pandoc.Strong(opts.caption)})) end
-      blocks:extend(pandoc.read(first, "markdown").blocks)
-      if withNote then blocks:insert(note(ctm.locale.tag("math-exercise", "lang"))) end
-      return pandoc.Div(blocks, pandoc.Attr("", {"math-exercise-text"}))
-    end}
-  end
-  if b.classes:includes("{py-exercise}") then
-    local opts, code = {}, {}
-    for line in (b.text .. "\n"):gmatch("([^\r\n]*)\r?\n") do
-      local key, value = line:match("^#|%s*(.-):%s*(.-)%s*$")
-      if key then opts[key] = value else code[#code + 1] = line end
-    end
-    code = table.concat(code, "\n")
-    local starter, tests = code:match("^(.-)\n[ \t]*##[ \t]*[Tt][Ee][Ss][Tt][Ss][ \t]*##[ \t]*\n(.-)$")
-    if (tests or ""):match("%S") or not feedbackOn("py-exercise") then return nil end
-    starter = (starter or code):match("^%s*(.-)%s*$")
-    return {name = opts.label or snippet(opts.task or starter), kind = "py-exercise without tests", text = function(withNote)
-      local blocks = pandoc.Blocks({})
-      if starter ~= "" then blocks:insert(pandoc.CodeBlock(starter, pandoc.Attr("", {"python"}))) end
-      if withNote then blocks:insert(note(ctm.locale.tag("py-exercise", "lang"))) end
-      return pandoc.Div(blocks, pandoc.Attr("", {"py-exercise-text"}))
-    end}
-  end
-end
--- Records the exercise and returns what the page shows in its place (nil: dropped).
-local function withoutAIExercise(b, exercise)
-  if b.t == "Div" then policy.selection(b, b.attributes) end
-  table.insert(withoutAI.exercises, exercise)
-  local action = policy.withoutAIAction()
-  if action == "drop" then return nil end
-  return exercise.text(action == "text")
+  if decision.action == "drop" then return nil end
+  visible:insert(decision.note)
+  return pandoc.Div(visible, pandoc.Attr(block.identifier ~= "" and block.identifier or "ai-feedback-" .. counter, {"ai-feedback-task"}))
 end
 
 -- Quarto's data of a custom node of type `kind` (the table a filter callback
@@ -498,14 +380,9 @@ local function walk(blocks, state)
       b.content = walk(b.content, state)
       state.context = outer
     elseif b.t == "Div" and b.classes:includes("ai-feedback") then
-      if state.off then b = withoutAIExercise(b, aiOnly(b)) else b = activity(b, state.context) end
+      if state.off then b = task(b) else b = activity(b, state.context) end
     elseif b.t == "CodeBlock" then
-      if not state.off then
-        b.attributes["data-ai-feedback-context"] = bounded(state.context, explicitCell(b))
-      else
-        local exercise = aiOnly(b)
-        if exercise then b = withoutAIExercise(b, exercise) end
-      end
+      if not state.off then b.attributes["data-ai-feedback-context"] = bounded(state.context, explicitCell(b)) end
     elseif isContext(b) then
       if not state.off then b = preserveMath(b) end
       local outer = state.from
@@ -549,8 +426,9 @@ function M.prepare(doc)
   if doc.meta["ctm-feedback-prepared"] then return doc end
   doc.meta["ctm-feedback-prepared"] = true
   ctm.settings.load(doc.meta)
+  policy.checkOrder("ctm-libs' preparation")
   -- Checked in both builds, so that they fail alike.
-  local choice, origin = policy.withoutAI()
+  policy.withoutAIChoice()
   if not M.enabled() then
     ctm.settings.policies()
     doc.blocks = walk(doc.blocks, {context = {}, from = {}, off = true})
@@ -559,18 +437,10 @@ function M.prepare(doc)
     doc.blocks = doc.blocks:walk({Div = function(div)
       if div.classes:includes("feedback-criteria") or div.classes:includes("feedback-starter") then return {} end
     end})
-    local n = #withoutAI.exercises
-    if n > 0 and choice == nil then
-      withoutAI.stop = true
-      if not rawget(_G, "__ctmLibsEnd") then M.flush() end
-    elseif n > 0 then
-      local names = {}
-      for _, exercise in ipairs(withoutAI.exercises) do names[#names + 1] = exercise.name end
-      local setting = "without-ai: " .. choice .. (origin and (" in " .. origin) or "")
-        .. (choice == "self-check" and "; self-check comes in a later version" or "")
-      leaveOut(n .. (n == 1 and " exercise" or " exercises") .. " only AI feedback can assess, "
-        .. (choice == "drop" and "removed" or "shown as text") .. " (" .. setting .. "): " .. table.concat(names, ", "))
-    end
+    -- Activities that stop the build: the end filter raises the error after
+    -- every component; without it (component development builds,
+    -- filters: [ai-feedback]) it comes now.
+    if not rawget(_G, "__ctmLibsEnd") and policy.withoutAIStop() then M.flush() end
     if pyodideWanted then
       local cells = false
       doc.blocks:walk({CodeBlock = function(b)

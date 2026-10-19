@@ -1,123 +1,169 @@
 // A build without AI feedback (P22) and the exercises that only AI feedback
-// can assess: .ai-feedback activities, math-exercise in custom mode without a
-// checker, py-exercise without tests (where their feedback is on). Without
-// ai-feedback: without-ai the build stops with one error naming them all;
-// text shows each question without answer box or Check button, self-check is
-// text for now, drop removes them. Builds with AI feedback are unchanged.
-const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs');
+// can assess. ctm-libs finds its own .ai-feedback activities; a component
+// decides about its exercises with its own parser and asks ctm-libs
+// (ctm.policy.withoutAI; here the probe component). Without ai-feedback:
+// without-ai the build stops with one error per page naming them all; text
+// shows each question without answer box or Check button, with a note;
+// self-check is text for now; drop removes them. AI feedback builds are
+// unchanged.
+const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), path = require('node:path');
 const {JSDOM} = require('jsdom');
 const C = require('./helpers/ctm-libs.cjs');
 const skip = C.hasQuarto ? false : 'Quarto required';
 const OFF = {CTM_FEEDBACK: 'off'};
 const NOTE = 'This exercise has no automatic feedback in this version.';
-const ERROR = /AI feedback is off for this build \(CTM_FEEDBACK=off\), and (\S+) has (.*?) that only AI feedback can assess: (.*?)\. Choose what a build without AI feedback does with (?:it|them), under ai-feedback: in _quarto\.yml or in the page's front matter: without-ai: text shows the question without answer box and Check button; without-ai: self-check is the same for now \(self-check comes in a later version\); without-ai: drop removes the exercise from the page \(a last resort\)\./;
-const MESSAGE = /AI feedback is off for this build \(([^)]*)\); left out on this page: ([^\n]*)\./g;
+const END = '_extensions/ctm-libs/ctm-libs-end.lua';
+const ADVICE = 'Other pages may have such exercises too: the render stops at the first page that has one. One setting in _quarto.yml decides for every page (or put it in the profile that turns AI feedback off; a page\'s front matter decides for that page alone):\n\nai-feedback:\n  without-ai: text\n\ntext shows each question without answer box and Check button; self-check is the same as text for now (self-check comes in a later version); drop removes the exercises from their pages (a last resort).';
+const MESSAGE = /AI feedback is off for this build \(([^)]*)\); ([^\n]*)\./g;
 
-// Every kind, also in <details>, a tab and a collapsed callout; hidden and
-// statically checked exercises do not count.
+// Activities also in <details>, a tab and a collapsed callout; a hidden one
+// does not count. The components' blocks are theirs: ctm-libs leaves them.
 const page = (front = '') => '---\ntitle: t\n' + front + '---\n\n' + [
-  '## Writing', '',
+  '## Writing', '', 'See [the essay](#essay).', '',
   '::: {.ai-feedback #essay}', 'Write two sentences.', '', '::: {.feedback-criteria}', 'CRITERIA_MARKER_5520', ':::', ':::', '',
   '<details class="reading-step">', '<summary>Go deeper</summary>', '',
   '::: {.ai-feedback}', 'Explain the hint in your own words, please.', ':::', '', '</details>', '',
-  '::: {.panel-tabset}', '### Tab', '',
-  '```{math-exercise}', '#| label: sketch', '#| caption: Sketch', '#| mode: custom', 'Draw $y=x^2$ and give its value at 2: _[4]', '```', '', ':::', '',
+  '::: {.panel-tabset}', '### Tab', '', '::: {.ai-feedback #tabbed}', 'Compare the tabs.', ':::', '', ':::', '',
+  '```{math-exercise}', '#| label: sketch', '#| mode: custom', 'Draw: _[4]', '```', '',
   '```{py-exercise}', '#| label: free', '#| task: Print anything.', 'print("hello")', '```', '',
-  '```{py-exercise}', '#| label: tested', '#| task: Return two.', 'def two():', '    return 0', '## TESTS ##', 'assert two() == 2', '```', '',
-  '```{math-exercise}', '#| label: checked', '#| mode: custom', '#| checker: |', '#|   def check(response, symbols):', '#|       return True', 'Any: _[1]', '```', '',
   '::: {.callout-note collapse="true"}', '## Folded', '', '::: {.ai-feedback #folded}', 'Reflect.', ':::', ':::', '',
-  '::: {.hidden}', '::: {.ai-feedback #hidden-activity}', 'Hidden.', ':::', ':::', ''].join('\n');
-const NAMES = ['essay', '"Explain the hint in your own words,…"', 'sketch', 'free', 'folded'];
-const KINDS = ['essay (AI feedback activity)', '"Explain the hint in your own words,…" (AI feedback activity)',
-  'sketch (math-exercise in custom mode without a checker)', 'free (py-exercise without tests)', 'folded (AI feedback activity)'];
+  '::: {.hidden}', '::: {.ai-feedback #hidden-activity}', 'Hidden.', ':::', ':::', ''].join('\n')
+  // A component's exercise without a static check, asked for by the probe component.
+  + C.probe('component', 'local d = ctm.policy.withoutAI({component = "probe", kind = "probe exercise without a check", name = "probe-ex", text = "Probe.", lang = "en"})\n'
+    + 'return d and {action = d.action, note = d.note and pandoc.utils.stringify(d.note) or "none"} or "ai"');
+const NAMES = ['essay', '"Explain the hint in your own words,…"', 'tabbed', 'folded', 'probe-ex'];
+const KINDS = ['essay (AI feedback activity)', '"Explain the hint in your own words,…" (AI feedback activity)', 'tabbed (AI feedback activity)',
+  'folded (AI feedback activity)', 'probe-ex (probe exercise without a check)'];
 
-function withProject(files, run, {end = true} = {}) {
+function withProject(files, run, {filters = 'ctm-libs, probe, ' + END} = {}) {
   const dir = C.tempdir('ctm-without-ai-');
   try {
     C.installPackage(dir); C.install(dir); C.installProbe(dir);
-    C.write(dir, {'_quarto.yml': 'project:\n  type: default\n  render: [page.qmd]\nfilters: [ctm-libs, probe'
-      + (end ? ', _extensions/ctm-libs/ctm-libs-end.lua' : '') + ']\npy-exercise:\n  feedback: true\n', ...files});
+    C.write(dir, {'_quarto.yml': 'project:\n  type: default\nfilters: [' + filters + ']\n', ...files});
     return run(dir);
   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
 }
 const setting = value => 'ai-feedback:\n  without-ai: ' + value + '\n';
 const messages = stderr => [...stderr.matchAll(MESSAGE)].map(m => m[2]);
+const errorOf = stderr => {
+  const start = stderr.indexOf('AI feedback is off for this build');
+  const end = stderr.indexOf('(a last resort).', start);
+  return start >= 0 && end > start ? stderr.slice(start, end + '(a last resort).'.length) : stderr;
+};
 
-test('unset: the build stops with one error that names every such exercise of the page', {skip}, () => {
-  // With the end filter (the package) and without it (development builds): the same one error.
-  for (const end of [true, false]) withProject({'page.qmd': page()}, dir => {
+test('unset: one error per page names every such exercise, also the components\'; it says how to choose', {skip}, () => {
+  withProject({'page.qmd': page()}, dir => {
     const r = C.render(dir, ['page.qmd'], OFF);
-    assert.notEqual(r.status, 0, 'end filter: ' + end);
-    const found = r.stderr.match(ERROR);
-    assert.ok(found, r.stderr);
-    assert.equal(found[1], 'page.qmd');
-    assert.equal(found[2], '5 exercises');
-    assert.equal(found[3], KINDS.join(', '));
-    assert.equal(r.stderr.match(/only AI feedback can assess/g).length, 1, 'one error');
-    assert.doesNotMatch(r.stderr, /left out on this page/);
-  }, {end});
+    assert.notEqual(r.status, 0);
+    assert.equal(errorOf(r.stderr), 'AI feedback is off for this build (CTM_FEEDBACK=off), and page.qmd has 5 exercises that only AI feedback can assess: '
+      + KINDS.join('; ') + '.\n' + ADVICE);
+    assert.equal(r.stderr.match(/that only AI feedback can assess/g).length, 1, 'one error');
+    assert.doesNotMatch(r.stderr, /left out on this page|shown as text/);
+  });
+  // Without the end filter (component development builds, filters: [ai-feedback]) the stop comes at once.
+  withProject({'page.qmd': page()}, dir => {
+    const r = C.render(dir, ['page.qmd'], OFF);
+    assert.notEqual(r.status, 0);
+    assert.match(errorOf(r.stderr), /^AI feedback is off for this build \(CTM_FEEDBACK=off\), and page\.qmd has 4 exercises that only AI feedback can assess: essay \(AI feedback activity\); "Explain the hint in your own words,…" \(AI feedback activity\); tabbed \(AI feedback activity\); folded \(AI feedback activity\)\.\n/);
+  }, {filters: 'ctm-libs, probe'});
 });
 
 test('text: the questions stay, without answer box or Check button, with a note; one build message', {skip}, () => withProject({
-  '_quarto.yml': 'project:\n  type: default\n  render: [page.qmd]\nfilters: [ctm-libs, probe, _extensions/ctm-libs/ctm-libs-end.lua]\npy-exercise:\n  feedback: true\n' + setting('text'),
-  'page.qmd': page(),
+  'page.qmd': page(setting('text') + 'py-exercise:\n  feedback: true\n'),
 }, dir => {
   const r = C.render(dir, ['page.qmd'], OFF);
   assert.equal(r.status, 0, r.stderr);
-  assert.deepEqual(messages(r.stderr), ['5 exercises only AI feedback can assess, shown as text (without-ai: text in _quarto.yml): ' + NAMES.join(', ')]);
+  assert.deepEqual(messages(r.stderr), ['shown as text, without automatic feedback (without-ai: text in page.qmd): ' + NAMES.join('; ')]);
   const html = C.html(dir, 'page.qmd');
   assert.doesNotMatch(html, /CRITERIA_MARKER_5520|class="ai-feedback-data"|<textarea/);
   const doc = new JSDOM(html).window.document;
   const tasks = [...doc.querySelectorAll('.ai-feedback-task')];
-  assert.deepEqual(tasks.map(t => t.id), ['essay', 'ai-feedback-2', 'folded']);
-  for (const task of tasks) assert.equal(task.querySelector('.ctm-without-ai').textContent.trim(), NOTE);
+  assert.deepEqual(tasks.map(t => t.id), ['essay', 'ai-feedback-2', 'tabbed', 'folded']);
+  for (const task of tasks) {
+    const note = task.querySelector('.ctm-without-ai');
+    assert.equal(note.textContent.trim(), NOTE);
+    assert.equal(note.getAttribute('lang'), null, 'the page is in English');
+  }
   assert.match(doc.querySelector('#essay').textContent, /Write two sentences\./);
   assert.ok(doc.querySelector('details .ai-feedback-task'), 'the activity in <details> stays there');
-  const math = doc.querySelector('.math-exercise-text');
-  assert.match(math.textContent, /Sketch/);
-  assert.match(math.textContent, /give its value at 2: …/);
-  assert.equal(math.querySelector('.ctm-without-ai').textContent.trim(), NOTE);
-  assert.ok(doc.querySelector('.tab-content .math-exercise-text'), 'in its tab');
-  const py = doc.querySelector('.py-exercise-text');
-  assert.equal(py.querySelector('code').textContent, 'print("hello")');
-  assert.equal(py.querySelector('.ctm-without-ai').textContent.trim(), NOTE);
-  // Statically checked exercises stay for their component; hidden blocks are untouched.
-  assert.match(html, /return 0/);
-  assert.match(html, /def check\(response, symbols\)/);
-  assert.equal(doc.querySelectorAll('.ctm-without-ai').length, 5);
+  assert.ok(doc.querySelector('.tab-content #tabbed'), 'in its tab');
+  assert.deepEqual(C.probes(html).component, {action: 'text', note: NOTE});
+  // The components' blocks are left to the components (none here); hidden blocks are untouched.
+  assert.match(html, /#\| mode: custom/);
+  assert.match(html, /print\(&quot;hello&quot;\)|print\("hello"\)/);
+  assert.ok(doc.querySelector('#hidden-activity.ai-feedback'));
 }));
 
-test('self-check is text for now; drop removes the exercises; the page overrides the project', {skip}, () => withProject({
-  '_quarto.yml': 'project:\n  type: default\n  render: [page.qmd, drop.qmd]\nfilters: [ctm-libs, probe, _extensions/ctm-libs/ctm-libs-end.lua]\npy-exercise:\n  feedback: true\n' + setting('self-check'),
+test('self-check is text for now; drop removes the exercises and warns about links; a page overrides the project', {skip}, () => withProject({
+  '_quarto.yml': 'project:\n  type: default\n  render: [page.qmd, drop.qmd]\nfilters: [ctm-libs, probe, ' + END + ']\n' + setting('self-check'),
   'page.qmd': page(),
   'drop.qmd': page(setting('drop')),
 }, dir => {
   const r = C.render(dir, [], OFF);
   assert.equal(r.status, 0, r.stderr);
   assert.deepEqual(messages(r.stderr).sort(), [
-    '5 exercises only AI feedback can assess, removed (without-ai: drop in drop.qmd): ' + NAMES.join(', '),
-    '5 exercises only AI feedback can assess, shown as text (without-ai: self-check in _quarto.yml; self-check comes in a later version): ' + NAMES.join(', '),
+    'removed from this page (without-ai: drop in drop.qmd): ' + NAMES.join('; ') + '. Links and cross-references to them no longer resolve',
+    'shown as text, without automatic feedback (without-ai: self-check in _quarto.yml; self-check comes in a later version): ' + NAMES.join('; '),
   ]);
   const text = new JSDOM(C.html(dir, 'page.qmd')).window.document;
-  assert.equal(text.querySelectorAll('.ctm-without-ai').length, 5);
+  assert.equal(text.querySelectorAll('.ctm-without-ai').length, 4);
+  assert.deepEqual(C.probes(C.html(dir, 'page.qmd')).component, {action: 'text', note: NOTE});
   const dropped = C.html(dir, 'drop.qmd');
-  assert.doesNotMatch(dropped, /Write two sentences|Explain the hint|give its value|print\(&quot;hello&quot;\)|print\("hello"\)|Reflect\.|ctm-without-ai|ai-feedback-task/);
+  assert.doesNotMatch(dropped, /Write two sentences|Explain the hint|Compare the tabs|Reflect\.|ctm-without-ai|ai-feedback-task/);
+  assert.deepEqual(C.probes(dropped).component, {action: 'drop', note: 'none'});
+  assert.match(dropped, /href="#essay"/, 'links are left as they are');
   assert.match(dropped, /Go deeper/, 'the <details> block itself stays');
-  assert.match(dropped, /return 0/, 'checked exercises stay');
 }));
 
-test('the language of the note follows the page; unset component feedback counts no component exercise', {skip}, () => withProject({
-  '_quarto.yml': 'project:\n  type: default\n  render: [page.qmd]\nfilters: [ctm-libs, probe, _extensions/ctm-libs/ctm-libs-end.lua]\n' + setting('text'),
-  'page.qmd': page('lang: nb\nmath-exercise:\n  feedback: false\n'),
+test('the note speaks the exercise\'s language, marked where the page\'s differs', {skip}, () => withProject({
+  'page.qmd': '---\ntitle: t\nlang: nb\n' + setting('text') + '---\n\n::: {.ai-feedback #own}\nSkriv.\n:::\n\n'
+    + '::: {.ai-feedback #german ui-language="de"}\nSchreib.\n:::\n\n::: {.ai-feedback #spanish ui-language="es"}\nEscribe.\n:::\n',
 }, dir => {
   const r = C.render(dir, ['page.qmd'], OFF);
   assert.equal(r.status, 0, r.stderr);
-  // py-exercise: feedback is not set and math-exercise: feedback is false: only the activities count.
-  assert.deepEqual(messages(r.stderr), ['3 exercises only AI feedback can assess, shown as text (without-ai: text in _quarto.yml): essay, "Explain the hint in your own words,…", folded']);
   const doc = new JSDOM(C.html(dir, 'page.qmd')).window.document;
-  assert.deepEqual([...doc.querySelectorAll('.ctm-without-ai')].map(n => n.textContent.trim()),
-    Array(3).fill('Denne oppgaven har ingen automatisk tilbakemelding i denne versjonen.'));
+  const note = id => doc.querySelector('#' + id + ' .ctm-without-ai');
+  assert.equal(note('own').textContent.trim(), 'Denne oppgaven har ingen automatisk tilbakemelding i denne versjonen.');
+  assert.equal(note('own').getAttribute('lang'), null);
+  assert.equal(note('german').textContent.trim(), 'Diese Aufgabe hat in dieser Version keine automatische Rückmeldung.');
+  assert.equal(note('german').getAttribute('lang'), 'de');
+  assert.equal(note('spanish').textContent.trim(), NOTE, 'no Spanish text: English');
+  assert.equal(note('spanish').getAttribute('lang'), 'en');
 }));
+
+test('a project stops at its first page with such exercises; the error names an including page as such', {skip}, () => withProject({
+  '_quarto.yml': 'project:\n  type: default\n  render: [a.qmd, b.qmd]\nfilters: [ctm-libs, probe, ' + END + ']\n',
+  'a.qmd': '---\ntitle: a\n---\n\nIntro.\n\n{{< include _part.qmd >}}\n',
+  '_part.qmd': '::: {.ai-feedback #included-essay}\nIncluded.\n:::\n',
+  'b.qmd': '---\ntitle: b\n---\n\n::: {.ai-feedback #b-essay}\nSecond page.\n:::\n',
+}, dir => {
+  const r = C.render(dir, [], OFF);
+  assert.notEqual(r.status, 0);
+  const error = errorOf(r.stderr);
+  assert.ok(error.startsWith('AI feedback is off for this build (CTM_FEEDBACK=off), and a.qmd (or a file it includes) has an exercise that only AI feedback can assess: included-essay (AI feedback activity).\n' + ADVICE), error);
+  assert.doesNotMatch(r.stderr, /b-essay/, 'the render stops at the first page');
+  // The setting in _quarto.yml decides for every page.
+  fs.appendFileSync(path.join(dir, '_quarto.yml'), setting('text'));
+  const ok = C.render(dir, [], OFF);
+  assert.equal(ok.status, 0, ok.stderr);
+  assert.deepEqual(messages(ok.stderr).sort(), ['shown as text, without automatic feedback (without-ai: text in _quarto.yml): b-essay',
+    'shown as text, without automatic feedback (without-ai: text in _quarto.yml): included-essay']);
+}));
+
+test('the end filter listed before a CTM filter stops the render, naming the order', {skip}, () => {
+  withProject({'page.qmd': page(setting('text'))}, dir => {
+    for (const env of [OFF, {}]) {
+      const r = C.render(dir, ['page.qmd'], env);
+      assert.notEqual(r.status, 0);
+      assert.match(r.stderr, /ctm-libs-end\.lua ran before ctm-libs' preparation on this page\. List it last, after every CTM filter, as the package does \(filters: \[ctm-assessment\] runs ctm-libs, jsxgraph, math-exercise, py-exercise, pyodide-interaktiv, then ctm-libs-end\.lua\)\./);
+    }
+  }, {filters: END + ', ctm-libs, probe'});
+  withProject({'page.qmd': page(setting('text'))}, dir => {
+    const r = C.render(dir, ['page.qmd'], OFF);
+    assert.notEqual(r.status, 0);
+    assert.match(r.stderr, /ctm-libs-end\.lua ran before probe on this page\. List it last/);
+  }, {filters: 'ctm-libs, ' + END + ', probe'});
+});
 
 test('an unknown value stops both builds, naming the allowed values; AI feedback builds are unchanged', {skip}, () => withProject({
   'page.qmd': page(setting('hide')),
@@ -127,12 +173,12 @@ test('an unknown value stops both builds, naming the allowed values; AI feedback
     assert.notEqual(r.status, 0);
     assert.match(r.stderr, /ai-feedback: without-ai must be text, self-check or drop \(found hide in page\.qmd\)/);
   }
-  fs.writeFileSync(require('node:path').join(dir, 'page.qmd'), page());
+  fs.writeFileSync(path.join(dir, 'page.qmd'), page());
   const r = C.render(dir, ['page.qmd']);
   assert.equal(r.status, 0, r.stderr);
   assert.doesNotMatch(r.stderr, /only AI feedback can assess|AI feedback is off/);
   const html = C.html(dir, 'page.qmd');
-  assert.equal(new JSDOM(html).window.document.querySelectorAll('.ai-feedback-activity').length, 3);
+  assert.equal(new JSDOM(html).window.document.querySelectorAll('.ai-feedback-activity').length, 4);
   assert.doesNotMatch(html, /ctm-without-ai|ai-feedback-task/);
-  assert.match(html, /mode: custom/, 'the component blocks are left to the components');
+  assert.equal(C.probes(html).component, 'ai');
 }));

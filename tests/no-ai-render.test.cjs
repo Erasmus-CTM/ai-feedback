@@ -6,7 +6,7 @@ const test = require('node:test'), assert = require('node:assert/strict'), fs = 
 const C = require('./helpers/ctm-libs.cjs');
 const skip = C.hasQuarto ? false : 'Quarto required';
 const MARKERS = /CRITERIA_MARKER_4412|STARTER_MARKER_9183|POLICY_MARKER_7731/;
-const MESSAGE = /AI feedback is off for this build \(([^)]*\)?)\); left out on this page: ([^\n]*)\./g;
+const MESSAGE = /AI feedback is off for this build \(([^)]*\)?)\); ([^\n]*)\./g;
 
 const activity = [
   '## Spanish', '', 'Context prose with $x^2$.', '',
@@ -70,8 +70,13 @@ function checkOff(dir, reason) {
   assert.deepEqual(p.selection, [{exercise: 'ex1', name: ''}, {mode: 'none', refs: '', text: ''}]);
   for (const page of ['pyodide.qmd', 'pyodide-asks.qmd']) assert.deepEqual(C.probes(C.html(dir, page)).pyodide, [false], page);
 }
+// Each page's message: its exercises shown as text (shown), and what it asked
+// for but did not get (items).
 function messages(stderr) {
-  return [...stderr.matchAll(MESSAGE)].map(m => ({reason: m[1], items: m[2]}));
+  return [...stderr.matchAll(MESSAGE)].map(([, reason, tail]) => {
+    const left = /(?:^|\. )[Ll]eft out on this page: (.*)$/.exec(tail);
+    return {reason, shown: left ? tail.slice(0, left.index) : tail, items: left ? left[1] : ''};
+  });
 }
 
 test('a profile with ai-feedback: enabled: false builds the site without AI feedback', {skip}, () => withProject(dir => {
@@ -81,10 +86,11 @@ test('a profile with ai-feedback: enabled: false builds the site without AI feed
   const found = messages(r.stderr);
   assert.deepEqual(found.map(m => m.reason), Array(3).fill('ai-feedback: enabled: false (_quarto-no-ai.yml)'));
   assert.deepEqual(found.map(m => m.items).sort(), [
-    '1 exercise only AI feedback can assess, shown as text (without-ai: text in _quarto.yml): essay, math-exercise feedback (feedback: auto)',
     'ai-feedback: enabled: true (asks.qmd)',
+    'math-exercise feedback (feedback: auto)',
     'pyodide-interaktiv feedback',
   ]);
+  assert.deepEqual(found.map(m => m.shown).filter(Boolean), ['shown as text, without automatic feedback (without-ai: text in _quarto.yml): essay']);
 }));
 
 test('CTM_FEEDBACK=off does the same without any metadata, with the same build messages', {skip}, () => withProject(dir => {
@@ -94,10 +100,11 @@ test('CTM_FEEDBACK=off does the same without any metadata, with the same build m
   const found = messages(r.stderr);
   assert.deepEqual(found.map(m => m.reason), Array(3).fill('CTM_FEEDBACK=off'));
   assert.deepEqual(found.map(m => m.items).sort(), [
-    '1 exercise only AI feedback can assess, shown as text (without-ai: text in _quarto.yml): essay, math-exercise feedback (feedback: auto)',
     'ai-feedback: enabled: true (asks.qmd)',
+    'math-exercise feedback (feedback: auto)',
     'pyodide-interaktiv feedback',
   ]);
+  assert.deepEqual(found.map(m => m.shown).filter(Boolean), ['shown as text, without automatic feedback (without-ai: text in _quarto.yml): essay']);
 }));
 
 // pyodide-interaktiv's own default (feedback on unless pyodide: feedback:
@@ -135,7 +142,8 @@ for (const [label, args, env, reason] of [['--profile no-ai', ['--profile', 'no-
     assert.equal(r.status, 0, r.stderr);
     const found = messages(r.stderr);
     assert.deepEqual(found.map(m => m.reason), [reason, reason]);
-    assert.deepEqual(found.map(m => m.items).sort(), ['1 exercise only AI feedback can assess, shown as text (without-ai: text in _quarto.yml): "Explain."', 'ai-feedback: enabled: true (own.qmd)']);
+    assert.deepEqual(found.map(m => m.items).sort(), ['', 'ai-feedback: enabled: true (own.qmd)']);
+    assert.deepEqual(found.map(m => m.shown).filter(Boolean), ['shown as text, without automatic feedback (without-ai: text in _quarto.yml): "Explain."']);
     assert.doesNotMatch(r.stderr, /enabled: true \((_quarto\.yml|sub\/_metadata\.yml|document metadata)\)/);
   }));
 }
