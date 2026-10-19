@@ -7,8 +7,8 @@
 //
 //   node tests/browser/ui.mjs [chromium] [firefox] [webkit]   (default: chromium)
 //
-// Needs Quarto and Playwright (.github/workflows/browser.yml); CHROMIUM_PATH
-// selects a local Chromium.
+// Needs Quarto, Playwright and coi-serviceworker (.github/workflows/browser.yml);
+// CHROMIUM_PATH selects a local Chromium.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import http from 'node:http';
@@ -25,7 +25,7 @@ const browsers = process.argv.slice(2).length ? process.argv.slice(2) : ['chromi
 // --- the site ---------------------------------------------------------------
 const filler = n => Array.from({length: n}, (_, i) => `Avsnitt ${i + 1} med litt tekst, slik at siden blir lang nok til å rulle.`).join('\n\n');
 const SITE = {
-  '_quarto.yml': 'project:\n  type: website\nwebsite:\n  title: UI\n  navbar:\n    left: [index.qmd, other.qmd, group.qmd, plain.qmd, slow.qmd, dark.qmd]\n'
+  '_quarto.yml': 'project:\n  type: website\n  resources: [coi-serviceworker.js]\nwebsite:\n  title: UI\n  navbar:\n    left: [index.qmd, other.qmd, group.qmd, plain.qmd, slow.qmd, dark.qmd]\n'
     + 'format:\n  html:\n    theme: cosmo\nfilters: [ctm-libs]\nlang: nb\n',
   'index.qmd': `---
 title: Faner og lenker
@@ -229,6 +229,71 @@ Målet i R.
 Python igjen.
 :::
 `,
+  // A page with coi-serviceworker (the courses' Python pages load
+  // pyodide-interaktiv's variant of it): a first visit registers the service
+  // worker and reloads, to become cross-origin isolated where the host sends
+  // no COOP/COEP headers (GitHub Pages, and serve() below). Here the reload
+  // waits until the page has handled its link and kept its position, as on
+  // a quick page with a slow worker. Late layout above the target, as
+  // editors make it, on every load. A theme without web fonts: no request
+  // leaves the server, also none through the worker (whose requests
+  // page.route() does not see).
+  'coi.qmd': `---
+title: Isolert
+format:
+  html:
+    theme: default
+include-in-header:
+  - text: |
+      <script>
+      window.coi = {doReload: function () {
+        var start = Date.now();
+        (function reload() {
+          if ((history.state && history.state.__quartoTabPosition) || Date.now() - start > 5000) location.reload();
+          else setTimeout(reload, 50);
+        })();
+      }};
+      </script>
+      <script src="coi-serviceworker.js"></script>
+---
+
+${filler(4)}
+
+\`\`\`{=html}
+<div id="coi-grow" style="height: 10px"></div>
+<script>
+addEventListener('pageshow', () => setTimeout(() => {
+  let steps = 0;
+  const timer = setInterval(() => {
+    document.getElementById('coi-grow').style.height = (10 + 100 * ++steps) + 'px';
+    if (steps === 7) clearInterval(timer);
+  }, 150);
+}, 120));
+</script>
+\`\`\`
+
+${filler(4)}
+
+::: {.panel-tabset}
+
+## Oppgave
+
+Oppgaveteksten.
+
+## Løsning
+
+${filler(3)}
+
+### Målet {#coi-target}
+
+Her lander lenken.
+
+${filler(3)}
+
+:::
+
+${filler(12)}
+`,
   'plain.qmd': `---
 title: Uten faner
 ---
@@ -251,6 +316,9 @@ function build() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ctm-ui-browser-'));
   fs.cpSync(path.join(ROOT, '_extensions', 'ctm-libs'), path.join(dir, '_extensions', 'ctm-libs'), {recursive: true});
   for (const [name, text] of Object.entries(SITE)) fs.writeFileSync(path.join(dir, name), text);
+  const coi = path.join(ROOT, 'node_modules', 'coi-serviceworker', 'coi-serviceworker.js');
+  if (!fs.existsSync(coi)) throw new Error('needs coi-serviceworker: npm install --no-save coi-serviceworker@0.1.7');
+  fs.copyFileSync(coi, path.join(dir, 'coi-serviceworker.js'));
   // A 1x1 PNG.
   fs.writeFileSync(path.join(dir, 'slow.png'), Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64'));
   const result = spawnSync(QUARTO, ['render'], {cwd: dir, encoding: 'utf8', timeout: 300000});
@@ -337,6 +405,8 @@ async function open(page, url) {
 const TRACE = `(() => {
   const t0 = performance.now(), trace = window.__trace = [];
   const log = text => { if (trace.length < 80) trace.push(Math.round(performance.now() - t0) + ' ' + text); };
+  // Whether the document started with a position saved in its history entry.
+  window.__startPosition = !!(history.state && history.state.__quartoTabPosition);
   document.addEventListener('DOMContentLoaded', () => log('domcontentloaded'), true);
   for (const type of ['load', 'pageshow', 'popstate', 'hashchange']) window.addEventListener(type, event => log(type + (type === 'pageshow' ? '(' + event.persisted + ')' : '') + ' ' + location.hash), true);
   let scrolls = 0;
@@ -626,6 +696,83 @@ async function slowLoads(browser, base, name) {
   await done(session, name);
 }
 
+// A deep link on a learner's first visit to a page with coi-serviceworker,
+// served without COOP/COEP headers: the worker's reload is still the visit's
+// link (its target opened, focused and kept in place below the header), not
+// a history restore of the position the first load saved. (Chromium starts
+// the isolated page without that position: COOP switches its browsing
+// context group.) So is the learner's own reload before moving; after the
+// learner has scrolled, a reload restores the position.
+async function firstVisit(browser, base, name) {
+  const session = await newPage(browser, base), {page} = session;
+  const loads = [];
+  page.on('load', () => { if (/\/coi(\.html)?#/.test(page.url())) loads.push(Date.now()); });
+  // Until the page has stopped reloading (no load for `quiet` ms, 20 s at
+  // most), its target is handled (`how`) and the layout above has grown.
+  const shown = async (how, quiet) => {
+    const end = Date.now() + 20000;
+    while (Date.now() < end && !(loads.length > 0 && Date.now() - loads[loads.length - 1] >= quiet)) await page.waitForTimeout(100);
+    if (how) await handled(page, 'coi-target', how);
+    await page.waitForFunction(() => document.getElementById('coi-grow').offsetHeight === 710, null, {timeout: 5000}).catch(() => {});
+    await settle(page);
+  };
+  const facts = () => page.evaluate(() => ({
+    type: performance.getEntriesByType('navigation')[0].type,
+    controlled: !!(navigator.serviceWorker && navigator.serviceWorker.controller),
+    isolated: window.crossOriginIsolated,
+    startPosition: window.__startPosition,
+  }));
+  const linked = (s, label) => {
+    assert.equal(s.mark, 'load', label);
+    assert.deepEqual(s.panes, [true], label);
+    assert.equal(s.focus, 'H3', label);
+    assert.ok(s.focusInView, label);
+    assert.ok(s.top >= s.headerBottom && s.top < s.headerBottom + 60, label);
+  };
+
+  await page.goto('about:blank');
+  await page.goto(base + 'coi.html#coi-target');
+  await shown('load', 3000);
+  const first = await facts();
+  let s = await state(page, 'coi-target');
+  let label = name + ' first visit ' + JSON.stringify({loads: loads.length, ...first, ...s});
+  // Where the browser runs the worker, it reloaded the first visit.
+  if (first.controlled) {
+    assert.ok(loads.length >= 2, label);
+    assert.equal(first.type, 'reload', label);
+  }
+  linked(s, label);
+  const report = name + ' firstVisit: ' + loads.length + ' loads, ' + (first.controlled ? 'the service worker controls the page' : 'no service worker')
+    + ' (crossOriginIsolated ' + first.isolated + '); the last load started ' + (first.startPosition ? 'with' : 'without') + ' a saved position';
+  console.log('#', report);
+  if (process.env.GITHUB_ACTIONS) console.log('::notice title=UI check ' + name + ' firstVisit::' + report);
+
+  // The learner's own reload before moving: the link again.
+  await page.reload();
+  await shown('load', 1000);
+  const again = await facts();
+  s = await state(page, 'coi-target');
+  label = name + ' reload ' + JSON.stringify({...again, ...s});
+  assert.equal(again.startPosition, true, label);
+  linked(s, label);
+
+  // After scrolling: the position.
+  await page.mouse.move(640, 400);
+  await page.mouse.wheel(0, 300);
+  await page.waitForTimeout(500);
+  await page.reload();
+  await shown(null, 1000);
+  s = await state(page, 'coi-target');
+  label = name + ' reload after scrolling ' + JSON.stringify(s);
+  assert.equal(s.mark, null, label);
+  assert.equal(s.focus, 'BODY', label);
+  assert.deepEqual(s.panes, [true], label);
+
+  // coi-serviceworker's own report where a browser can't register it.
+  session.errors.splice(0, Infinity, ...session.errors.filter(error => !/^COOP\/COEP Service Worker/.test(error)));
+  await done(session, name);
+}
+
 // Colours: the courses' light boxes stay as they were; under a dark-only
 // theme every text in reveals and the switch stays readable (WCAG AA).
 async function colours(browser, base, name) {
@@ -697,7 +844,7 @@ try {
     const browser = await playwright[name].launch(options);
     try {
       // Each check on its own, so that one run reports every failure.
-      for (const check of [loads, inPage, otherPage, withoutTabs, pinned, slowLoads, groups, reveals, colours]) {
+      for (const check of [loads, inPage, otherPage, withoutTabs, pinned, slowLoads, firstVisit, groups, reveals, colours]) {
         try {
           await check(browser, base, name);
           console.log('ok', name, check.name);
