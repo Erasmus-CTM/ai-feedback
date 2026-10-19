@@ -19,6 +19,8 @@ return function(ctm)
     ["math-exercise"] = {namespace = "math-exercise", section = "math-exercise", key = "lang"},
     ["py-exercise"] = {namespace = "py-exercise", section = "py-exercise", key = "lang"},
     ["ai-feedback"] = {namespace = "feedback", section = "ai-feedback", key = "ui-language"},
+    -- Reveals' titles and the lecture/reading switch (lua/ui.lua).
+    ui = {namespace = "ui", section = "ctm-assessment", key = "lang"},
   }
 
   local function catalogue(namespace)

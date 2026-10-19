@@ -5,10 +5,11 @@ directly: they install CTM Assessment, which bundles it.
 
 - [Loading ctm-libs from a component](#loading-ctm-libs-from-a-component)
 - [Lua: ctm.settings](#ctmsettings) · [ctm.locale](#ctmlocale) ·
-  [ctm.feedback](#ctmfeedback) · [ctm.runtime](#ctmruntime) · [ctm.deps](#ctmdeps)
+  [ctm.feedback](#ctmfeedback) · [ctm.runtime](#ctmruntime) · [ctm.deps](#ctmdeps) ·
+  [ctm.ui](#ctmui) · [ctm.sections](#ctmsections) · [ctm.source](#ctmsource)
 - [Browser: dependencies and globals](#browser-dependencies-and-globals) ·
   [CTMLocales](#ctmlocales) · [MathExerciseRuntime](#mathexerciseruntime) ·
-  [AIFeedback](#aifeedback-api-v1)
+  [CTMNav and CTMReveal](#ctmnav-and-ctmreveal) · [AIFeedback](#aifeedback-api-v1)
 
 ## Loading ctm-libs from a component
 
@@ -38,12 +39,16 @@ Every filter of a page gets the same instance (`_G.__ctmLibs`); a page that
 would combine two installations of different versions stops. The instance
 has `ctm.dir`, `ctm.version`, `ctm.api`, `ctm.path(...)` (absolute path of a
 file of the installation) and `ctm.filters()` (the passes of the
-`ctm-libs` filter: Meta, Callout, Pandoc). Modules load on first use.
+`ctm-libs` filter: Meta, Callout, the page's interface (`ctm.ui`, two
+passes), then AI feedback's preparation) and `ctm.fail(message)` (stops the
+render with a message for authors: Quarto's `error` only logs, and `assert`
+on a string puts the Lua file and line in front of it). Modules load on
+first use.
 
 Rules inside ctm-libs: paths only from its own installation (never
 `quarto.utils.resolve_path` or relative dependency paths, which resolve
 against the running component); HTML only (neutral values for other
-formats); authoring errors stop the render with `assert(false, message)`.
+formats); authoring errors stop the render with `ctm.fail(message)`.
 
 ### ctm.settings
 
@@ -186,6 +191,57 @@ ctm.deps.requireUsed(doc, "math-exercise") -- stops with the install command whe
 ctm.deps.html{name = ..., scripts = {"locales/common.js"}}  -- add_html_dependency with files of ctm-libs
 ```
 
+### ctm.ui
+
+The page's interface ([reference](reference.md#the-pages-interface-reveals-the-switch-embedded-pages-links-into-tabs)):
+reveals, the lecture/reading switch, embedded pages, the tab links'
+dependencies and `markdown-lint`.
+
+```lua
+ctm.ui.passes()   -- {{Div, Proof, Tabset}, {Pandoc}}: what ctm.filters() runs before ctm.feedback.prepare
+```
+
+A component that runs after ctm-libs (the package's order) meets a reveal as
+`RawBlock <details class="ctm-reveal <kind>">`, `RawBlock <summary>`, the
+title (`Plain`), `RawBlock </summary>`, `Div.ctm-reveal-body` with the
+content, `RawBlock </details>`. Its own `<details>` keep the courses'
+generic `details > summary` look; `ctm-ui.css` styles `details.ctm-reveal`
+only.
+
+### ctm.sections
+
+The structure AI feedback's context follows: a section is a heading or a
+tab; closed material (a `<details>`, raw or a reveal, a collapsed callout)
+is a scope whose content belongs to it.
+
+```lua
+ctm.sections.walk(blocks, hooks, state)   -- the blocks, in source order, as the hooks changed them
+ctm.sections.tabset(b)                    -- a Tabset's data ({tabs, attr}) or nil (warns once if unreadable)
+ctm.sections.custom(b, "Callout")         -- Quarto's data of a custom node: nil, or false when unreadable
+ctm.sections.detailsTags(b)               -- the <details> tags of a raw HTML block, true for an opening one
+ctm.sections.collapsed(b)                 -- a collapsed callout
+```
+
+The hooks (all optional): `skip(b, tabset)` passes a block through;
+`header(b, state)`; `open(state) -> token` and `close(state, token)` around
+a scope (a `<details>`, a collapsed callout, a tabset; a `<details>` left
+open ends with its list); `tab(tab, state)`; `block(b, state, walk) -> true,
+replacement` takes a block over (`walk(blocks)` goes on inside it); `term(inlines,
+state)` for a definition list's term; `leaf(b, state) -> b` for any other
+block.
+
+### ctm.source
+
+The page's Markdown, for messages that name a file and line (Quarto does not
+say where a block came from).
+
+```lua
+ctm.source.pageName()          -- "pages/x.qmd", with " (or a file it includes)" when it includes files
+ctm.source.files()             -- the page and its {{< include >}} files: {{path, label, lines}}
+ctm.source.scan(visit)         -- visit(text, file, line, raw) outside code, inline code, comments, front matter
+ctm.source.fences("details")   -- {{where = "file:line", attributes = "{...}"}} of the fenced divs with that class
+```
+
 ## Browser: dependencies and globals
 
 | Dependency (stable name) | Files (head) | Registered by | Global |
@@ -194,6 +250,9 @@ ctm.deps.html{name = ..., scripts = {"locales/common.js"}}  -- add_html_dependen
 | `ctm-locale-<namespace>` | `locales/<namespace>.js` | `ctm.locale.use(namespace)` | (adds the catalogue) |
 | `ctm-runtime` | `runtime/pyodide-runtime.js` | `ctm.runtime.use()` | `MathExerciseRuntime` |
 | `ai-feedback` | `feedback/feedback-core.js`, `feedback-dom.js`, `ai-feedback.js`, `ai-feedback.css` | `ctm.feedback.prepare` (when on) | `AIFeedback` |
+| `ctm-ui` | `ui/ctm-ui.css` | `ctm.ui` (reveals, the switch, embedded pages, tab links) | |
+| `ctm-reveal` | `ui/ctm-reveal.js` | `ctm.ui` (pages with reveals) | `CTMReveal` |
+| `ctm-nav` | `ui/ctm-nav.js` | `ctm.ui` (pages with a tabset or a reveal, unless `tab-links: false`) | `CTMNav` |
 
 All carry ctm-libs' version. Quarto keeps one dependency per name, so each
 file loads once per page whatever the mix of components, as a cacheable file
@@ -225,6 +284,22 @@ worker when that is on the page): `indexURL`, `loadTimeout`, `loadScript`,
 `ensurePyodide`, `installModule`, `forgetModules`, `ensureGuard`, `canStop`,
 `stop`, `stopCount`, `whenSlow`. A copy with this interface replaces an older
 one that loaded first.
+
+### CTMNav and CTMReveal
+
+```js
+await CTMNav.reveal(element)   // opens its tabs and <details>, scrolls it below the header, focuses it
+CTMReveal.mode()               // 'lecture' or 'reading'
+CTMReveal.select('reading')    // as the switch's button does
+CTMReveal.course()             // the course's root path ("/ingmat3a_ntnu/"), from <meta name="quarto:offset">
+```
+
+Each history entry keeps its scroll position and open tabs in
+`history.state.__quartoTabPosition` (the courses' former `tab-links.html`
+used the same key). A target the script handled carries `data-ctm-nav`
+(`load`, `link`, `hash`, `history` or `api`). `ctm-ui.css` sets its colours
+as custom properties (`--ctm-reveal-*`, `--ctm-modes-*`, `--ctm-embed-border`)
+on `:root`, and again under `.quarto-dark`.
 
 ## AIFeedback (API v1)
 

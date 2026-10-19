@@ -11,7 +11,7 @@ CTM settings live in four sections of the Quarto metadata:
 
 | Section | Keys |
 |---|---|
-| `ctm-assessment` | `stop-after` (seconds before a running check offers Stop, default 20), `lang` (the language of every component) |
+| `ctm-assessment` | `stop-after` (seconds before a running check offers Stop, default 20), `lang` (the language of every component), `tab-links` (links into tabs and reveals, default true), `modes` (the lecture/reading switch on pages with reading steps, default true), `markdown-lint` (warn about raw HTML that has a Markdown form, default false) |
 | `ai-feedback` | `mode` (`copy`, `api`), `storage` (`local`, `session`), `base-url`, `model`, `ui-language`, `feedback-language`, `enabled`, `policy-files`, `policy` |
 | `math-exercise` | `lang`, `feedback` (`auto`, `true`, `false`), `stop-after` |
 | `py-exercise` | `lang`, `feedback`, `stop-after`, `forbidden-imports`, `forbidden-keywords`, `submission`, `submission-key`, `show-test-hints` |
@@ -45,6 +45,9 @@ Checks at render time:
   (`quarto render page.qmd`); full project renders do not.
 - Unknown `ai-feedback` and `ctm-assessment` options warn and are ignored;
   they become errors in CTM Assessment 1.0. `version` is not an option.
+  `stop-after` and `lang` are shared (a component's own spelling wins);
+  `tab-links`, `modes` and `markdown-lint` are `ctm-assessment`'s own and
+  take `true` or `false` (another value stops the render).
 - `mode`, `storage` and `base-url` values that cannot be used warn and fall
   back to the default (a rejected URL is never repeated).
 - Values that were accepted loosely before 0.9 (`py-exercise: submission`,
@@ -59,9 +62,89 @@ A component's interface language is its own option (`math-exercise: lang`,
 then Quarto's `lang`, then English; then the first language of the tag's
 chain that the component has: `nb-NO` → nb; `no` → nb; `nn` → nn, nb;
 `de-CH` → de; anything else → en. Every component speaks English, German and
-Norwegian Bokmål; the feedback interface also Spanish. The feedback's own
+Norwegian Bokmål; the feedback interface also Spanish, the page's interface
+(reveals' titles, the lecture/reading switch; `ctm-assessment: lang`, then
+`lang`) also Nynorsk. The feedback's own
 language (`feedback-language`) is passed to the AI as written, from the
 activity, `ai-feedback: feedback-language`, `ctm-assessment: lang` or `lang`.
+
+## The page's interface: reveals, the switch, embedded pages, links into tabs
+
+Course authors write Markdown only; the CTM Assessment guide shows the
+syntax with examples. ctm-libs turns it into HTML in its own pass, after
+the settings and before AI feedback's preparation (`lua/ui.lua`).
+
+| Markdown | HTML |
+|---|---|
+| `::: {.reading-step title="Gå i dybden: …"}` … `:::` | `<details class="ctm-reveal reading-step">`, closed; follows the switch |
+| `::: {.hint}`, `::: {.solution}` | `<details class="ctm-reveal hint">`, `… solution">`, closed |
+| `::: {.details title="…"}` | `<details class="ctm-reveal details">`, closed |
+| `::: {.modes}` + `:::` | where the switch goes (else at the top of a page with reading steps) |
+| `::: {.embed src="…" title="…" height="920px"}` + `:::` | `<iframe class="ctm-embed" loading="lazy">`; `src` and `title` required, `height` a length (default 600px) |
+
+- **Reveals.** `<details>` and `<summary>` are raw tags around a
+  `div.ctm-reveal-body` that holds the content, so a heading inside a reveal
+  stays inside it and what follows stays in place. The `<details>` element
+  carries the block's id, other classes and attributes (not `title`, `name`
+  or `open`: a reveal starts closed). AI feedback reads a reveal as the scope
+  of hand-written `<details>`: the same context, byte for byte.
+- **Titles** are inline Markdown: what would start a block ("2. forsøk",
+  "- …", "# …") stays text. Pandoc applies backslash escapes in attribute
+  values first, so TeX takes doubled backslashes:
+  `title="Bruk $\\mathbf{A}\\,x$"`. Default titles:
+
+  | | en | de | nb | nn |
+  |---|---|---|---|---|
+  | `.reading-step` | Go deeper | Vertiefung | Gå i dybden | Gå i djupna |
+  | `.solution` | Solution | Lösungsvorschlag | Løsningsforslag | Løysingsforslag |
+  | `.hint` | Hint | Hinweis | Hint | Hint |
+  | `.details` | Details | Details | Detaljer | Detaljar |
+
+  A `.details` should say what it holds; `markdown-lint` names one without a
+  title.
+
+- **`.solution`** is Quarto's Solution, taken over in HTML. Its `name="…"`
+  is an alias of `title`; a heading as its first block is its name too
+  (Quarto's rule), so `title=` together with such a heading stops the render.
+  Other formats keep Quarto's Solution; the other reveals there show their
+  title in bold, then the content; an embedded page becomes a link.
+- **The switch** ("Forelesning" / "Gå i dybden"; en "Explore" / "Go
+  deeper") is rendered hidden and shown by its script: lecture closes every
+  reading step, reading opens them all, for the browser tab and per course
+  (`sessionStorage` `ctm|1|<course>|~mode`, the course being the site's root
+  path). Loading the page announces nothing; switching does. Printing opens
+  the reading steps and hides the switch. `ctm-assessment: modes: false`
+  leaves it out.
+- **Links into tabs and reveals** (`tab-links`, on by default, on pages with
+  a tabset or a reveal): a link to an id inside tabs or closed `<details>` —
+  in the page, from another page, Back/Forward, reload — opens every
+  enclosing tab and `<details>`, scrolls the target below the header, keeps
+  it there while the layout above it settles (2 s at most, until the reader
+  scrolls, types or clicks), and focuses it. It runs after Quarto's grouped
+  tabsets, and wins over their remembered tab without changing it. A tab's
+  own id needs CTM Assessment's pre-ast `tab-ids.lua` (Quarto drops ids on
+  tab headings); its target is a `div.ctm-tab-target` at the start of the
+  pane, and the link then focuses the tab panel with its tab row in view.
+- **Errors** name the file and line, also in included files: an `.embed`
+  without `src` or `title` or whose height is not a length, two
+  `::: {.modes}` on a page, or one with content, a `.solution` with both
+  `title=` and a name, a block that is two kinds of reveal.
+- **Look.** `ui/ctm-ui.css` keeps the theme's text colours. Backgrounds are
+  faint tints over the page: on white they give the courses' colours
+  exactly, and under a dark theme they stay dark. The `.details` marker is
+  drawn, so screen readers do not read it.
+- **`markdown-lint: true`** warns, once per kind and page, about raw
+  `<details>`/`<summary>`, empty `<div id="…"></div>` anchors, `<iframe>`,
+  a hand-written switch (`data-learning-mode` in a tag), tabsets on a page
+  whose project lacks the `tab-ids.lua` line, and a `.details` without a
+  title. A `<details>` and its `<summary>` count once. Code (fenced, or
+  indented by four spaces), inline code and HTML comments are not read;
+  ` ```{=html} ` blocks are.
+
+The six class names (`reading-step`, `hint`, `solution`, `details`, `embed`,
+`modes`) are reserved: a div that already used one changes. Pages without
+them render as before; a page with a tabset loads the tab links (`ctm-ui`,
+`ctm-nav`), unless `tab-links: false`.
 
 ## A site without AI feedback
 

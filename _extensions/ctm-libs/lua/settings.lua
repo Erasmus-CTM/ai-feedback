@@ -86,10 +86,10 @@ return function(ctm)
     -- The input travels on stdin: it can hold credentials an author put in
     -- metadata by mistake, and command lines are visible to other local users.
     local ok, output = pcall(pandoc.pipe, cli, {"run", ctm.path("read-settings.ts")}, quarto.json.encode(input))
-    if not ok then assert(false, "ctm-libs: the settings reader failed: " .. tostring(output)) end
+    if not ok then ctm.fail("ctm-libs: the settings reader failed: " .. tostring(output)) end
     local decoded = quarto.json.decode((output:gsub("%s+$", "")))
     for _, warning in ipairs(decoded.warnings or {}) do quarto.log.warning(warning) end
-    if decoded.errors and #decoded.errors > 0 then assert(false, table.concat(decoded.errors, "\n")) end
+    if decoded.errors and #decoded.errors > 0 then ctm.fail(table.concat(decoded.errors, "\n")) end
     return decoded
   end
 
@@ -167,7 +167,7 @@ return function(ctm)
     if value == false or value == "false" then return false, origin, where end
     if value == nil then return opts.default, origin, where end
     local message = (where or section) .. ": " .. key .. " must be true or false " .. found(value, origin)
-    if not opts.loose then assert(false, message) end
+    if not opts.loose then ctm.fail(message) end
     if not warned[section .. "." .. key] then
       warned[section .. "." .. key] = true
       quarto.log.warning(message .. "; using " .. tostring(opts.default) .. ". This becomes an error in CTM Assessment 1.0.")
@@ -182,7 +182,7 @@ return function(ctm)
     if value == nil then return nil end
     local number = tonumber(type(value) == "table" and "" or tostring(value))
     if not number or (opts.positive and number <= 0) then
-      assert(false, (where or section) .. ": " .. key .. " must be a number" .. (opts.unit and (" of " .. opts.unit) or "")
+      ctm.fail((where or section) .. ": " .. key .. " must be a number" .. (opts.unit and (" of " .. opts.unit) or "")
         .. (opts.positive and " greater than 0" or "") .. " " .. found(value, origin))
     end
     return number, origin, where
@@ -197,7 +197,7 @@ return function(ctm)
     for _, allowed in ipairs(values) do
       if chosen == allowed then return chosen, origin, where end
     end
-    assert(false, (where or section) .. ": " .. key .. " must be " .. oneOf(values) .. " " .. found(value, origin))
+    ctm.fail((where or section) .. ": " .. key .. " must be " .. oneOf(values) .. " " .. found(value, origin))
   end
 
   -- A list of trimmed, non-empty strings, from a YAML list or a comma-separated string.

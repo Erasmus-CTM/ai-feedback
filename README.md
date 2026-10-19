@@ -1,8 +1,8 @@
 # ctm-libs: the internal library of CTM Assessment
 
 ctm-libs holds what the components of [CTM Assessment](https://github.com/Erasmus-CTM/ctm-assessment)
-share: their settings, their languages, the Python runtime of the page and AI
-feedback (formerly the ai-feedback extension). It is bundled with CTM
+share: their settings, their languages, the Python runtime of the page, the
+page's interface and AI feedback (formerly the ai-feedback extension). It is bundled with CTM
 Assessment, and course authors never install or list it themselves:
 
 ```sh
@@ -33,6 +33,9 @@ filters: [ctm-assessment]
   feedback for the exercises of every component, teaching policies, and a
   build switch for sites without AI feedback (`ai-feedback: enabled: false`,
   with `without-ai:` for exercises that only AI feedback can assess).
+- **The page's interface, in Markdown.** Reveals (`.reading-step`, `.hint`,
+  `.solution`, `.details`), the lecture/reading switch, embedded pages, and
+  links into tabs and reveals that open, scroll to and focus their target.
 - **Cacheable files.** Every browser file is an HTML dependency, loaded once
   per page.
 

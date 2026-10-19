@@ -1,6 +1,8 @@
 name: Runtime in a browser
 # ctm-runtime in Chromium: Pyodide from jsDelivr, the guard module, SymPy;
 # and SymPy results under the runtime's Pyodide equal those of the previous one.
+# The page's interface (reveals, the lecture/reading switch, links into tabs)
+# on a rendered site in Chromium, Firefox and WebKit.
 on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
@@ -18,3 +20,21 @@ jobs:
         run: node tests/browser/runtime-smoke.mjs
       - name: SymPy results equal those of the previous Pyodide
         run: node tests/browser/sympy-parity.mjs
+  ui:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: quarto-dev/quarto-actions/setup@v2
+        with:
+          version: '1.8.27'
+      - run: npm install --no-save --ignore-scripts playwright@1.55.1
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Links into tabs and reveals, the switch (${{ matrix.browser }})
+        run: node tests/browser/ui.mjs ${{ matrix.browser }}

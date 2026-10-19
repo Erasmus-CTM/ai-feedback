@@ -3,7 +3,7 @@
 -- browser as window.__aiFeedbackPolicies, and an exercise's own selection.
 return function(ctm)
   local M = {}
-  local function fail(message) assert(false, message) end
+  local fail = ctm.fail
 
   -- window.__aiFeedbackPolicies for the browser (once per page, by feedback.prepare).
   function M.emit()
@@ -118,26 +118,13 @@ return function(ctm)
     return decision
   end
 
-  -- The page as the error names it: its file, and the files it includes
-  -- (Quarto does not tell which file a block came from).
-  local function pageName()
-    local file = quarto.doc.input_file or ''
-    local root = quarto.project and quarto.project.directory
-    local name = (root and root ~= '') and pandoc.path.make_relative(file, root) or pandoc.path.filename(file)
-    local handle = io.open(file, 'r')
-    local source = handle and handle:read('*a') or ''
-    if handle then handle:close() end
-    if source:find('{{<%s*include%s') then name = name .. ' (or a file it includes)' end
-    return name
-  end
-
   -- The error that stops the build (without-ai unset), or nil.
   function M.withoutAIStop()
     if #exercises == 0 or M.withoutAIChoice() ~= nil then return nil end
     local list = {}
     for _, exercise in ipairs(exercises) do list[#list + 1] = exercise.name .. ' (' .. exercise.kind .. ')' end
     local _, reason = ctm.feedback.enabled()
-    return 'AI feedback is off for this build (' .. tostring(reason) .. '), and ' .. pageName() .. ' has '
+    return 'AI feedback is off for this build (' .. tostring(reason) .. '), and ' .. ctm.source.pageName() .. ' has '
       .. (#list == 1 and 'an exercise' or (#list .. ' exercises')) .. ' that only AI feedback can assess: '
       .. table.concat(list, '; ') .. '.\n'
       .. 'Other pages may have such exercises too: the render stops at the first page that has one. '

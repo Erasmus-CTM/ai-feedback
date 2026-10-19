@@ -362,17 +362,28 @@ function policies() {
 }
 
 // --- ctm-assessment and the components --------------------------------------
+// Shared options: every component reads them, its own spelling winning at any
+// level. ctm-assessment's own options, with the kind of value they take:
+// the page's interface (lua/ui.lua).
 const SHARED_KEYS = ['stop-after', 'lang'];
+const OWN_KEYS: Record<string, 'boolean'> = {'tab-links': 'boolean', 'modes': 'boolean', 'markdown-lint': 'boolean'};
+const show = (value: unknown) => typeof value === 'object' ? JSON.stringify(value) : String(value);
 function sectionSettings(section: string) {
   const out: Record<string, Entry> = {};
+  const known = [...SHARED_KEYS, ...Object.keys(OWN_KEYS)];
   for (const [key, origin] of keysOf(section)) {
     if (CREDENTIAL.test(key)) continue;
-    if (section === 'ctm-assessment' && !SHARED_KEYS.includes(key)) {
-      unknown('ctm-assessment', key, origin, SHARED_KEYS);
+    if (section === 'ctm-assessment' && !known.includes(key)) {
+      unknown('ctm-assessment', key, origin, known);
       continue;
     }
     const entry = resolveKey(section, key);
-    if (entry && entry.value !== null && entry.value !== undefined) out[key] = entry;
+    if (!entry || entry.value === null || entry.value === undefined) continue;
+    if (section === 'ctm-assessment' && OWN_KEYS[key] === 'boolean' && ![true, false, 'true', 'false'].includes(entry.value as never)) {
+      errors.push('ctm-assessment: ' + key + ' must be true or false (found ' + show(entry.value) + ' in ' + entry.origin + ')');
+      continue;
+    }
+    out[key] = entry;
   }
   return out;
 }
