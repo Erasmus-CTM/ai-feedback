@@ -18,7 +18,9 @@
  * heading when that is in view (the tab row stays visible); a section's
  * heading, a <details>' summary, or else the target itself (tabindex -1 while
  * focused). Each history entry keeps its scroll position and open tabs in
- * history.state.__quartoTabPosition, as the courses' script did.
+ * history.state.__quartoTabPosition, as the courses' script did; a reload
+ * restores them, unless the entry still showed its link's target: then it
+ * handles the link again (coi-serviceworker reloads a first visit).
  *
  * CTMNav.reveal(element): the same for any element (returns a promise).
  * A handled target gets data-ctm-nav (load, link, hash, history or api).
@@ -37,6 +39,22 @@
   // The entry's position as the page was loaded: a reload or Back/Forward
   // restores it; a new visit (a link, a typed address) has none.
   var loaded = history.state && history.state[KEY] || null, shown = false;
+  // While an entry still shows its link's target (the reader has not
+  // scrolled, typed, clicked or touched since), its saved position says so
+  // (`at`), and a reload follows the link again instead of restoring the
+  // position: so does the reload with which coi-serviceworker makes a
+  // learner's first visit cross-origin isolated where the host sends no
+  // COOP/COEP headers (GitHub Pages). `showing`: the hash whose target the
+  // last navigation showed.
+  var showing = '', moved = false;
+  STOP_PIN.forEach(function (type) {
+    window.addEventListener(type, function (event) {
+      // The browser's reload keys are not the reader moving.
+      if (type === 'keydown' && (event.key === 'F5'
+        || ((event.ctrlKey || event.metaKey) && (event.code === 'KeyR' || /^r$/i.test(event.key || ''))))) return;
+      moved = true;
+    }, {capture: true, passive: true});
+  });
   try { history.scrollRestoration = 'manual'; } catch (error) { /* older browsers: the browser restores */ }
 
   // The next frame, or 100 ms where frames come slowly or not at all (a
@@ -79,6 +97,7 @@
     var state = history.state, next = {};
     if (state && typeof state === 'object') for (var name in state) next[name] = state[name];
     next[KEY] = snapshot();
+    if (showing && showing === location.hash && !moved) next[KEY].at = showing;
     try { history.replaceState(next, '', location.href); } catch (error) { /* rate-limited: the next save stores it */ }
   }
 
@@ -236,12 +255,16 @@
       if (!current()) return null;
       if (position) {
         scrollToY(position.y);
+        showing = position.at || '';
+        moved = false;
       } else if (target && target.getClientRects().length) {
         anchor = anchorOf(target);
         scrollTo(anchor);
         focus(target);
         target.setAttribute('data-ctm-nav', how);
         pin(anchor);
+        showing = target === targetFor(location.hash) ? location.hash : '';
+        moved = false;
       }
       return frame();
     }).then(function () {
@@ -304,9 +327,13 @@
       handledURL = location.href;
       // First shown: the position the entry had when the page loaded. From
       // the back-forward cache: the one it has now.
-      var position = !shown && !(event && event.persisted) ? loaded : (history.state && history.state[KEY] || null);
+      var first = !shown && !(event && event.persisted);
+      var position = first ? loaded : (history.state && history.state[KEY] || null);
+      var target = targetFor(location.hash);
+      // A reload of an entry that still showed its link's target: the link again.
+      if (first && position && position.at && position.at === location.hash && target) position = null;
       shown = true;
-      navigate(position, targetFor(location.hash), 'load');
+      navigate(position, target, 'load');
     };
     window.addEventListener('pageshow', show);
     // Loaded late, after the page was shown.
