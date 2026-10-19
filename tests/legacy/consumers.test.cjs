@@ -90,7 +90,7 @@ test('all old components with filters: [ai-feedback]: one preparation, one depre
 }));
 
 test('package order without AI feedback: pyodide-interaktiv 1.8 is switched off by the Meta pass', {skip}, () => withProject({
-  'page.qmd': page('ctm-libs, math-exercise, py-exercise, pyodide-interaktiv', '', math + pyodide + activity),
+  'page.qmd': page('ctm-libs, math-exercise, py-exercise, pyodide-interaktiv', 'pyodide:\n  feedback: true\n', math + pyodide + activity),
 }, dir => {
   const r = C.render(dir, ['page.qmd'], {CTM_FEEDBACK: 'off'});
   assert.equal(r.status, 0, r.stderr);

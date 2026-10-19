@@ -32,7 +32,7 @@ function withProject(run) {
   try {
     C.installPackage(dir); C.install(dir); C.installProbe(dir);
     C.write(dir, {
-      '_quarto.yml': 'project:\n  type: default\n  render: [activity.qmd, asks.qmd, plain.qmd, pyodide.qmd]\nfilters: [ctm-libs, probe]\n'
+      '_quarto.yml': 'project:\n  type: default\n  render: [activity.qmd, asks.qmd, plain.qmd, pyodide.qmd, pyodide-asks.qmd]\nfilters: [ctm-libs, probe]\n'
         + 'ai-feedback:\n  mode: api\n  base-url: https://llm.example.edu/v1\n  model: course-model\n  policy-files: policies.yml\n  project-policy: course\n',
       '_quarto-no-ai.yml': 'ai-feedback:\n  enabled: false\n',
       'policies.yml': 'ai-feedback:\n  policies:\n    course:\n      base-prompt: POLICY_MARKER_7731\n',
@@ -40,6 +40,7 @@ function withProject(run) {
       'asks.qmd': '---\ntitle: Asks\nai-feedback:\n  enabled: true\n---\nText.\n',
       'plain.qmd': '---\ntitle: Plain\n---\nNo feedback here.\n',
       'pyodide.qmd': '---\ntitle: Pyodide\n---\n```{pyodide-python}\nprint(1)\n```\n' + C.probe('pyodide', 'return {meta.pyodide and meta.pyodide.feedback}'),
+      'pyodide-asks.qmd': '---\ntitle: Pyodide asks\npyodide:\n  feedback: true\n---\n```{pyodide-python}\nprint(1)\n```\n' + C.probe('pyodide', 'return {meta.pyodide and meta.pyodide.feedback}'),
     });
     return run(dir);
   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
@@ -49,7 +50,7 @@ function files(dir) {
 }
 function checkOff(dir, reason) {
   assert.deepEqual(files(dir).filter(name => /ai-feedback-\d|feedback-core\.js|feedback-dom\.js|ai-feedback\.js|ai-feedback\.css/.test(name)), []);
-  for (const page of ['activity.qmd', 'asks.qmd', 'plain.qmd', 'pyodide.qmd']) {
+  for (const page of ['activity.qmd', 'asks.qmd', 'plain.qmd', 'pyodide.qmd', 'pyodide-asks.qmd']) {
     const html = C.html(dir, page);
     assert.doesNotMatch(html, /window\.__aiFeedbackConfig =|window\.__aiFeedbackPolicies|feedback-core\.js|ai-feedback\.css/, page);
     assert.doesNotMatch(html, /class="ai-feedback-data"|data-ai-feedback-context|data-ai-feedback-tex/, page);
@@ -67,7 +68,7 @@ function checkOff(dir, reason) {
   assert.equal(p.request, false);
   assert.equal(p.declined, false);
   assert.deepEqual(p.selection, [{exercise: 'ex1', name: ''}, {mode: 'none', refs: '', text: ''}]);
-  assert.deepEqual(C.probes(C.html(dir, 'pyodide.qmd')).pyodide, [false]);
+  for (const page of ['pyodide.qmd', 'pyodide-asks.qmd']) assert.deepEqual(C.probes(C.html(dir, page)).pyodide, [false], page);
 }
 function messages(stderr) {
   return [...stderr.matchAll(MESSAGE)].map(m => ({reason: m[1], items: m[2]}));
@@ -97,6 +98,16 @@ test('CTM_FEEDBACK=off does the same without any metadata, with the same build m
     'ai-feedback: enabled: true (asks.qmd)',
     'pyodide-interaktiv feedback',
   ]);
+}));
+
+// pyodide-interaktiv's own default (feedback on unless pyodide: feedback:
+// false) is no request; only an explicit pyodide: feedback: true is named.
+test('Pyodide pages are named only under an explicit pyodide: feedback: true', {skip}, () => withProject(dir => {
+  for (const [page, items] of [['pyodide.qmd', []], ['pyodide-asks.qmd', ['pyodide-interaktiv feedback']]]) {
+    const r = C.render(dir, [page], {CTM_FEEDBACK: 'off'});
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(messages(r.stderr).map(m => m.items), items, page);
+  }
 }));
 
 // Only what is on the page is a request: a project-wide or folder-wide

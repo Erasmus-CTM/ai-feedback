@@ -31,8 +31,8 @@ local switch = nil
 local pyodideWanted = nil
 -- What the page asked for but did not get: one build message per page, never
 -- an error. Items are only what is on the page: the activities and cells a
--- component found (request()), pyodide cells, and the page's own
--- ai-feedback: enabled: true (not a project-wide setting).
+-- component found (request()), pyodide cells under pyodide: feedback: true,
+-- and the page's own ai-feedback: enabled: true (not a project-wide setting).
 --
 -- The message is printed by flush(), which ctm-libs-end.lua calls after every
 -- component (the CTM Assessment package lists that file last). Where it is not
@@ -106,6 +106,8 @@ end
 -- Meta pass of the ctm-libs filter: with AI feedback off, pyodide-interaktiv
 -- 1.8 (which reads pyodide: feedback itself) is switched off too, when this
 -- filter runs before it (package order, or filters: [ai-feedback, ...]).
+-- Only an explicit pyodide: feedback: true is named in the build message;
+-- pyodide-interaktiv's own default is not a request (as math-exercise's auto).
 function M.bridge(meta)
   if not quarto.doc.is_format("html") or M.enabled() then return meta end
   local pyodide = meta.pyodide
@@ -116,7 +118,7 @@ function M.bridge(meta)
   end
   if pyodideWanted == nil then
     local current = pyodide.feedback
-    pyodideWanted = not (current == false or (current ~= nil and pandoc.utils.stringify(current) == "false"))
+    pyodideWanted = current == true or (current ~= nil and pandoc.utils.stringify(current) == "true")
   end
   pyodide.feedback = false
   meta.pyodide = pyodide

@@ -90,7 +90,10 @@ Any level can turn AI feedback off; no page can turn it back on. Then:
 
 pyodide-interaktiv 1.8 reads its own `pyodide: feedback`; ctm-libs sets it to
 false when its filter runs before pyodide-interaktiv's (the package order, or
-`filters: [ai-feedback, pyodide-interaktiv]`). Components released before
+`filters: [ai-feedback, pyodide-interaktiv]`). The build message names a
+page's Pyodide cells only under an explicit `pyodide: feedback: true`
+(pyodide-interaktiv's own default is no request, as math-exercise's
+`feedback: auto`). Components released before
 CTM Assessment 0.9 do not know the switch when they run outside the package:
 ctm-libs still writes none of its own feedback scripts, configuration,
 policies or context, but the older components keep their own feedback code

@@ -125,8 +125,9 @@ it out, `context` returns mode `none`, and the Meta pass sets
 `pyodide: feedback: false` for pyodide-interaktiv 1.8. A component asks with
 `request("math-exercise", wanted, "feedback: true in _quarto.yml")`, and only
 for blocks that are on the page; whatever a page asked for but did not get
-(those requests, its activities and pyodide cells, its own
-`ai-feedback: enabled: true`) is listed in one build message per page. The
+(those requests, its activities, its pyodide cells under an explicit
+`pyodide: feedback: true`, its own `ai-feedback: enabled: true`) is listed in
+one build message per page. The
 package prints it from `ctm-libs-end.lua`, which it lists after every CTM
 filter, including any that runs at a later `at:` stage; elsewhere the message
 is printed when Pandoc closes the page's Lua state. A CTM filter running after
