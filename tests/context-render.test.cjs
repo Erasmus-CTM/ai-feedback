@@ -31,6 +31,8 @@ const cells = C.probe('cells', [
   'local out = {}',
   'doc.blocks:walk({CodeBlock = function(b) if b.identifier ~= "" and not b.classes:includes("ctm-probe") then out[b.identifier] = b.attributes["data-ai-feedback-context"] or "<none>" end end})',
   'return out'].join('\n'));
+// Their builds without AI feedback (P22) show the activities as text.
+const WITHOUT_AI = 'ai-feedback:\n  without-ai: text\n';
 const activities = html => Object.fromEntries([...html.matchAll(/<div id="([^"]+)" class="ai-feedback-activity">[\s\S]*?<script type="application\/json" class="ai-feedback-data">([\s\S]*?)<\/script>/g)].map(m => [m[1], JSON.parse(m[2])]));
 
 test('explicit context: context blocks are left out of the section prose, which is kept', {skip}, () => {
@@ -90,7 +92,7 @@ test('a tab is a section of its own, nested too; <details> content is no prose (
   const dir = C.tempdir('ctm-context-tabs-');
   try {
     C.installPackage(dir); C.install(dir); C.installProbe(dir);
-    C.write(dir, {'page.qmd': '---\ntitle: t\nfilters: [ctm-libs, probe]\n---\n\n' + tabsets + cells});
+    C.write(dir, {'page.qmd': '---\ntitle: t\nfilters: [ctm-libs, probe]\n' + WITHOUT_AI + '---\n\n' + tabsets + cells});
     let r = C.render(dir, ['page.qmd']);
     assert.equal(r.status, 0, r.stderr);
     let html = C.html(dir, 'page.qmd');
@@ -148,7 +150,7 @@ test('closed material is a scope: exercises in it get its prose, nothing after i
   const dir = C.tempdir('ctm-context-closed-');
   try {
     C.installPackage(dir); C.install(dir); C.installProbe(dir);
-    C.write(dir, {'page.qmd': '---\ntitle: t\nfilters: [ctm-libs, probe]\n---\n\n' + closed + cells});
+    C.write(dir, {'page.qmd': '---\ntitle: t\nfilters: [ctm-libs, probe]\n' + WITHOUT_AI + '---\n\n' + closed + cells});
     let r = C.render(dir, ['page.qmd']);
     assert.equal(r.status, 0, r.stderr);
     let html = C.html(dir, 'page.qmd');

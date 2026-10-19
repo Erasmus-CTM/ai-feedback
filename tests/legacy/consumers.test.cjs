@@ -90,15 +90,15 @@ test('all old components with filters: [ai-feedback]: one preparation, one depre
 }));
 
 test('package order without AI feedback: pyodide-interaktiv 1.8 is switched off by the Meta pass', {skip}, () => withProject({
-  'page.qmd': page('ctm-libs, math-exercise, py-exercise, pyodide-interaktiv', 'pyodide:\n  feedback: true\n', math + pyodide + activity),
+  'page.qmd': page('ctm-libs, math-exercise, py-exercise, pyodide-interaktiv', 'pyodide:\n  feedback: true\nai-feedback:\n  without-ai: text\n', math + pyodide + activity),
 }, dir => {
   const r = C.render(dir, ['page.qmd'], {CTM_FEEDBACK: 'off'});
   assert.equal(r.status, 0, r.stderr);
   const html = C.html(dir, 'page.qmd');
   assert.doesNotMatch(html, /feedback-core\.js|window\.__aiFeedbackConfig =|class="ai-feedback-data"/);
   assert.match(html, /qpyodideFeedbackOptions = \{\s*enabled: false/);
-  const messages = [...r.stderr.matchAll(/AI feedback is off for this build \(CTM_FEEDBACK=off\); left out on this page: ([^\n]*)\./g)].map(m => m[1]);
-  assert.deepEqual(messages, ['1 AI feedback activity, pyodide-interaktiv feedback']);
+  const messages = [...r.stderr.matchAll(/AI feedback is off for this build \(CTM_FEEDBACK=off\); ([^\n]*)\./g)].map(m => m[1]);
+  assert.deepEqual(messages, ['shown as text, without automatic feedback (without-ai: text in page.qmd): act. Left out on this page: pyodide-interaktiv feedback']);
 }));
 
 // Without AI feedback (P22) outside the package order, the old components do

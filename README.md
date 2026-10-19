@@ -31,7 +31,8 @@ filters: [ctm-assessment]
   of components, with Stop for long checks.
 - **AI feedback.** Text, translation and image activities (`.ai-feedback`),
   feedback for the exercises of every component, teaching policies, and a
-  build switch for sites without AI feedback (`ai-feedback: enabled: false`).
+  build switch for sites without AI feedback (`ai-feedback: enabled: false`,
+  with `without-ai:` for exercises that only AI feedback can assess).
 - **Cacheable files.** Every browser file is an HTML dependency, loaded once
   per page.
 

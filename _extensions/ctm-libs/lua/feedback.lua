@@ -29,10 +29,13 @@ end
 -- both builds fail alike; nothing of AI feedback reaches the HTML.
 local switch = nil
 local pyodideWanted = nil
--- What the page asked for but did not get: one build message per page, never
--- an error. Items are only what is on the page: the activities and cells a
--- component found (request()), pyodide cells under pyodide: feedback: true,
--- and the page's own ai-feedback: enabled: true (not a project-wide setting).
+-- One build message per page: its exercises that only AI feedback can
+-- assess, shown as text or removed (ai-feedback: without-ai, lua/policy.lua),
+-- and what it asked for but did not get. Those items are only what is on the
+-- page: the exercises and cells a component found (request()), pyodide cells
+-- under pyodide: feedback: true, and the page's own ai-feedback: enabled:
+-- true (not a project-wide setting). With without-ai unset, exercises that
+-- only AI feedback can assess stop the build instead (flush).
 --
 -- The message is printed by flush(), which ctm-libs-end.lua calls after every
 -- component (the CTM Assessment package lists that file last). Where it is not
@@ -42,11 +45,15 @@ local pyodideWanted = nil
 -- future Pandoc or Quarto keep the state open, only that fallback is lost.
 local leftOut = {items = {}, seen = {}, reason = ""}
 local function message()
-  if #leftOut.items == 0 then return nil end
-  local text = "AI feedback is off for this build (" .. leftOut.reason .. "); left out on this page: "
-    .. table.concat(leftOut.items, ", ") .. "."
+  local shown = policy.withoutAIMessage()
+  if #leftOut.items == 0 and not shown then return nil end
+  local parts = {shown}
+  if #leftOut.items > 0 then
+    parts[#parts + 1] = (shown and "Left out" or "left out") .. " on this page: " .. table.concat(leftOut.items, ", ")
+  end
   leftOut.items = {}
-  return text
+  return "AI feedback is off for this build (" .. (switch and switch.reason or leftOut.reason) .. "); "
+    .. table.concat(parts, ". ") .. "."
 end
 setmetatable(leftOut, {__gc = function()
   local text = message()
@@ -60,8 +67,15 @@ local function leaveOut(item)
   end
 end
 
--- Prints the page's build message now (once); true when there was one.
+-- Prints the page's build message now (once); true when there was one. When
+-- without-ai is unset and the page has exercises only AI feedback can assess,
+-- stops the build instead, with one error that names them all.
 function M.flush()
+  local stop = policy.withoutAIStop()
+  if stop then
+    leftOut.items = {}
+    assert(false, stop)
+  end
   local text = message()
   if text then quarto.log.warning(text) end
   return text ~= nil
@@ -257,11 +271,12 @@ local function activity(block, context)
   visible:insert(pandoc.RawBlock("html", '<noscript>Enable JavaScript to use this feedback activity.</noscript>'))
   return pandoc.Div(visible, pandoc.Attr(id, {"ai-feedback-activity"}))
 end
--- P22: an activity keeps its visible task (and source) and loses its answer
--- box, button, criteria, starter and data; its policy selection is still checked.
+-- P22: an activity is assessed by AI feedback only, so ai-feedback:
+-- without-ai decides (lua/policy.lua): shown as text it keeps its visible task
+-- (and source), with a note, and loses its answer box, button, criteria,
+-- starter and data; under drop it is left out. Its policy selection is still
+-- checked.
 local function task(block)
-  counter = counter + 1
-  local id = block.identifier ~= "" and block.identifier or "ai-feedback-" .. counter
   policy.selection(block, block.attributes)
   local visible = pandoc.Blocks({})
   for _, child in ipairs(block.content) do
@@ -269,8 +284,14 @@ local function task(block)
       visible:insert(child)
     end
   end
-  return pandoc.Div(visible, pandoc.Attr(id, {"ai-feedback-task"}))
+  local decision = policy.withoutAIRecord({kind = "AI feedback activity", name = block.identifier,
+    text = sourceText(pandoc.Div(visible)), lang = block.attributes["ui-language"] or ctm.locale.tag("ai-feedback", "ui-language")})
+  counter = counter + 1
+  if decision.action == "drop" then return nil end
+  visible:insert(decision.note)
+  return pandoc.Div(visible, pandoc.Attr(block.identifier ~= "" and block.identifier or "ai-feedback-" .. counter, {"ai-feedback-task"}))
 end
+
 -- Quarto's data of a custom node of type `kind` (the table a filter callback
 -- for that type gets; tabs[i].title and tabs[i].content of a Tabset): nil for
 -- any other block, false when it cannot be read. In this pass a custom node is
@@ -359,7 +380,7 @@ local function walk(blocks, state)
       b.content = walk(b.content, state)
       state.context = outer
     elseif b.t == "Div" and b.classes:includes("ai-feedback") then
-      if state.off then state.activities = state.activities + 1; b = task(b) else b = activity(b, state.context) end
+      if state.off then b = task(b) else b = activity(b, state.context) end
     elseif b.t == "CodeBlock" then
       if not state.off then b.attributes["data-ai-feedback-context"] = bounded(state.context, explicitCell(b)) end
     elseif isContext(b) then
@@ -384,7 +405,7 @@ local function walk(blocks, state)
       end
       prose(state, sourceText(b))
     end
-    out:insert(b)
+    if b then out:insert(b) end
   end
   -- A <details> left open ends with its list: nothing after it sees its prose.
   if #scopes > 0 then state.context = scopes[1] end
@@ -405,18 +426,21 @@ function M.prepare(doc)
   if doc.meta["ctm-feedback-prepared"] then return doc end
   doc.meta["ctm-feedback-prepared"] = true
   ctm.settings.load(doc.meta)
+  policy.checkOrder("ctm-libs' preparation")
+  -- Checked in both builds, so that they fail alike.
+  policy.withoutAIChoice()
   if not M.enabled() then
     ctm.settings.policies()
-    local state = {context = {}, from = {}, off = true, activities = 0}
-    doc.blocks = walk(doc.blocks, state)
+    doc.blocks = walk(doc.blocks, {context = {}, from = {}, off = true})
     -- The walk passes hidden and author-only blocks through untouched; their
     -- activities' criteria and starters must not reach the HTML either.
     doc.blocks = doc.blocks:walk({Div = function(div)
       if div.classes:includes("feedback-criteria") or div.classes:includes("feedback-starter") then return {} end
     end})
-    if state.activities > 0 then
-      leaveOut(state.activities .. " AI feedback " .. (state.activities == 1 and "activity" or "activities"))
-    end
+    -- Activities that stop the build: the end filter raises the error after
+    -- every component; without it (component development builds,
+    -- filters: [ai-feedback]) it comes now.
+    if not rawget(_G, "__ctmLibsEnd") and policy.withoutAIStop() then M.flush() end
     if pyodideWanted then
       local cells = false
       doc.blocks:walk({CodeBlock = function(b)

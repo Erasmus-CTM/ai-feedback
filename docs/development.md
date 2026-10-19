@@ -8,12 +8,12 @@
 _extensions/ctm-libs/            the library (authors never list it; the package does)
   _extension.yml                 version of everything below
   ctm-libs.lua                   filter entry: ctm.filters() (Meta, Callout, Pandoc)
-  ctm-libs-end.lua               listed by the package after every CTM filter: prints the page's P22 build message
+  ctm-libs-end.lua               listed by the package after every CTM filter: prints the page's P22 build message, or stops for without-ai
   read-settings.ts, deno.json    settings reader (quarto run), with its isolated Deno configuration
   lua/ctm.lua                    the page's instance; lazily loaded modules:
   lua/settings.lua               ctm.settings
   lua/locale.lua                 ctm.locale
-  lua/feedback.lua, policy.lua   ctm.feedback (activities, context, policies, P22)
+  lua/feedback.lua, policy.lua   ctm.feedback (activities, context, policies, P22, without-ai)
   lua/runtime.lua, deps.lua      ctm.runtime, ctm.deps
   feedback/                      AIFeedback browser files, feedback-defaults.yml
   runtime/pyodide-runtime.js     MathExerciseRuntime

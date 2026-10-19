@@ -60,7 +60,10 @@ location from `CTM_LIBS_EXTENSION` (the `_extensions/ctm-libs` folder).
 
 `ai-feedback: enabled: false` in a profile (`quarto render --profile no-ai`)
 or `CTM_FEEDBACK=off quarto render` builds the same source without any AI
-feedback: [details](reference.md#a-site-without-ai-feedback).
+feedback: [details](reference.md#a-site-without-ai-feedback). A page with
+exercises that only AI feedback can assess stops that build until
+`ai-feedback: without-ai:` says what becomes of them (`text`, for example):
+[details](reference.md#exercises-that-only-ai-feedback-can-assess).
 
 ## Provider settings and data sent
 
