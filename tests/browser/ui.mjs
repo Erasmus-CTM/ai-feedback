@@ -228,7 +228,9 @@ async function open(page, url) {
   await settle(page);
 }
 
-async function deepLinks(browser, base, name) {
+// A fresh browser context and page; external requests are blocked, and
+// uncaught errors and console errors of the site are collected.
+async function newPage(browser, base) {
   const context = await browser.newContext({viewport: {width: 1280, height: 800}});
   const page = await context.newPage();
   const errors = [];
@@ -239,37 +241,45 @@ async function deepLinks(browser, base, name) {
     if (message.type() === 'error' && url.startsWith(base) && !/Failed to load resource/i.test(message.text())) errors.push(message.text());
   });
   await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, route => route.abort());
+  return {context, page, errors};
+}
+async function done({context, errors}, name) {
+  assert.deepEqual(errors, [], name + ': no console errors');
+  await context.close();
+}
 
+async function loads(browser, base, name) {
+  const session = await newPage(browser, base), {page} = session;
   // On load: a heading in an inactive inner tab, a heading inside a collapsed
   // reading step there (lecture mode), an anchor, a tab title.
   await open(page, base + 'index.html#eks-3');
   let s = await state(page, 'eks-3');
-  assert.deepEqual(s.panes, [true, true], name + ' #eks-3: both tabs open');
-  assert.equal(s.visible, true);
+  assert.deepEqual(s.panes, [true, true], name + ' #eks-3: both tabs open' + ' ' + JSON.stringify(s));
+  assert.equal(s.visible, true, name + ' ' + JSON.stringify(s));
   assert.ok(s.top >= s.headerBottom && s.top < s.headerBottom + 60, name + ' #eks-3 below the header: ' + JSON.stringify(s));
-  assert.equal(s.focus, 'H4', name + ' #eks-3: its heading has focus');
+  assert.equal(s.focus, 'H4', name + ' #eks-3: its heading has focus' + ' ' + JSON.stringify(s));
   assert.ok(s.focusInView && s.focusInTarget, name + ' #eks-3 focus in view');
-  assert.equal(s.mark, 'load', name + ': handled by the script');
+  assert.equal(s.mark, 'load', name + ': handled by the script' + ' ' + JSON.stringify(s));
 
   await open(page, base + 'index.html#deep-head');
   s = await state(page, 'deep-head');
-  assert.deepEqual(s.panes, [true, true], name + ' #deep-head tabs');
-  assert.deepEqual(s.details, [true], name + ' #deep-head: the reading step opened');
-  assert.equal(s.focus, 'H5');
+  assert.deepEqual(s.panes, [true, true], name + ' #deep-head tabs' + ' ' + JSON.stringify(s));
+  assert.deepEqual(s.details, [true], name + ' #deep-head: the reading step opened' + ' ' + JSON.stringify(s));
+  assert.equal(s.focus, 'H5', name + ' ' + JSON.stringify(s));
   assert.ok(s.focusInView, name + ' #deep-head focus in view: ' + JSON.stringify(s));
-  assert.equal(s.mark, 'load');
+  assert.equal(s.mark, 'load', name + ' ' + JSON.stringify(s));
   assert.equal(await page.evaluate(() => CTMReveal.mode()), 'lecture', 'the page is in lecture mode');
 
   await open(page, base + 'index.html#anchor-b');
   s = await state(page, 'anchor-b');
-  assert.deepEqual(s.panes, [true]);
-  assert.equal(s.mark, 'load');
+  assert.deepEqual(s.panes, [true], name + ' ' + JSON.stringify(s));
+  assert.equal(s.mark, 'load', name + ' ' + JSON.stringify(s));
   assert.ok(s.top >= s.headerBottom, name + ' #anchor-b below the header');
 
   // A tab title: the tab row stays visible, the panel (or its first heading) has focus.
   await open(page, base + 'index.html#tab-b');
   s = await state(page, 'tab-b');
-  assert.deepEqual(s.panes, [true]);
+  assert.deepEqual(s.panes, [true], name + ' ' + JSON.stringify(s));
   const row = await page.evaluate(() => {
     const pane = document.getElementById('tab-b').closest('.tab-pane');
     const list = pane.closest('.panel-tabset').querySelector(':scope > [role="tablist"]');
@@ -280,7 +290,13 @@ async function deepLinks(browser, base, name) {
   assert.ok(row.focused, name + ' #tab-b: the panel or its first heading has focus, ' + s.focus);
   assert.ok(s.focusInView, name + ' #tab-b: the focused element is in view ' + JSON.stringify(s));
 
-  // In the page: from the top, after switching back to tab A.
+  await done(session, name);
+}
+
+async function inPage(browser, base, name) {
+  const session = await newPage(browser, base), {page} = session;
+  let s;
+  // In the page: from the top.
   await page.goto(base + 'index.html');
   await settle(page);
   await page.evaluate(() => { window.__hashchanges = 0; addEventListener('hashchange', () => window.__hashchanges++); });
@@ -288,12 +304,12 @@ async function deepLinks(browser, base, name) {
   await page.click('main a[href$="#deep-head"] >> nth=0');
   await settle(page);
   s = await state(page, 'deep-head');
-  assert.deepEqual(s.panes, [true, true], name + ' click: tabs');
-  assert.deepEqual(s.details, [true], name + ' click: the reading step opened');
-  assert.equal(s.mark, 'link');
-  assert.equal(s.hash, '#deep-head', name + ': the address shows the id');
+  assert.deepEqual(s.panes, [true, true], name + ' click: tabs' + ' ' + JSON.stringify(s));
+  assert.deepEqual(s.details, [true], name + ' click: the reading step opened' + ' ' + JSON.stringify(s));
+  assert.equal(s.mark, 'link', name + ' ' + JSON.stringify(s));
+  assert.equal(s.hash, '#deep-head', name + ': the address shows the id' + ' ' + JSON.stringify(s));
   assert.equal(await page.evaluate(() => [history.length, window.__hashchanges].join()), (length + 1) + ',0', name + ': pushState, no navigation');
-  assert.equal(s.focus, 'H5');
+  assert.equal(s.focus, 'H5', name + ' ' + JSON.stringify(s));
   assert.ok(s.focusInView, name + ' click: focus in view ' + JSON.stringify(s));
   // Back and Forward.
   const before = await page.evaluate(() => scrollY);
@@ -307,7 +323,7 @@ async function deepLinks(browser, base, name) {
   await page.goForward();
   await settle(page);
   s = await state(page, 'deep-head');
-  assert.equal(s.visible, true, name + ': Forward shows the target again');
+  assert.equal(s.visible, true, name + ': Forward shows the target again' + ' ' + JSON.stringify(s));
   assert.ok(s.top >= s.headerBottom - 2 && s.top < 800, name + ' Forward: in view ' + JSON.stringify(s));
 
   // Keyboard: the next Tab goes on from the target. (WebKit tabs to links
@@ -323,6 +339,12 @@ async function deepLinks(browser, base, name) {
     assert.ok(after, name + ': keyboard focus goes on from the target');
   }
 
+  await done(session, name);
+}
+
+async function otherPage(browser, base, name) {
+  const session = await newPage(browser, base), {page} = session;
+  let s;
   // From another page.
   await page.goto(base + 'other.html');
   await settle(page);
@@ -330,17 +352,28 @@ async function deepLinks(browser, base, name) {
   await page.waitForURL(/\/(index\.html)?#eks-3$/);
   await settle(page);
   s = await state(page, 'eks-3');
-  assert.deepEqual(s.panes, [true, true], name + ' from another page');
-  assert.equal(s.mark, 'load');
-  assert.ok(s.focusInView);
+  assert.deepEqual(s.panes, [true, true], name + ' from another page' + ' ' + JSON.stringify(s));
+  assert.equal(s.mark, 'load', name + ' ' + JSON.stringify(s));
+  assert.ok(s.focusInView, name + ' ' + JSON.stringify(s));
 
+  await done(session, name);
+}
+
+async function withoutTabs(browser, base, name) {
+  const session = await newPage(browser, base), {page} = session;
+  let s;
   // Without tabsets: a heading inside a collapsed reading step.
   await open(page, base + 'plain.html#plain-deep');
   s = await state(page, 'plain-deep');
-  assert.deepEqual(s.details, [true], name + ' plain page: the reading step opened');
-  assert.equal(s.mark, 'load');
+  assert.deepEqual(s.details, [true], name + ' plain page: the reading step opened' + ' ' + JSON.stringify(s));
+  assert.equal(s.mark, 'load', name + ' ' + JSON.stringify(s));
   assert.ok(s.top >= s.headerBottom && s.focusInView, name + ' plain page: in view ' + JSON.stringify(s));
 
+  await done(session, name);
+}
+
+async function pinned(browser, base, name) {
+  const session = await newPage(browser, base), {page} = session;
   // Late layout above the target: it stays where the link put it.
   await page.goto(base + 'index.html#far');
   await page.waitForTimeout(300);
@@ -351,14 +384,11 @@ async function deepLinks(browser, base, name) {
   assert.ok(early.top >= early.headerBottom && early.top < early.headerBottom + 60 && Math.abs(late.top - early.top) <= 2,
     name + ' #far stays in place: ' + JSON.stringify({early, late}));
 
-  assert.deepEqual(errors, [], name + ': no console errors');
-  await context.close();
+  await done(session, name);
 }
 
 async function groups(browser, base, name) {
-  const context = await browser.newContext({viewport: {width: 1280, height: 800}});
-  const page = await context.newPage();
-  await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, route => route.abort());
+  const session = await newPage(browser, base), {page} = session;
   await page.goto(base + 'group.html');
   await settle(page);
   await page.click('a[role="tab"]:has-text("Python") >> nth=0');
@@ -368,18 +398,16 @@ async function groups(browser, base, name) {
   await page.goto(base + 'other.html');
   await open(page, base + 'group.html#in-r');
   const s = await state(page, 'in-r');
-  assert.deepEqual(s.panes, [true], name + ': the link wins over the remembered group');
-  assert.equal(s.visible, true);
-  assert.equal(s.mark, 'load');
+  assert.deepEqual(s.panes, [true], name + ': the link wins over the remembered group' + ' ' + JSON.stringify(s));
+  assert.equal(s.visible, true, name + ' ' + JSON.stringify(s));
+  assert.equal(s.mark, 'load', name + ' ' + JSON.stringify(s));
   assert.ok(s.focusInView, name + ' group: focus in view ' + JSON.stringify(s));
   assert.equal(await page.evaluate(() => localStorage.getItem('quarto-persistent-tabsets-data')), stored, name + ': the remembered group is unchanged');
-  await context.close();
+  await done(session, name);
 }
 
 async function reveals(browser, base, name) {
-  const context = await browser.newContext({viewport: {width: 1280, height: 800}});
-  const page = await context.newPage();
-  await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, route => route.abort());
+  const session = await newPage(browser, base), {page, context} = session;
   await page.goto(base + 'index.html');
   await settle(page);
   const steps = () => page.evaluate(() => [...document.querySelectorAll('details.reading-step')].map(d => d.open));
@@ -429,7 +457,7 @@ async function reveals(browser, base, name) {
     return {inside: !!heading.closest('details.reading-step > .ctm-reveal-body'), after: !!after && !after.closest('details'), main: !!document.querySelector('main #far')};
   });
   assert.deepEqual(shape, {inside: true, after: true, main: true}, name + ': structure');
-  await context.close();
+  await done(session, name);
 }
 
 // --- run --------------------------------------------------------------------
@@ -442,13 +470,18 @@ try {
     const options = name === 'chromium' && process.env.CHROMIUM_PATH ? {executablePath: process.env.CHROMIUM_PATH} : {};
     const browser = await playwright[name].launch(options);
     try {
-      for (const check of [deepLinks, groups, reveals]) {
-        await check(browser, base, name);
-        console.log('ok', name, check.name);
+      // Each check on its own, so that one run reports every failure.
+      for (const check of [loads, inPage, otherPage, withoutTabs, pinned, groups, reveals]) {
+        try {
+          await check(browser, base, name);
+          console.log('ok', name, check.name);
+        } catch (error) {
+          failed = true;
+          console.log('not ok', name, check.name, error.message);
+          // A failure as an annotation: GitHub's job logs need a download.
+          if (process.env.GITHUB_ACTIONS) console.log('::error title=UI check ' + name + ' ' + check.name + '::' + String(error.message).replace(/%/g, '%25').replace(/\r?\n/g, '%0A'));
+        }
       }
-    } catch (error) {
-      failed = true;
-      console.error('not ok', name, error.message);
     } finally {
       await browser.close();
     }
