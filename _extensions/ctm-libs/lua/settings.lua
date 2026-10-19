@@ -117,6 +117,12 @@ return function(ctm)
     if found ~= nil and found.value ~= nil then return found.value, found.origin, section end
   end
 
+  -- The reader's record of section.key ({value, origin, ...}), or nil.
+  function M.entry(section, key)
+    local values = read().settings[section]
+    return values and values[key] or nil
+  end
+
   -- value, origin, section (where the value was found); opts.default when unset.
   function M.get(section, key, opts)
     opts = opts or {}

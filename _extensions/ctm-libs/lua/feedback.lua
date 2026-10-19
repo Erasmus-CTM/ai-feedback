@@ -22,6 +22,90 @@ do
   end
   _G.__ctmAiFeedbackInstallation = loaded or {path = here, version = ctm.version}
 end
+
+-- P22: a build without AI feedback. Off when CTM_FEEDBACK=off or when
+-- ai-feedback: enabled resolves to false (any level, the merged metadata;
+-- no level can turn it back on). Policies are still read and validated, so
+-- both builds fail alike; nothing of AI feedback reaches the HTML.
+local switch = nil
+local pyodideWanted = nil
+-- What the page asked for but left out; printed once, as one build message,
+-- when the page's filters have finished (the table's finalizer runs when
+-- Pandoc closes the page's Lua state).
+local leftOut = nil
+local function leaveOut(item)
+  if not leftOut then
+    leftOut = setmetatable({items = {}, seen = {}, reason = switch and switch.reason or ""}, {__gc = function(self)
+      if #self.items > 0 then
+        quarto.log.warning("AI feedback is off for this build (" .. self.reason .. "); left out on this page: "
+          .. table.concat(self.items, ", ") .. ".")
+      end
+    end})
+  end
+  if not leftOut.seen[item] then
+    leftOut.seen[item] = true
+    table.insert(leftOut.items, item)
+  end
+end
+
+-- true, or false and the reason (naming the setting that turned it off).
+function M.enabled()
+  if switch then return switch.on, switch.reason end
+  local env = os.getenv("CTM_FEEDBACK")
+  if env == "off" then
+    switch = {on = false, reason = "CTM_FEEDBACK=off"}
+  else
+    if env and env ~= "" and env ~= "on" then
+      quarto.log.warning("CTM_FEEDBACK=" .. env .. " is not understood (use off); AI feedback follows the project's settings.")
+    end
+    switch = {on = true}
+    if quarto.doc.is_format("html") then
+      local entry = ctm.settings.entry("ai-feedback", "enabled")
+      if entry and entry.value == false then
+        switch = {on = false, reason = "ai-feedback: enabled: false (" .. tostring(entry.origin) .. ")"}
+        if entry.wanted then leaveOut("ai-feedback: enabled: true (" .. entry.wanted .. ")") end
+      end
+    end
+  end
+  return switch.on, switch.reason
+end
+
+-- Whether `component` gets AI feedback: `wanted` and not switched off. A
+-- request that the switch refuses is named in the page's build message
+-- (`origin`: where the wish comes from, e.g. "feedback: true in _quarto.yml").
+function M.request(component, wanted, origin)
+  if not wanted then return false end
+  if M.enabled() then return true end
+  leaveOut(component .. " feedback" .. (origin and origin ~= "" and (" (" .. origin .. ")") or ""))
+  return false
+end
+
+-- Meta pass of the ctm-libs filter: with AI feedback off, pyodide-interaktiv
+-- 1.8 (which reads pyodide: feedback itself) is switched off too, when this
+-- filter runs before it (package order, or filters: [ai-feedback, ...]).
+function M.bridge(meta)
+  if not quarto.doc.is_format("html") or M.enabled() then return meta end
+  local pyodide = meta.pyodide
+  if pyodide == nil then
+    pyodide = pandoc.MetaMap({})
+  elseif pandoc.utils.type(pyodide) ~= "table" then
+    return meta
+  end
+  if pyodideWanted == nil then
+    local current = pyodide.feedback
+    pyodideWanted = not (current == false or (current ~= nil and pandoc.utils.stringify(current) == "false"))
+  end
+  pyodide.feedback = false
+  meta.pyodide = pyodide
+  return meta
+end
+
+local function requireSettings(what)
+  if quarto.doc.is_format("html") then
+    assert(ctm.settings.loaded(), "ctm-libs: feedback." .. what .. " needs the page's settings; the component calls "
+      .. "ctm.settings.load(meta) or ctm.feedback.prepare(doc) first.")
+  end
+end
 -- The page's interface language for activities (resolved, e.g. "nb") and the
 -- language feedback is written in (the raw tag), set in prepare.
 local uiLanguage, feedbackLanguage = "en", "en"
@@ -120,7 +204,22 @@ local function activity(block, context)
   visible:insert(pandoc.RawBlock("html", '<noscript>Enable JavaScript to use this feedback activity.</noscript>'))
   return pandoc.Div(visible, pandoc.Attr(id, {"ai-feedback-activity"}))
 end
+-- P22: an activity keeps its visible task (and source) and loses its answer
+-- box, button, criteria, starter and data; its policy selection is still checked.
+local function task(block)
+  counter = counter + 1
+  local id = block.identifier ~= "" and block.identifier or "ai-feedback-" .. counter
+  policy.selection(block, block.attributes)
+  local visible = pandoc.Blocks({})
+  for _, child in ipairs(block.content) do
+    if not (child.t == "Div" and (child.classes:includes("feedback-criteria") or child.classes:includes("feedback-starter"))) then
+      visible:insert(child)
+    end
+  end
+  return pandoc.Div(visible, pandoc.Attr(id, {"ai-feedback-task"}))
+end
 -- One source-order pass for every integration, before consumers transform cells.
+-- With state.off (P22) activities become tasks and no context is written.
 local function walk(blocks, state)
   local out = pandoc.Blocks({})
   for _, b in ipairs(blocks) do
@@ -129,11 +228,12 @@ local function walk(blocks, state)
     elseif b.t == "Header" then
       state.context = {sourceText(b)}
     elseif b.t == "Div" and b.classes:includes("ai-feedback") then
-      b = activity(b, state.context)
+      if state.off then state.activities = state.activities + 1; b = task(b) else b = activity(b, state.context) end
     elseif b.t == "CodeBlock" then
-      b.attributes["data-ai-feedback-context"] = bounded(state.context)
+      if not state.off then b.attributes["data-ai-feedback-context"] = bounded(state.context) end
     elseif isContext(b) then
-      b = preserveMath(b); b.content = walk(b.content, state)
+      if not state.off then b = preserveMath(b) end
+      b.content = walk(b.content, state)
     elseif b.t == "Div" or b.t == "BlockQuote" then
       b.content = walk(b.content, state)
     elseif b.t == "BulletList" or b.t == "OrderedList" then
@@ -144,7 +244,9 @@ local function walk(blocks, state)
         for i, definition in ipairs(item[2]) do item[2][i] = walk(definition, state) end
       end
     elseif b.t ~= "RawBlock" then
-      b = b:walk({CodeBlock = function(code) code.attributes["data-ai-feedback-context"] = bounded(state.context); return code end})
+      if not state.off then
+        b = b:walk({CodeBlock = function(code) code.attributes["data-ai-feedback-context"] = bounded(state.context); return code end})
+      end
       local text = sourceText(b); if text ~= "" then table.insert(state.context, text) end
     end
     out:insert(b)
@@ -166,6 +268,22 @@ function M.prepare(doc)
   if doc.meta["ctm-feedback-prepared"] then return doc end
   doc.meta["ctm-feedback-prepared"] = true
   ctm.settings.load(doc.meta)
+  if not M.enabled() then
+    ctm.settings.policies()
+    local state = {context = {}, off = true, activities = 0}
+    doc.blocks = walk(doc.blocks, state)
+    if state.activities > 0 then
+      leaveOut(state.activities .. " AI feedback " .. (state.activities == 1 and "activity" or "activities"))
+    end
+    if pyodideWanted then
+      local cells = false
+      doc.blocks:walk({CodeBlock = function(b)
+        if b.classes:includes("{pyodide-python}") or b.classes:includes("pyodide-python") then cells = true end
+      end})
+      if cells then leaveOut("pyodide-interaktiv feedback") end
+    end
+    return doc
+  end
   for _, key in ipairs({"mode", "storage", "base-url", "model"}) do
     cfg[key] = ctm.settings.string("ai-feedback", key)
   end
@@ -185,8 +303,18 @@ function M.prepare(doc)
   return doc
 end
 
-function M.selection(block, opts) return policy.selection(block, opts) end
+-- {exercise, name}: the policy name is checked in both builds; without AI
+-- feedback (P22) the name is left out.
+function M.selection(block, opts)
+  requireSettings("selection")
+  local selection = policy.selection(block, opts)
+  if not M.enabled() then selection.name = "" end
+  return selection
+end
+-- {mode, refs, text}: the exercise's learning context (none without AI feedback).
 function M.context(block, opts, pyodide)
+  requireSettings("context")
+  if not M.enabled() then return {mode = "none", refs = "", text = ""} end
   local ref = opts["feedback-context"] or opts["context"] or "auto"
   ref = tostring(ref):gsub('^"(.*)"$', '%1'):gsub("^'(.*)'$", "%1")
   if ref == "" or (pyodide and (ref == "setup" or ref == "output" or ref == "interactive")) then ref = "auto" end

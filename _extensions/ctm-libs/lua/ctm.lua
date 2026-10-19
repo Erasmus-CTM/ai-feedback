@@ -48,7 +48,7 @@ end})
 -- The passes of the ctm-libs filter (ctm-libs.lua and the ai-feedback alias).
 function ctm.filters()
   return {
-    {Meta = function(meta) ctm.settings.load(meta); return meta end},
+    {Meta = function(meta) ctm.settings.load(meta); return ctm.feedback.bridge(meta) end},
     {Callout = function(c) return ctm.feedback.markCallout(c) end},
     {Pandoc = function(doc) return ctm.feedback.prepare(doc) end},
   }

@@ -149,6 +149,7 @@ const settings: Record<string, Record<string, Entry>> = {};
 // --- ai-feedback ------------------------------------------------------------
 const RUNTIME_KEYS = ['mode', 'storage', 'base-url', 'model', 'ui-language', 'feedback-language'];
 const POLICY_KEYS = ['policy-files', 'page-policy-files', 'project-policy', 'page-policy'];
+const SWITCH_KEYS = ['enabled'];
 function scalar(value: unknown): string | undefined {
   if (value === null || value === undefined || typeof value === 'object') return undefined;
   return String(value);
@@ -161,10 +162,11 @@ function feedbackSettings() {
         'which is published with the site; learners enter personal keys in the Feedback settings.');
     } else if (['defaults', 'integrations', 'policies', 'exercises'].includes(key)) {
       errors.push('ai-feedback: inline ' + key + ' (' + origin + ') is not supported; load definitions and select project-policy/page-policy');
-    } else if (!RUNTIME_KEYS.includes(key) && !POLICY_KEYS.includes(key)) {
-      warnings.push('ai-feedback: unknown option ' + key + ' (' + origin + ') is ignored. Known options: ' + [...RUNTIME_KEYS, ...POLICY_KEYS].join(', ') + '.');
+    } else if (!RUNTIME_KEYS.includes(key) && !POLICY_KEYS.includes(key) && !SWITCH_KEYS.includes(key)) {
+      warnings.push('ai-feedback: unknown option ' + key + ' (' + origin + ') is ignored. Known options: ' + [...RUNTIME_KEYS, ...SWITCH_KEYS, ...POLICY_KEYS].join(', ') + '.');
     }
   }
+  feedbackSwitch(out);
   for (const key of RUNTIME_KEYS) {
     // Only a single value of the merged metadata counts (as before).
     const entry = resolveKey('ai-feedback', key, value => scalar(value) !== undefined);
@@ -200,6 +202,33 @@ function feedbackSettings() {
     }
   }
   return out;
+}
+
+// ai-feedback: enabled (P22) is AND over every level and the merged metadata:
+// any level can turn AI feedback off for the build, none can turn it back on.
+// origin names the first level that turned it off; wanted, the nearest level
+// that asked for it anyway (the page then gets a build message).
+function feedbackSwitch(out: Record<string, Entry>) {
+  const found: Entry[] = [];
+  for (const level of levels) {
+    const values = level.sections['ai-feedback'];
+    if (values && Object.hasOwn(values, 'enabled')) found.push({value: values.enabled, origin: level.origin});
+  }
+  const meta = documentMeta['ai-feedback'];
+  if (meta && Object.hasOwn(meta, 'enabled')) found.push({value: meta.enabled, origin: 'document metadata'});
+  let off: string | undefined, wanted: string | undefined, last: string | undefined;
+  for (const {value, origin} of found) {
+    const on = value === true || value === 'true' ? true : value === false || value === 'false' ? false : null;
+    if (on === null) {
+      errors.push('ai-feedback: enabled (' + origin + ') must be true or false (found ' + JSON.stringify(value) + ')');
+      continue;
+    }
+    if (!on && off === undefined) off = origin;
+    if (on && (wanted === undefined || origin !== 'document metadata')) wanted = origin;
+    last = origin;
+  }
+  if (off !== undefined) out.enabled = wanted ? {value: false, origin: off, wanted} as Entry : {value: false, origin: off};
+  else if (last !== undefined) out.enabled = {value: true, origin: last};
 }
 
 // Policy selection and files. The merged metadata seeds them (so that
