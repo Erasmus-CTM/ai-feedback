@@ -1,12 +1,12 @@
 // ctm-checkers in the page's runtime (step-2 design §3.5 and T5):
 // MathExerciseRuntime.ensureCheckers installs ctm-checkers once per runtime
-// with the install code of its page script (CTMCheckers.install), and
-// callCheckers runs a call with a call text that looks up no name in the
-// namespace learner code shares, installs again and repeats the call once when
-// it fails, and removes the request; a runtime that failed (stopped,
-// restarted) gets no further call. The first tests use fake runtimes; the
-// others run Pyodide 0.28.3 with the ctm-checkers commit in tests/pins.json
-// (CTM_CHECKERS_SOURCE, default _ctm-checkers-source).
+// with the install code of its page script (CTMCheckers.install) and loads the
+// whole library, and callCheckers runs a call with a call text that looks up
+// no name in the namespace learner code shares, installs again and repeats
+// the call once when it fails, and removes the request and its names; a
+// runtime that failed (stopped, restarted) gets no further call. The first
+// tests use fake runtimes; the others run Pyodide 0.28.3 with the ctm-checkers
+// commit in tests/pins.json (CTM_CHECKERS_SOURCE, default _ctm-checkers-source).
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -25,8 +25,9 @@ function runtime(globals = {}) {
 // A fake runtime that records what the runtime asks of it; `fail(code)` decides which runs fail.
 // A Python exception of the call text, as Pyodide reports it.
 const MISSING = 'Traceback (most recent call last):\n  File "<exec>", line 2, in <module>\nModuleNotFoundError: No module named \'ctm_checkers\'';
-// The cleanup after a call: the request goes.
-const CLEANUP = '_ctm_request = None\ndel _ctm_request';
+// What a call leaves behind: nothing (the request, the call text's name, the install code's names).
+const CLEANUP = '_ctm_request = None\ndel _ctm_request\n_ctm_builtins = None\ndel _ctm_builtins\n'
+  + '_ctm_import = None\ndel _ctm_import\n_ctm_globals = None\ndel _ctm_globals';
 function fakePy(fail = () => false) {
   const globals = new Map(), runs = [];
   return {
@@ -56,6 +57,10 @@ test('ensureCheckers installs once per runtime; a failed install, or forgetModul
   const a = fakePy(), b = fakePy();
   await Promise.all([R.ensureCheckers(a), R.ensureCheckers(a), R.ensureCheckers(b)]);
   assert.deepEqual(checkers.installs, [a, b]);
+  // After the install, the whole library is loaded and the install code's names removed, once.
+  assert.equal(a.runs.length, 1);
+  assert.match(a.runs[0], /pkgutil\.walk_packages\(package\.__path__, "ctm_checkers\."/);
+  assert.match(a.runs[0], /\ndel _ctm_import\n_ctm_globals = None\ndel _ctm_globals$/);
   await R.ensureCheckers(a);
   assert.equal(checkers.installs.length, 2);
   R.forgetModules(a);
@@ -327,12 +332,15 @@ test('Pyodide: ctm-checkers installs through globals.set and runPythonAsync only
   await R.ensureCheckers(proxy);
   assert.equal(py.runPython('import sys\nsys.modules["ctm_checkers"].__version__'), manifest.version);
   assert.deepEqual(JSON.parse(await R.callCheckers(proxy, 'math_exercise.check', REQUEST)), { status: 'correct', score: 1.0 });
-  assert.equal(py.runPython('"_ctm_request" in globals()'), false);
+  // Nothing of the install or the call stays in the namespace learner code shares.
+  assert.deepEqual(py.runPython('sorted(n for n in globals() if n.startswith("_ctm_"))').toJs(), []);
 
   // Learner code rebinds what other call texts look up: this one needs none of it.
   py.runPython('__import__ = None\nglobals = None\n_ctm_import = None\n_ctm_globals = dict\nbuiltins = None');
   assert.deepEqual(JSON.parse(await R.callCheckers(proxy, 'math_exercise.check', { ...REQUEST, student: '3*x' })), { status: 'wrong', score: 0.0 });
-  py.runPython('del __import__, globals, _ctm_import, _ctm_globals, builtins');
+  py.runPython('del __import__, globals, builtins');
+  // The call's cleanup removed the _ctm_ names (reserved for CTM), the learner's too.
+  assert.deepEqual(py.runPython('sorted(n for n in globals() if n.startswith("_ctm_"))').toJs(), []);
 
   // Learner code removes the library: the call fails once, ctm-checkers is installed again, the call is repeated.
   const installs = [];
@@ -357,7 +365,7 @@ test('Pyodide: ctm-checkers installs through globals.set and runPythonAsync only
     '_state = _ctm_guard.snapshot()',
     'for name in [n for n in sys.modules if n.startswith("ctm_checkers")]: del sys.modules[name]',
     '_ctm_guard.restore(_state)',
-    'del _state',
+    'del _state, _ctm_guard',
     '"ctm_checkers.browser" in sys.modules and "ctm_checkers" in sys.modules',
   ].join('\n')), true);
 
@@ -370,6 +378,42 @@ test('Pyodide: ctm-checkers installs through globals.set and runPythonAsync only
   const damaged = pageWithCheckers({ change: (text) => text.replace(/data: '([A-Za-z0-9+/]{24})/, (all, start) => "data: '" + [...start].reverse().join('')) });
   assert.notEqual(damaged.context.CTMCheckers.data, context.CTMCheckers.data);
   await assert.rejects(damaged.R.ensureCheckers(proxyOf(py)), /payload is damaged/);
+});
+
+const CUSTOM = { response: { kind: 'expressions', raw: ['x+1'], inputs: {} }, vars: 'x',
+  checker: 'def check(response, symbols):\n    return {"correct": response["expressions"][0] == symbols["x"] + 1}\n' };
+
+test('Pyodide: learner code that deletes or overwrites the installed wheel breaks no later call (the whole library is loaded at install)', { skip: skipPyodide, timeout: 600000 }, async () => {
+  assert.ok(haveCheckers, 'ctm-checkers is missing: check out the commit of tests/pins.json into ' + checkersSource);
+  const py = await realPyodide();
+  const { R, context } = pageWithCheckers();
+  const proxy = proxyOf(py);
+  const installs = [];
+  const counted = { install: (target) => { installs.push(target); return context.CTMCheckers.install(target); } };
+  await R.ensureGuard(proxy);
+  assert.deepEqual(JSON.parse(await R.callCheckers(proxy, 'math_exercise.check', REQUEST, counted)), { status: 'correct', score: 1.0 });
+  // Every module of the library is in memory, the first check_custom's too.
+  assert.equal(py.runPython('import sys\n"ctm_checkers.math_exercise.custom" in sys.modules and "ctm_checkers.matrix" in sys.modules'), true);
+  const custom = async (raw) => JSON.parse(await R.callCheckers(proxy, 'math_exercise.check_custom',
+    { ...CUSTOM, response: { ...CUSTOM.response, raw: [raw] } }, counted)).status;
+  // Before the first check_custom, learner code removes the wheel ...
+  py.runPython('import shutil as _learner\n_learner.rmtree("/tmp/ctm-checkers")\ndel _learner');
+  assert.equal(await custom('x+1'), 'correct');
+  assert.equal(await custom('x+2'), 'wrong');
+  // ... writes other bytes in its place, and empties a package's __path__.
+  py.runPython(['import os as _learner, sys as _learner_sys',
+    '_wheel = _learner_sys.modules["ctm_checkers"].__file__.split("/ctm_checkers/")[0]',
+    '_learner.makedirs(_learner.path.dirname(_wheel), exist_ok=True)',
+    'open(_wheel, "wb").write(b"not a wheel")',
+    '_learner_sys.modules["ctm_checkers.math_exercise"].__path__[:] = []',
+    'del _learner, _learner_sys, _wheel'].join('\n'));
+  assert.equal(await custom('x+1'), 'correct');
+  assert.deepEqual(JSON.parse(await R.callCheckers(proxy, 'math_exercise.check', REQUEST, counted)), { status: 'correct', score: 1.0 });
+  // An answer the admission rule rejects is still the call's own error, not repeated.
+  await assert.rejects(R.callCheckers(proxy, 'math_exercise.check', { ...REQUEST, student: '__import__("os")' }, counted),
+    /ValueError: SyntaxError: unsupported input/);
+  assert.equal(installs.length, 1, 'no install after the first');
+  assert.deepEqual(py.runPython('sorted(n for n in globals() if n.startswith("_ctm_"))').toJs(), []);
 });
 
 test('Pyodide: in a worker (importScripts), the same install and call', { skip: skipPyodide, timeout: 600000 }, async () => {

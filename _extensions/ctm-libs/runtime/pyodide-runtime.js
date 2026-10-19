@@ -195,6 +195,32 @@
   function forgetModules(py) { if (installed) installed.delete(py); }
   function ensureGuard(py) { return installModule(py, '_ctm_guard', GUARD_PY); }
 
+  // The names ctm-checkers' install code leaves in the namespace for its own
+  // call text (_ctm_import, _ctm_globals): this runtime's call text, below,
+  // needs none of them, so they go (no lookups: assign, then delete).
+  var CHECKERS_LEFTOVERS = '_ctm_import = None\ndel _ctm_import\n_ctm_globals = None\ndel _ctm_globals';
+  // After the install, every module of ctm_checkers is imported, so that no
+  // call reads the wheel file again: learner code may delete or overwrite
+  // /tmp/ctm-checkers (math-exercise 0.10 kept its checker module in memory
+  // too). A module that cannot be imported yet (a package not loaded) is
+  // imported on its first use instead.
+  var CHECKERS_LOAD = [
+    'def _ctm_checkers_load():',
+    '    import builtins, importlib, pkgutil',
+    '    package = importlib.import_module("ctm_checkers")',
+    '    for module in pkgutil.walk_packages(package.__path__, "ctm_checkers.", onerror=lambda name: None):',
+    '        if not module.name.endswith(".__main__"):',
+    '            try:',
+    '                importlib.import_module(module.name)',
+    '            except builtins.Exception:',
+    '                pass',
+    'try:',
+    '    _ctm_checkers_load()',
+    'finally:',
+    '    del _ctm_checkers_load',
+    CHECKERS_LEFTOVERS,
+  ].join('\n');
+
   // A Python exception, as Pyodide and pyodide-interaktiv's worker report it:
   // with its traceback. Any other failure of a runtime's call is one of the
   // runtime itself (stopped, restarted, a worker gone). Such a runtime is
@@ -216,6 +242,7 @@
   // HTML dependency "ctm-checkers"); its own install code does the work with
   // py.globals.set and py.runPythonAsync only (ctm-checkers docs/api.md):
   // it checks the wheel's SHA-256 and imports ctm_checkers from the wheel.
+  // Then the whole library is loaded (CHECKERS_LOAD).
   function ensureCheckers(py, payload) {
     var checkers = payload || root.CTMCheckers;
     if (!checkers || typeof checkers.install !== 'function') {
@@ -224,7 +251,9 @@
     var failure = gone && gone.get(py);
     if (failure) return Promise.reject(failure);
     return once(py, 'ctm-checkers', function () {
-      return Promise.resolve(checkers.install(py)).catch(function (error) { return failedRuntime(py, error); });
+      return Promise.resolve(checkers.install(py))
+        .then(function () { return py.runPythonAsync(CHECKERS_LOAD); })
+        .catch(function (error) { return failedRuntime(py, error); });
     });
   }
 
@@ -237,8 +266,10 @@
       + '_ctm_builtins.__import__("ctm_checkers.browser", fromlist=["call"]).call(' + JSON.stringify(name)
       + ', _ctm_builtins.globals())';
   }
-  // Removes the request whatever happened to it (no name lookups either).
-  var CHECKERS_CLEANUP = '_ctm_request = None\ndel _ctm_request';
+  // Removes the request whatever happened to it, the call text's own name
+  // and the install code's leftovers: nothing of a call stays in the
+  // namespace learner code shares (no name lookups either).
+  var CHECKERS_CLEANUP = '_ctm_request = None\ndel _ctm_request\n_ctm_builtins = None\ndel _ctm_builtins\n' + CHECKERS_LEFTOVERS;
   // A Python exception of the call text itself: learner code removed
   // ctm-checkers or rebound what the import uses, and installing again
   // repairs it. Not one: an error that ctm-checkers' call raised (its
@@ -263,11 +294,11 @@
   // (learner code removed ctm-checkers or rebound what the import uses),
   // ctm-checkers is installed again and the call is repeated once, unless
   // the learner stopped the runtime meanwhile; the second failure and an
-  // error the call itself raised reach the caller. The request is removed
-  // from the namespace afterwards. A failure of the runtime rather than of
-  // Python (stopped, restarted) reaches the caller at once, with no cleanup
-  // sent to that runtime, and so do the later calls for it, also those
-  // waiting behind this one (`gone`).
+  // error the call itself raised reach the caller. The request and the call
+  // text's names are removed from the namespace afterwards. A failure of the
+  // runtime rather than of Python (stopped, restarted) reaches the caller at
+  // once, with no cleanup sent to that runtime, and so do the later calls
+  // for it, also those waiting behind this one (`gone`).
   function callCheckers(py, name, request, payload) {
     var text = typeof request === 'string' ? request : JSON.stringify(request);
     var epoch = stops;
