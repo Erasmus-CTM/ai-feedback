@@ -1,0 +1,88 @@
+name: Old consumers and the old name
+# The components as merged before the consolidation and pyodide-interaktiv
+# 1.8 keep working with this ctm-libs through the ai-feedback alias, and
+# `quarto add Erasmus-CTM/ai-feedback@<ref>` still installs it (step-1 design
+# §16.3, §16.4). The old components' own test suites are not run here.
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  legacy-consumers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: math-exercise as merged before the consolidation
+        uses: actions/checkout@v4
+        with:
+          repository: Erasmus-CTM/math-exercise
+          ref: bf6caf3c5666bdf1c12fc0530b52518bfc0cd62f
+          path: _legacy/math-exercise
+      - name: py-exercise as merged before the consolidation
+        uses: actions/checkout@v4
+        with:
+          repository: Erasmus-CTM/py-exercise
+          ref: c14c5f48144c44c410972a0ac7bc75506046fa9e
+          path: _legacy/py-exercise
+      - name: pyodide-interaktiv 1.8 (the umbrella's pin)
+        uses: actions/checkout@v4
+        with:
+          repository: Erasmus-CTM/pyodide-interaktiv
+          ref: 8a16aa73bc1eea241ee1407525d8657c4c8b287b
+          path: _legacy/pyodide-interaktiv
+      - name: ai-feedback 0.8.1 (this repository before the consolidation)
+        uses: actions/checkout@v4
+        with:
+          ref: 79103a6a829b9c5cf62f645857ca7f8330ff7be2
+          path: _legacy/ai-feedback-0.8.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: quarto-dev/quarto-actions/setup@v2
+        with:
+          version: '1.8.27'
+      - run: npm ci --ignore-scripts
+      - run: node tests/prepare-quarto.cjs
+      - name: Old components render through the alias
+        env:
+          CTM_LEGACY_SOURCES: ${{ github.workspace }}/_legacy
+        run: |
+          set -o pipefail
+          node --test tests/legacy/consumers.test.cjs 2>&1 | tee "$RUNNER_TEMP/legacy.log"
+      - name: pyodide-interaktiv 1.8's tests with this ctm-libs' feedback files
+        working-directory: _legacy/pyodide-interaktiv
+        env:
+          AI_FEEDBACK_EXTENSION: ${{ github.workspace }}/_extensions/ctm-libs/feedback
+        run: |
+          set -o pipefail
+          npm ci --ignore-scripts
+          npm test 2>&1 | tee -a "$RUNNER_TEMP/legacy.log"
+      - name: Report failing tests as annotations
+        if: failure()
+        run: |
+          text=$(grep -A30 'not ok' "$RUNNER_TEMP/legacy.log" | head -c 3500 | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')
+          echo "::error title=Failing legacy tests::$text"
+  old-name:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: quarto-dev/quarto-actions/setup@v2
+        with:
+          version: '1.8.27'
+      - run: npm ci --ignore-scripts
+      - run: node tests/prepare-quarto.cjs
+      - name: quarto add Erasmus-CTM/ai-feedback@<this branch or tag>
+        env:
+          CTM_ADD_REF: ${{ github.head_ref || github.ref_name }}
+        run: |
+          set -o pipefail
+          node --test tests/legacy/quarto-add.test.cjs 2>&1 | tee "$RUNNER_TEMP/add.log"
+      - name: Report failing tests as annotations
+        if: failure()
+        run: |
+          text=$(grep -A30 'not ok' "$RUNNER_TEMP/add.log" | head -c 3500 | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')
+          echo "::error title=Failing install test::$text"
