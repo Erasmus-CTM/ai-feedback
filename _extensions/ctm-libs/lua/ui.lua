@@ -1,5 +1,5 @@
--- Reveals, the lecture/reading switch, embedded pages and links into tabs of
--- CTM Assessment pages (ctm.ui; P18, F1, F2). Authors
+-- Reveals, the lecture/reading switch, embedded pages, links into tabs and
+-- the Markdown lint of CTM Assessment pages (ctm.ui; P18, F1, F2). Authors
 -- write Markdown only:
 --
 --   ::: {.reading-step title="Gå i dybden: …"}   follows the lecture/reading switch
@@ -223,7 +223,49 @@ return function(ctm)
       "</div>"}, "\n"))
   end
 
-  -- Pass 2: the switch and the page's dependencies (once per page).
+  -- markdown-lint: true warns, at render time, on raw HTML that has a
+  -- Markdown form, and on tabsets whose tab-heading ids Quarto drops (the
+  -- project lacks ctm-assessment's pre-ast tab-ids.lua).
+  local LINT = {
+    {name = "details", find = function(t) return t:match("<details[%s>]") or t:match("<summary[%s>]") end,
+      advice = 'raw HTML <details>/<summary> (%s): write ::: {.reading-step title="…"}, ::: {.hint}, ::: {.solution} or '
+        .. '::: {.details title="…"}, closed with :::, instead.'},
+    {name = "anchor", find = function(t) return t:match('<div%s+id%s*=%s*"[^"]*"%s*>%s*</div>') end,
+      advice = "raw HTML <div id=\"…\"></div> (%s): write ::: {#id} and ::: on the next line instead."},
+    {name = "iframe", find = function(t) return t:match("<iframe[%s>]") end,
+      advice = 'raw HTML <iframe> (%s): write ::: {.embed src="…" title="…" height="…"} and ::: instead.'},
+    {name = "switch", find = function(t) return t:match("data%-learning%-mode") end,
+      advice = "a hand-written lecture/reading switch (data-learning-mode, %s): remove it. Pages with "
+        .. ".reading-step blocks get the switch; ::: {.modes} places it."},
+  }
+  local function lint(meta)
+    local found = {}
+    ctm.source.scan(function(line, file, number)
+      local lower = line:lower()
+      for _, rule in ipairs(LINT) do
+        if rule.find(lower) then
+          found[rule.name] = found[rule.name] or {}
+          table.insert(found[rule.name], file.label .. ":" .. number)
+        end
+      end
+    end)
+    for _, rule in ipairs(LINT) do
+      local where = found[rule.name]
+      if where then
+        local shown = {}
+        for i = 1, math.min(#where, 5) do shown[i] = where[i] end
+        local list = table.concat(shown, ", ") .. (#where > 5 and (" and " .. (#where - 5) .. " more") or "")
+        quarto.log.warning("markdown-lint: " .. rule.advice:format(list))
+      end
+    end
+    if page.tabsets > 0 and meta["ctm-tab-ids"] == nil then
+      quarto.log.warning("markdown-lint: " .. ctm.source.pageName() .. " has tabsets, but Quarto drops the ids of "
+        .. "their tab headings: list ctm-assessment's tab-ids.lua first in _quarto.yml (filters: - path: "
+        .. "_extensions/ctm-assessment/tab-ids.lua, at: pre-ast; then - ctm-assessment).")
+    end
+  end
+
+  -- Pass 2: the switch, the lint and the page's dependencies (once per page).
   function M.page(doc)
     if doc.meta["ctm-ui-prepared"] then return doc end
     doc.meta["ctm-ui-prepared"] = true
@@ -246,6 +288,7 @@ return function(ctm)
       return {}
     end})
     if block and not placed then doc.blocks:insert(1, block) end
+    if ctm.settings.bool("ctm-assessment", "markdown-lint", {default = false}) and html() then lint(doc.meta) end
     if quarto.doc.is_format("html") then
       local scripts = quarto.doc.is_format("html:js")
       local nav = scripts and links and (page.tabsets > 0 or page.reveals > 0)

@@ -1,6 +1,6 @@
 // The page's interface (lua/ui.lua), rendered: reveals, the lecture/reading
-// switch, embedded pages and the dependencies (tab links on by default).
-// Pages without the new syntax are unchanged.
+// switch, embedded pages, the dependencies (tab links on by default) and the
+// Markdown lint. Pages without the new syntax are unchanged.
 const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), path = require('node:path');
 const {JSDOM} = require('jsdom');
 const C = require('./helpers/ctm-libs.cjs');
@@ -259,3 +259,25 @@ test('ctm-assessment: tab-links, modes and markdown-lint take true or false', {s
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /ctm-assessment: modes must be true or false \(found maybe in page\.qmd\)/);
 }, 'ctm-assessment:\n  tab-links: "false"\n'));
+
+// markdown-lint: raw HTML that has a Markdown form, in the page and the files
+// it includes, outside code and comments; tabsets without tab-ids.lua.
+const LEGACY = OLD + '\n```html\n<details><summary>Code, not linted</summary></details>\n```\n\n'
+  + 'Inline `<iframe>` is code.\n\n<!-- <details> in a comment -->\n\n```{=html}\n<details class="solution-block">\n```\n\n';
+
+test('markdown-lint: true names raw HTML with a Markdown form, and tabsets without the tab-ids line', {skip}, () => withProject({
+  'page.qmd': front() + 'Intro.\n\n{{< include _inc/old.md >}}\n\n::: {.panel-tabset}\n## A\n\nA.\n\n## B\n\nB.\n:::\n',
+  '_inc/old.md': LEGACY,
+  'clean.qmd': front() + '::: {.reading-step}\nStep.\n:::\n\n::: {.panel-tabset}\n## A\n\nA.\n\n## B\n\nB.\n:::\n',
+  'tab-ids.lua': '-- Stand-in for ctm-assessment\'s pre-ast tab-ids.lua: it marks the page.\nfunction Meta(meta) if quarto.doc.input_file:match("clean") then meta["ctm-tab-ids"] = true end return meta end\n',
+}, dir => {
+  const r = C.render(dir);
+  assert.equal(r.status, 0, r.stderr);
+  const lint = warnings(r.stderr).join('\n');
+  assert.match(lint, /markdown-lint: raw HTML <details>\/<summary> \(_inc\/old\.md:9, _inc\/old\.md:10, _inc\/old\.md:27\): write ::: \{\.reading-step title="…"\}, ::: \{\.hint\}, ::: \{\.solution\} or ::: \{\.details title="…"\}, closed with :::, instead\./);
+  assert.match(lint, /markdown-lint: raw HTML <div id="…"><\/div> \(_inc\/old\.md:7\): write ::: \{#id\} and ::: on the next line instead\./);
+  assert.match(lint, /markdown-lint: raw HTML <iframe> \(_inc\/old\.md:16\): write ::: \{\.embed src="…" title="…" height="…"\} and ::: instead\./);
+  assert.match(lint, /markdown-lint: a hand-written lecture\/reading switch \(data-learning-mode, _inc\/old\.md:1\): remove it\. Pages with \.reading-step blocks get the switch; ::: \{\.modes\} places it\./);
+  assert.match(lint, /markdown-lint: page\.qmd \(or a file it includes\) has tabsets, but Quarto drops the ids of their tab headings: list ctm-assessment's tab-ids\.lua first in _quarto\.yml/);
+  assert.equal(lint.match(/markdown-lint/g).length, 5, 'one warning per kind, none for clean.qmd: ' + lint);
+}, 'ctm-assessment:\n  markdown-lint: true\nfilters:\n  - path: tab-ids.lua\n    at: pre-ast\n  - ctm-libs\n'));
