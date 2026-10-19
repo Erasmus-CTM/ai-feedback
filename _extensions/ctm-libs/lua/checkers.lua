@@ -57,6 +57,7 @@ return function(ctm)
   -- `api` (same major level, minor level at least the required one); returns
   -- its manifest.
   function M.require(component, api)
+    component = component and tostring(component) or "This page"
     local folder, manifest = installation(component)
     local need, have = level(api), level(manifest.api)
     if not need then ctm.fail(component .. ": ctm.checkers.require needs an API level such as 1, not " .. tostring(api)) end

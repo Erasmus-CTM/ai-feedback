@@ -332,24 +332,39 @@ MathExerciseRuntime.forgetModules(py);                 // the next ensure* insta
 - `ensureCheckers(py[, payload])` installs ctm-checkers once per runtime
   with its page script's own install code (`CTMCheckers.install(py)`, which
   checks the wheel's SHA-256 and imports `ctm_checkers` from the wheel);
-  `payload` defaults to the page's `CTMCheckers`. Without ctm-checkers.js on
-  the page it fails with a message.
+  `payload` defaults to the page's `CTMCheckers`. Then it imports every
+  module of the library, so that no call reads the wheel file again (learner
+  code that deletes or overwrites `/tmp/ctm-checkers` breaks no later call),
+  and removes the names the install code leaves in the namespace
+  (`_ctm_import`, `_ctm_globals`; the call text below needs neither).
+  Without ctm-checkers.js on the page it fails with a message.
 - `callCheckers(py, name, request[, payload])` runs ctm-checkers' call
   `name` (`math_exercise.check`, `math_exercise.check_custom`) on `request`
   (ctm-checkers `docs/api.md`) and returns its JSON text. It sets
   `_ctm_request` and runs a call text that looks up no name in the
   namespace learner code shares (`import builtins as _ctm_builtins`, then
   `_ctm_builtins.__import__("ctm_checkers.browser", …).call(name,
-  _ctm_builtins.globals())`), in the same namespace as the request. The
-  calls of one runtime run one after another. When the call text fails with
-  a Python exception before it reaches ctm-checkers' `call` (learner code
-  removed ctm-checkers or rebound what the import uses), ctm-checkers is
-  installed again and the call repeated once, unless the learner stopped the
-  runtime meanwhile. The second failure reaches the caller, as do an error
-  that `call` raised itself (the answer to the request, such as the
-  admission rule's `ValueError`) and a failure of the runtime rather than of
-  Python (a restart: the caller moves to the new runtime). The request is
-  removed from the namespace in every case.
+  _ctm_builtins.globals())`), in the same namespace as the request, so
+  learner code that rebinds a name there (`__import__`, `globals`,
+  `builtins`, a `_ctm_` name) does not affect it. Afterwards
+  `_ctm_request`, `_ctm_builtins` and the install code's names are removed
+  from the namespace. This is the call text of ctm-checkers 0.1 pages; the
+  call text in ctm-checkers' own `docs/api.md` (with `_ctm_import`) is not
+  used. The calls of one runtime run one after another: pass the runtime
+  object that `ensurePyodide` returned, so that every caller queues on the
+  same one. A runtime that hangs holds up only its own calls.
+- When the call text fails with a Python exception before it reaches
+  ctm-checkers' `call` (learner code removed ctm-checkers or rebound what
+  the import uses), ctm-checkers is installed again and the call repeated
+  once, unless the learner stopped the runtime meanwhile. The second failure
+  reaches the caller, as does an error that `call` raised itself (the
+  answer to the request, such as the admission rule's `ValueError`).
+- A failure of the runtime rather than of Python (stopped, restarted; no
+  Python traceback) reaches the caller at once, and the caller moves to the
+  new runtime. That runtime gets nothing more, since pyodide-interaktiv's
+  terminated worker never answers: no cleanup, and every later call or
+  install for it, including one waiting behind the failed call, fails at
+  once with the same error.
 - `_ctm_guard`'s snapshot keeps the modules named `_ctm_…` and
   `ctm_checkers…`: a checker that removes them is undone after its call.
 - `scriptURL` is the runtime script's own URL on a page (for a worker that
