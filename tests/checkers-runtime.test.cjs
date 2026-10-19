@@ -22,13 +22,16 @@ function runtime(globals = {}) {
 }
 
 // A fake runtime that records what the runtime asks of it; `fail(code)` decides which runs fail.
+// A Python exception of the call text, as Pyodide reports it.
+const MISSING = 'Traceback (most recent call last):\n  File "<exec>", line 2, in <module>\nModuleNotFoundError: No module named \'ctm_checkers\'';
 function fakePy(fail = () => false) {
   const globals = new Map(), runs = [];
   return {
     globals: { set: async (name, value) => { globals.set(name, value); } },
     runPythonAsync: async (code) => {
       runs.push(code);
-      if (fail(code, runs)) throw new Error('PythonError: the call failed');
+      const failure = fail(code, runs);
+      if (failure) throw new Error(typeof failure === 'string' ? failure : 'PythonError: ' + MISSING);
       if (code.includes('.call(')) { const request = globals.get('_ctm_request'); globals.delete('_ctm_request'); return JSON.stringify({ request }); }
       if (code.includes('del _ctm_request')) globals.delete('_ctm_request');
       return undefined;
@@ -93,7 +96,7 @@ test('callCheckers installs again and repeats a failed call once; a second failu
   assert.equal(checkers.installs.length, 2);
   assert.ok(!once.values.has('_ctm_request'));
   const always = fakePy((code) => code.includes('.call('));
-  await assert.rejects(R.callCheckers(always, 'math_exercise.check', { n: 2 }), /the call failed/);
+  await assert.rejects(R.callCheckers(always, 'math_exercise.check', { n: 2 }), /No module named 'ctm_checkers'/);
   assert.equal(always.runs.filter((code) => code.includes('.call(')).length, 2);
   assert.ok(!always.values.has('_ctm_request'));
   assert.equal(checkers.installs.length, 4);
@@ -126,27 +129,20 @@ test('callCheckers does not repeat a call that the learner stopped', async () =>
   context.CTMCheckers = checkers;
   context.mainPyodide = { restart() {} };
   const py = fakePy((code) => { if (code.includes('.call(')) { R.stop('Stopped by the learner'); return true; } return false; });
-  await assert.rejects(R.callCheckers(py, 'math_exercise.check', {}), /the call failed/);
+  await assert.rejects(R.callCheckers(py, 'math_exercise.check', {}), /No module named/);
   assert.equal(py.runs.filter((code) => code.includes('.call(')).length, 1);
   assert.equal(checkers.installs.length, 1);
 });
 
-test('callCheckers does not repeat a call on a runtime the page replaced meanwhile (the caller moves to the new one)', async () => {
+test('callCheckers does not repeat a call that failed in the runtime, not in Python (a restart: the caller moves on)', async () => {
   const context = runtime();
   const R = context.MathExerciseRuntime;
   const checkers = payload();
   context.CTMCheckers = checkers;
-  const old = fakePy((code) => { if (code.includes('.call(')) { context.mainPyodide = fakePy(); return true; } return false; });
-  context.mainPyodide = old;
-  await assert.rejects(R.callCheckers(old, 'math_exercise.check', {}), /the call failed/);
-  assert.equal(old.runs.filter((code) => code.includes('.call(')).length, 1);
+  const py = fakePy((code) => code.includes('.call(') && 'Python was restarted.');
+  await assert.rejects(R.callCheckers(py, 'math_exercise.check', {}), /^Error: Python was restarted\.$/);
+  assert.equal(py.runs.filter((code) => code.includes('.call(')).length, 1);
   assert.equal(checkers.installs.length, 1);
-  // The runtime the page uses now: a failed call is repeated there.
-  let calls = 0;
-  const current = fakePy((code) => code.includes('.call(') && ++calls === 1);
-  context.mainPyodide = current;
-  assert.ok(JSON.parse(await R.callCheckers(current, 'math_exercise.check', {})).request);
-  assert.equal(calls, 2);
 });
 
 test('the calls of one runtime run one after another (one _ctm_request at a time)', async () => {

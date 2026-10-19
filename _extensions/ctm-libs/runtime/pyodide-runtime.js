@@ -220,11 +220,18 @@
   }
   // Removes the request whatever happened to it (no name lookups either).
   var CHECKERS_CLEANUP = '_ctm_request = None\ndel _ctm_request';
-  // An error that ctm-checkers' call raised (its traceback passes through
-  // ctm_checkers/browser.py's call): the answer of the request, for example
-  // a learner string the admission rule rejects. Installing again would not
-  // change it.
+  // A Python exception of the call text itself: learner code removed
+  // ctm-checkers or rebound what the import uses, and installing again
+  // repairs it. Not one: an error that ctm-checkers' call raised (its
+  // traceback passes through ctm_checkers/browser.py's call), which is the
+  // answer to the request (for example a learner string the admission rule
+  // rejects), and a failure of the runtime rather than of Python (stopped,
+  // restarted, a worker gone: the caller moves on).
   var RAISED_BY_CALL = /ctm_checkers[\\/]browser\.py", line \d+, in call\b/;
+  function callTextFailed(error) {
+    var text = String(error && error.message || error);
+    return /Traceback \(most recent call last\)/.test(text) && !RAISED_BY_CALL.test(text);
+  }
   var checkerCalls = typeof WeakMap === 'function' ? new WeakMap() : null;
 
   // Runs ctm-checkers' call `name` (for example "math_exercise.check") on
@@ -232,13 +239,13 @@
   // returns the JSON text it returns. Installs ctm-checkers first (once per
   // runtime). The calls of one runtime run one after another, since the
   // request travels in one global (_ctm_request). When the call text fails
-  // before it reaches ctm-checkers' call (learner code removed ctm-checkers
-  // or rebound what the import uses), ctm-checkers is installed again and the
-  // call is repeated once, unless the learner stopped the runtime or the
-  // page replaced it meanwhile (pyodide-interaktiv's restart: the caller moves
-  // to the new runtime); the second failure, and any error the call itself
-  // raised, reaches the caller. The request is removed from the namespace in
-  // every case.
+  // with a Python exception before it reaches ctm-checkers' call (learner
+  // code removed ctm-checkers or rebound what the import uses), ctm-checkers
+  // is installed again and the call is repeated once, unless the learner
+  // stopped the runtime meanwhile; the second failure, an error the call
+  // itself raised and a failure of the runtime (a restart: the caller moves
+  // to the new runtime) reach the caller. The request is removed from the
+  // namespace in every case.
   function callCheckers(py, name, request, payload) {
     var text = typeof request === 'string' ? request : JSON.stringify(request);
     var epoch = stops;
@@ -249,8 +256,7 @@
           await py.globals.set('_ctm_request', text);
           return await py.runPythonAsync(checkersCall(name));
         } catch (error) {
-          var replaced = root.mainPyodide !== undefined && root.mainPyodide !== py;
-          if (tries > 0 || stops !== epoch || replaced || RAISED_BY_CALL.test(String(error && error.message || error))) throw error;
+          if (tries > 0 || stops !== epoch || !callTextFailed(error)) throw error;
           var done = installed && installed.get(py);
           if (done) delete done['ctm-checkers'];
         } finally {
