@@ -33,7 +33,7 @@ function withProject(run) {
     C.installPackage(dir); C.install(dir); C.installProbe(dir);
     C.write(dir, {
       '_quarto.yml': 'project:\n  type: default\n  render: [activity.qmd, asks.qmd, plain.qmd, pyodide.qmd, pyodide-asks.qmd]\nfilters: [ctm-libs, probe]\n'
-        + 'ai-feedback:\n  mode: api\n  base-url: https://llm.example.edu/v1\n  model: course-model\n  policy-files: policies.yml\n  project-policy: course\n',
+        + 'ai-feedback:\n  mode: api\n  base-url: https://llm.example.edu/v1\n  model: course-model\n  policy-files: policies.yml\n  project-policy: course\n  without-ai: text\n',
       '_quarto-no-ai.yml': 'ai-feedback:\n  enabled: false\n',
       'policies.yml': 'ai-feedback:\n  policies:\n    course:\n      base-prompt: POLICY_MARKER_7731\n',
       'activity.qmd': '---\ntitle: Activity\n---\n' + activity + probes,
@@ -81,7 +81,7 @@ test('a profile with ai-feedback: enabled: false builds the site without AI feed
   const found = messages(r.stderr);
   assert.deepEqual(found.map(m => m.reason), Array(3).fill('ai-feedback: enabled: false (_quarto-no-ai.yml)'));
   assert.deepEqual(found.map(m => m.items).sort(), [
-    '1 AI feedback activity, math-exercise feedback (feedback: auto)',
+    '1 exercise only AI feedback can assess, shown as text (without-ai: text in _quarto.yml): essay, math-exercise feedback (feedback: auto)',
     'ai-feedback: enabled: true (asks.qmd)',
     'pyodide-interaktiv feedback',
   ]);
@@ -94,7 +94,7 @@ test('CTM_FEEDBACK=off does the same without any metadata, with the same build m
   const found = messages(r.stderr);
   assert.deepEqual(found.map(m => m.reason), Array(3).fill('CTM_FEEDBACK=off'));
   assert.deepEqual(found.map(m => m.items).sort(), [
-    '1 AI feedback activity, math-exercise feedback (feedback: auto)',
+    '1 exercise only AI feedback can assess, shown as text (without-ai: text in _quarto.yml): essay, math-exercise feedback (feedback: auto)',
     'ai-feedback: enabled: true (asks.qmd)',
     'pyodide-interaktiv feedback',
   ]);
@@ -117,7 +117,7 @@ function withSite(run) {
   try {
     C.installPackage(dir); C.install(dir); C.installProbe(dir);
     C.write(dir, {
-      '_quarto.yml': 'project:\n  type: website\nfilters: [ctm-libs, probe, _extensions/ctm-libs/ctm-libs-end.lua]\nai-feedback:\n  enabled: true\n',
+      '_quarto.yml': 'project:\n  type: website\nfilters: [ctm-libs, probe, _extensions/ctm-libs/ctm-libs-end.lua]\nai-feedback:\n  enabled: true\n  without-ai: text\n',
       '_quarto-no-ai.yml': 'ai-feedback:\n  enabled: false\n',
       'index.qmd': '---\ntitle: Home\n---\nNo feedback here.\n',
       'own.qmd': '---\ntitle: Own\nai-feedback:\n  enabled: true\n---\nAlso no activity.\n',
@@ -135,7 +135,7 @@ for (const [label, args, env, reason] of [['--profile no-ai', ['--profile', 'no-
     assert.equal(r.status, 0, r.stderr);
     const found = messages(r.stderr);
     assert.deepEqual(found.map(m => m.reason), [reason, reason]);
-    assert.deepEqual(found.map(m => m.items).sort(), ['1 AI feedback activity', 'ai-feedback: enabled: true (own.qmd)']);
+    assert.deepEqual(found.map(m => m.items).sort(), ['1 exercise only AI feedback can assess, shown as text (without-ai: text in _quarto.yml): "Explain."', 'ai-feedback: enabled: true (own.qmd)']);
     assert.doesNotMatch(r.stderr, /enabled: true \((_quarto\.yml|sub\/_metadata\.yml|document metadata)\)/);
   }));
 }
