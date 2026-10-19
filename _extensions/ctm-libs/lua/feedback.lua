@@ -22,7 +22,9 @@ do
   end
   _G.__ctmAiFeedbackInstallation = loaded or {path = here, version = ctm.version}
 end
-local language = "en"
+-- The page's interface language for activities (resolved, e.g. "nb") and the
+-- language feedback is written in (the raw tag), set in prepare.
+local uiLanguage, feedbackLanguage = "en", "en"
 local function str(v, fallback)
   if v == nil then return fallback end
   return pandoc.utils.stringify(v)
@@ -105,9 +107,9 @@ local function activity(block, context)
   local contextMode = attrs["context"] == "none" and "none" or (attrs["context"] and attrs["context"] ~= "auto" and "explicit" or "auto")
   local data = {
     id = id, policySelection = policy.selection(block, attrs), profile = profile, task = task, materials = materials, criteria = criteria,
-    uiLanguage = attrs["ui-language"] or str(cfg["ui-language"], language),
+    uiLanguage = attrs["ui-language"] and ctm.locale.language("feedback", attrs["ui-language"]) or uiLanguage,
     responseLanguage = attrs["response-language"] or "",
-    feedbackLanguage = attrs["feedback-language"] or str(cfg["feedback-language"], language),
+    feedbackLanguage = attrs["feedback-language"] or feedbackLanguage,
     sourceLanguage = attrs["source-language"] or "", sourceRef = attrs["source"],
     learnerLevel = attrs["learner-level"] or "", starter = starter,
     imageUpload = attrs["image-upload"] == "true", imageRole = attrs["image-role"] or "response",
@@ -164,10 +166,12 @@ function M.prepare(doc)
   if doc.meta["ctm-feedback-prepared"] then return doc end
   doc.meta["ctm-feedback-prepared"] = true
   ctm.settings.load(doc.meta)
-  language = str(doc.meta.lang, "en")
-  for _, key in ipairs({"mode", "storage", "base-url", "model", "ui-language", "feedback-language"}) do
+  for _, key in ipairs({"mode", "storage", "base-url", "model"}) do
     cfg[key] = ctm.settings.string("ai-feedback", key)
   end
+  -- ai-feedback: ui-language / feedback-language, then ctm-assessment: lang, then lang.
+  uiLanguage = ctm.locale.resolve("ai-feedback")
+  feedbackLanguage = ctm.locale.tag("ai-feedback", "feedback-language")
   policy.emit()
   ctm.deps.html({
     name = "ai-feedback",

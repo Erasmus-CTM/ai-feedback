@@ -24,6 +24,15 @@
       "problemMatcher": []
     },
     {
+      "label": "Check the message catalogues",
+      "type": "shell",
+      "command": "python scripts/check-locales.py",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "Regenerate generated files and versions",
       "type": "shell",
       "command": "python scripts/sync-feedback-defaults.py",

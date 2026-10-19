@@ -1,0 +1,7158 @@
+{
+ "sources": {
+  "math-exercise": {
+   "repository": "Erasmus-CTM/math-exercise",
+   "commit": "bf6caf3c5666bdf1c12fc0530b52518bfc0cd62f",
+   "folder": "_extensions/math-exercise"
+  },
+  "py-exercise": {
+   "repository": "Erasmus-CTM/py-exercise",
+   "commit": "c14c5f48144c44c410972a0ac7bc75506046fa9e",
+   "folder": "_extensions/py-exercise"
+  }
+ },
+ "samples": {
+  "1": [
+   0,
+   1,
+   2,
+   37,
+   "A",
+   "factored",
+   "expanded",
+   "single_fraction",
+   "lowest_terms",
+   "cubic"
+  ],
+  "2": [
+   0,
+   1,
+   2,
+   37,
+   "A"
+  ],
+  "3": [
+   "A",
+   1,
+   37
+  ]
+ },
+ "math-exercise": {
+  "js": {
+   "en": {
+    "legend": [
+     [
+      "x^2",
+      "x^2 \\text{ or } x{**}2",
+      "Power"
+     ],
+     [
+      "\\sqrt{x}",
+      "sqrt(x)",
+      "Square root"
+     ],
+     [
+      "\\sqrt[n]{x}",
+      "root(x, n)",
+      "n-th root"
+     ],
+     [
+      "\\dfrac{a}{b}",
+      "a/b",
+      "Fraction"
+     ],
+     [
+      "\\pi",
+      "pi",
+      "Pi"
+     ],
+     [
+      "e",
+      "E",
+      "Euler's number e"
+     ],
+     [
+      "\\sin(x)",
+      "sin(x)",
+      "Sine"
+     ],
+     [
+      "\\cos(x)",
+      "cos(x)",
+      "Cosine"
+     ],
+     [
+      "\\tan(x)",
+      "tan(x)",
+      "Tangent"
+     ],
+     [
+      "\\ln(x)",
+      "ln(x)",
+      "Natural logarithm"
+     ],
+     [
+      "\\log_a(x)",
+      "log(x, a)",
+      "Log to base a"
+     ],
+     [
+      "|x|",
+      "Abs(x)",
+      "Absolute value"
+     ],
+     [
+      "\\infty",
+      "inf &nbsp;or&nbsp; oo",
+      "Infinity"
+     ],
+     [
+      "\\int f\\,dx",
+      "integrate(f, x)",
+      "Integral"
+     ],
+     [
+      "\\dfrac{d}{dx}f",
+      "diff(f, x)",
+      "Derivative"
+     ]
+    ],
+    "legendOps": "Basic operators:&nbsp;<code>+</code>&nbsp;<code>-</code>&nbsp;<code>*</code>&nbsp;<code>/</code>&nbsp;&nbsp;|&nbsp;&nbsp;Brackets:&nbsp;<code>(</code>&nbsp;<code>)</code>&nbsp;&nbsp;|&nbsp;&nbsp;Power:&nbsp;<code>^</code>&nbsp;or&nbsp;<code>**</code>",
+    "legendThExpr": "Expression",
+    "legendThInput": "Input",
+    "legendThMeaning": "Meaning",
+    "errSyntax": "Syntax error: check that all brackets are closed and no operator is missing.",
+    "errUnknownName": {
+     "$calls": [
+      [
+       [
+        0
+       ],
+       "Unknown name &bdquo;0&ldquo; – use the input help (e.g. <code>pi</code> instead of <code>π</code>)."
+      ],
+      [
+       [
+        1
+       ],
+       "Unknown name &bdquo;1&ldquo; – use the input help (e.g. <code>pi</code> instead of <code>π</code>)."
+      ],
+      [
+       [
+        2
+       ],
+       "Unknown name &bdquo;2&ldquo; – use the input help (e.g. <code>pi</code> instead of <code>π</code>)."
+      ],
+      [
+       [
+        37
+       ],
+       "Unknown name &bdquo;37&ldquo; – use the input help (e.g. <code>pi</code> instead of <code>π</code>)."
+      ],
+      [
+       [
+        "A"
+       ],
+       "Unknown name &bdquo;A&ldquo; – use the input help (e.g. <code>pi</code> instead of <code>π</code>)."
+      ],
+      [
+       [
+        "factored"
+       ],
+       "Unknown name &bdquo;factored&ldquo; – use the input help (e.g. <code>pi</code> instead of <code>π</code>)."
+      ],
+      [
+       [
+        "expanded"
+       ],
+       "Unknown name &bdquo;expanded&ldquo; – use the input help (e.g. <code>pi</code> instead of <code>π</code>)."
+      ],
+      [
+       [
+        "single_fraction"
+       ],
+       "Unknown name &bdquo;single_fraction&ldquo; – use the input help (e.g. <code>pi</code> instead of <code>π</code>)."
+      ],
+      [
+       [
+        "lowest_terms"
+       ],
+       "Unknown name &bdquo;lowest_terms&ldquo; – use the input help (e.g. <code>pi</code> instead of <code>π</code>)."
+      ],
+      [
+       [
+        "cubic"
+       ],
+       "Unknown name &bdquo;cubic&ldquo; – use the input help (e.g. <code>pi</code> instead of <code>π</code>)."
+      ]
+     ]
+    },
+    "errNameGeneric": "Unknown name – use the input help for the correct spelling.",
+    "errDivZero": "Division by zero: the expression is undefined at this point.",
+    "errType": "Type error: make sure numbers and variables are combined correctly.",
+    "errGeneric": "The input could not be processed – use the input help for the correct spelling.",
+    "errRuntime": "Python could not be loaded. Check the internet connection and press Check again.",
+    "vecComponent": {
+     "$calls": [
+      [
+       [
+        0
+       ],
+       "Component 0"
+      ],
+      [
+       [
+        1
+       ],
+       "Component 1"
+      ],
+      [
+       [
+        2
+       ],
+       "Component 2"
+      ],
+      [
+       [
+        37
+       ],
+       "Component 37"
+      ],
+      [
+       [
+        "A"
+       ],
+       "Component A"
+      ],
+      [
+       [
+        "factored"
+       ],
+       "Component factored"
+      ],
+      [
+       [
+        "expanded"
+       ],
+       "Component expanded"
+      ],
+      [
+       [
+        "single_fraction"
+       ],
+       "Component single_fraction"
+      ],
+      [
+       [
+        "lowest_terms"
+       ],
+       "Component lowest_terms"
+      ],
+      [
+       [
+        "cubic"
+       ],
+       "Component cubic"
+      ]
+     ]
+    },
+    "matCell": {
+     "$calls": [
+      [
+       [
+        0,
+        0
+       ],
+       "Row 0, column 0"
+      ],
+      [
+       [
+        0,
+        1
+       ],
+       "Row 0, column 1"
+      ],
+      [
+       [
+        0,
+        2
+       ],
+       "Row 0, column 2"
+      ],
+      [
+       [
+        0,
+        37
+       ],
+       "Row 0, column 37"
+      ],
+      [
+       [
+        0,
+        "A"
+       ],
+       "Row 0, column A"
+      ],
+      [
+       [
+        1,
+        0
+       ],
+       "Row 1, column 0"
+      ],
+      [
+       [
+        1,
+        1
+       ],
+       "Row 1, column 1"
+      ],
+      [
+       [
+        1,
+        2
+       ],
+       "Row 1, column 2"
+      ],
+      [
+       [
+        1,
+        37
+       ],
+       "Row 1, column 37"
+      ],
+      [
+       [
+        1,
+        "A"
+       ],
+       "Row 1, column A"
+      ],
+      [
+       [
+        2,
+        0
+       ],
+       "Row 2, column 0"
+      ],
+      [
+       [
+        2,
+        1
+       ],
+       "Row 2, column 1"
+      ],
+      [
+       [
+        2,
+        2
+       ],
+       "Row 2, column 2"
+      ],
+      [
+       [
+        2,
+        37
+       ],
+       "Row 2, column 37"
+      ],
+      [
+       [
+        2,
+        "A"
+       ],
+       "Row 2, column A"
+      ],
+      [
+       [
+        37,
+        0
+       ],
+       "Row 37, column 0"
+      ],
+      [
+       [
+        37,
+        1
+       ],
+       "Row 37, column 1"
+      ],
+      [
+       [
+        37,
+        2
+       ],
+       "Row 37, column 2"
+      ],
+      [
+       [
+        37,
+        37
+       ],
+       "Row 37, column 37"
+      ],
+      [
+       [
+        37,
+        "A"
+       ],
+       "Row 37, column A"
+      ],
+      [
+       [
+        "A",
+        0
+       ],
+       "Row A, column 0"
+      ],
+      [
+       [
+        "A",
+        1
+       ],
+       "Row A, column 1"
+      ],
+      [
+       [
+        "A",
+        2
+       ],
+       "Row A, column 2"
+      ],
+      [
+       [
+        "A",
+        37
+       ],
+       "Row A, column 37"
+      ],
+      [
+       [
+        "A",
+        "A"
+       ],
+       "Row A, column A"
+      ],
+      [
+       [
+        "factored",
+        0
+       ],
+       "Row factored, column 0"
+      ],
+      [
+       [
+        "factored",
+        1
+       ],
+       "Row factored, column 1"
+      ],
+      [
+       [
+        "factored",
+        2
+       ],
+       "Row factored, column 2"
+      ],
+      [
+       [
+        "factored",
+        37
+       ],
+       "Row factored, column 37"
+      ],
+      [
+       [
+        "factored",
+        "A"
+       ],
+       "Row factored, column A"
+      ],
+      [
+       [
+        "expanded",
+        0
+       ],
+       "Row expanded, column 0"
+      ],
+      [
+       [
+        "expanded",
+        1
+       ],
+       "Row expanded, column 1"
+      ],
+      [
+       [
+        "expanded",
+        2
+       ],
+       "Row expanded, column 2"
+      ],
+      [
+       [
+        "expanded",
+        37
+       ],
+       "Row expanded, column 37"
+      ],
+      [
+       [
+        "expanded",
+        "A"
+       ],
+       "Row expanded, column A"
+      ],
+      [
+       [
+        "single_fraction",
+        0
+       ],
+       "Row single_fraction, column 0"
+      ],
+      [
+       [
+        "single_fraction",
+        1
+       ],
+       "Row single_fraction, column 1"
+      ],
+      [
+       [
+        "single_fraction",
+        2
+       ],
+       "Row single_fraction, column 2"
+      ],
+      [
+       [
+        "single_fraction",
+        37
+       ],
+       "Row single_fraction, column 37"
+      ],
+      [
+       [
+        "single_fraction",
+        "A"
+       ],
+       "Row single_fraction, column A"
+      ],
+      [
+       [
+        "lowest_terms",
+        0
+       ],
+       "Row lowest_terms, column 0"
+      ],
+      [
+       [
+        "lowest_terms",
+        1
+       ],
+       "Row lowest_terms, column 1"
+      ],
+      [
+       [
+        "lowest_terms",
+        2
+       ],
+       "Row lowest_terms, column 2"
+      ],
+      [
+       [
+        "lowest_terms",
+        37
+       ],
+       "Row lowest_terms, column 37"
+      ],
+      [
+       [
+        "lowest_terms",
+        "A"
+       ],
+       "Row lowest_terms, column A"
+      ],
+      [
+       [
+        "cubic",
+        0
+       ],
+       "Row cubic, column 0"
+      ],
+      [
+       [
+        "cubic",
+        1
+       ],
+       "Row cubic, column 1"
+      ],
+      [
+       [
+        "cubic",
+        2
+       ],
+       "Row cubic, column 2"
+      ],
+      [
+       [
+        "cubic",
+        37
+       ],
+       "Row cubic, column 37"
+      ],
+      [
+       [
+        "cubic",
+        "A"
+       ],
+       "Row cubic, column A"
+      ]
+     ]
+    },
+    "dynamicMatCell": {
+     "$calls": [
+      [
+       [
+        0,
+        0,
+        "A"
+       ],
+       "0, row 0, column A"
+      ],
+      [
+       [
+        0,
+        0,
+        1
+       ],
+       "0, row 0, column 1"
+      ],
+      [
+       [
+        0,
+        0,
+        37
+       ],
+       "0, row 0, column 37"
+      ],
+      [
+       [
+        0,
+        1,
+        "A"
+       ],
+       "0, row 1, column A"
+      ],
+      [
+       [
+        0,
+        1,
+        1
+       ],
+       "0, row 1, column 1"
+      ],
+      [
+       [
+        0,
+        1,
+        37
+       ],
+       "0, row 1, column 37"
+      ],
+      [
+       [
+        0,
+        2,
+        "A"
+       ],
+       "0, row 2, column A"
+      ],
+      [
+       [
+        0,
+        2,
+        1
+       ],
+       "0, row 2, column 1"
+      ],
+      [
+       [
+        0,
+        2,
+        37
+       ],
+       "0, row 2, column 37"
+      ],
+      [
+       [
+        0,
+        37,
+        "A"
+       ],
+       "0, row 37, column A"
+      ],
+      [
+       [
+        0,
+        37,
+        1
+       ],
+       "0, row 37, column 1"
+      ],
+      [
+       [
+        0,
+        37,
+        37
+       ],
+       "0, row 37, column 37"
+      ],
+      [
+       [
+        0,
+        "A",
+        "A"
+       ],
+       "0, row A, column A"
+      ],
+      [
+       [
+        0,
+        "A",
+        1
+       ],
+       "0, row A, column 1"
+      ],
+      [
+       [
+        0,
+        "A",
+        37
+       ],
+       "0, row A, column 37"
+      ],
+      [
+       [
+        1,
+        0,
+        "A"
+       ],
+       "1, row 0, column A"
+      ],
+      [
+       [
+        1,
+        0,
+        1
+       ],
+       "1, row 0, column 1"
+      ],
+      [
+       [
+        1,
+        0,
+        37
+       ],
+       "1, row 0, column 37"
+      ],
+      [
+       [
+        1,
+        1,
+        "A"
+       ],
+       "1, row 1, column A"
+      ],
+      [
+       [
+        1,
+        1,
+        1
+       ],
+       "1, row 1, column 1"
+      ],
+      [
+       [
+        1,
+        1,
+        37
+       ],
+       "1, row 1, column 37"
+      ],
+      [
+       [
+        1,
+        2,
+        "A"
+       ],
+       "1, row 2, column A"
+      ],
+      [
+       [
+        1,
+        2,
+        1
+       ],
+       "1, row 2, column 1"
+      ],
+      [
+       [
+        1,
+        2,
+        37
+       ],
+       "1, row 2, column 37"
+      ],
+      [
+       [
+        1,
+        37,
+        "A"
+       ],
+       "1, row 37, column A"
+      ],
+      [
+       [
+        1,
+        37,
+        1
+       ],
+       "1, row 37, column 1"
+      ],
+      [
+       [
+        1,
+        37,
+        37
+       ],
+       "1, row 37, column 37"
+      ],
+      [
+       [
+        1,
+        "A",
+        "A"
+       ],
+       "1, row A, column A"
+      ],
+      [
+       [
+        1,
+        "A",
+        1
+       ],
+       "1, row A, column 1"
+      ],
+      [
+       [
+        1,
+        "A",
+        37
+       ],
+       "1, row A, column 37"
+      ],
+      [
+       [
+        2,
+        0,
+        "A"
+       ],
+       "2, row 0, column A"
+      ],
+      [
+       [
+        2,
+        0,
+        1
+       ],
+       "2, row 0, column 1"
+      ],
+      [
+       [
+        2,
+        0,
+        37
+       ],
+       "2, row 0, column 37"
+      ],
+      [
+       [
+        2,
+        1,
+        "A"
+       ],
+       "2, row 1, column A"
+      ],
+      [
+       [
+        2,
+        1,
+        1
+       ],
+       "2, row 1, column 1"
+      ],
+      [
+       [
+        2,
+        1,
+        37
+       ],
+       "2, row 1, column 37"
+      ],
+      [
+       [
+        2,
+        2,
+        "A"
+       ],
+       "2, row 2, column A"
+      ],
+      [
+       [
+        2,
+        2,
+        1
+       ],
+       "2, row 2, column 1"
+      ],
+      [
+       [
+        2,
+        2,
+        37
+       ],
+       "2, row 2, column 37"
+      ],
+      [
+       [
+        2,
+        37,
+        "A"
+       ],
+       "2, row 37, column A"
+      ],
+      [
+       [
+        2,
+        37,
+        1
+       ],
+       "2, row 37, column 1"
+      ],
+      [
+       [
+        2,
+        37,
+        37
+       ],
+       "2, row 37, column 37"
+      ],
+      [
+       [
+        2,
+        "A",
+        "A"
+       ],
+       "2, row A, column A"
+      ],
+      [
+       [
+        2,
+        "A",
+        1
+       ],
+       "2, row A, column 1"
+      ],
+      [
+       [
+        2,
+        "A",
+        37
+       ],
+       "2, row A, column 37"
+      ],
+      [
+       [
+        37,
+        0,
+        "A"
+       ],
+       "37, row 0, column A"
+      ],
+      [
+       [
+        37,
+        0,
+        1
+       ],
+       "37, row 0, column 1"
+      ],
+      [
+       [
+        37,
+        0,
+        37
+       ],
+       "37, row 0, column 37"
+      ],
+      [
+       [
+        37,
+        1,
+        "A"
+       ],
+       "37, row 1, column A"
+      ],
+      [
+       [
+        37,
+        1,
+        1
+       ],
+       "37, row 1, column 1"
+      ],
+      [
+       [
+        37,
+        1,
+        37
+       ],
+       "37, row 1, column 37"
+      ],
+      [
+       [
+        37,
+        2,
+        "A"
+       ],
+       "37, row 2, column A"
+      ],
+      [
+       [
+        37,
+        2,
+        1
+       ],
+       "37, row 2, column 1"
+      ],
+      [
+       [
+        37,
+        2,
+        37
+       ],
+       "37, row 2, column 37"
+      ],
+      [
+       [
+        37,
+        37,
+        "A"
+       ],
+       "37, row 37, column A"
+      ],
+      [
+       [
+        37,
+        37,
+        1
+       ],
+       "37, row 37, column 1"
+      ],
+      [
+       [
+        37,
+        37,
+        37
+       ],
+       "37, row 37, column 37"
+      ],
+      [
+       [
+        37,
+        "A",
+        "A"
+       ],
+       "37, row A, column A"
+      ],
+      [
+       [
+        37,
+        "A",
+        1
+       ],
+       "37, row A, column 1"
+      ],
+      [
+       [
+        37,
+        "A",
+        37
+       ],
+       "37, row A, column 37"
+      ],
+      [
+       [
+        "A",
+        0,
+        "A"
+       ],
+       "A, row 0, column A"
+      ],
+      [
+       [
+        "A",
+        0,
+        1
+       ],
+       "A, row 0, column 1"
+      ],
+      [
+       [
+        "A",
+        0,
+        37
+       ],
+       "A, row 0, column 37"
+      ],
+      [
+       [
+        "A",
+        1,
+        "A"
+       ],
+       "A, row 1, column A"
+      ],
+      [
+       [
+        "A",
+        1,
+        1
+       ],
+       "A, row 1, column 1"
+      ],
+      [
+       [
+        "A",
+        1,
+        37
+       ],
+       "A, row 1, column 37"
+      ],
+      [
+       [
+        "A",
+        2,
+        "A"
+       ],
+       "A, row 2, column A"
+      ],
+      [
+       [
+        "A",
+        2,
+        1
+       ],
+       "A, row 2, column 1"
+      ],
+      [
+       [
+        "A",
+        2,
+        37
+       ],
+       "A, row 2, column 37"
+      ],
+      [
+       [
+        "A",
+        37,
+        "A"
+       ],
+       "A, row 37, column A"
+      ],
+      [
+       [
+        "A",
+        37,
+        1
+       ],
+       "A, row 37, column 1"
+      ],
+      [
+       [
+        "A",
+        37,
+        37
+       ],
+       "A, row 37, column 37"
+      ],
+      [
+       [
+        "A",
+        "A",
+        "A"
+       ],
+       "A, row A, column A"
+      ],
+      [
+       [
+        "A",
+        "A",
+        1
+       ],
+       "A, row A, column 1"
+      ],
+      [
+       [
+        "A",
+        "A",
+        37
+       ],
+       "A, row A, column 37"
+      ],
+      [
+       [
+        "factored",
+        0,
+        "A"
+       ],
+       "factored, row 0, column A"
+      ],
+      [
+       [
+        "factored",
+        0,
+        1
+       ],
+       "factored, row 0, column 1"
+      ],
+      [
+       [
+        "factored",
+        0,
+        37
+       ],
+       "factored, row 0, column 37"
+      ],
+      [
+       [
+        "factored",
+        1,
+        "A"
+       ],
+       "factored, row 1, column A"
+      ],
+      [
+       [
+        "factored",
+        1,
+        1
+       ],
+       "factored, row 1, column 1"
+      ],
+      [
+       [
+        "factored",
+        1,
+        37
+       ],
+       "factored, row 1, column 37"
+      ],
+      [
+       [
+        "factored",
+        2,
+        "A"
+       ],
+       "factored, row 2, column A"
+      ],
+      [
+       [
+        "factored",
+        2,
+        1
+       ],
+       "factored, row 2, column 1"
+      ],
+      [
+       [
+        "factored",
+        2,
+        37
+       ],
+       "factored, row 2, column 37"
+      ],
+      [
+       [
+        "factored",
+        37,
+        "A"
+       ],
+       "factored, row 37, column A"
+      ],
+      [
+       [
+        "factored",
+        37,
+        1
+       ],
+       "factored, row 37, column 1"
+      ],
+      [
+       [
+        "factored",
+        37,
+        37
+       ],
+       "factored, row 37, column 37"
+      ],
+      [
+       [
+        "factored",
+        "A",
+        "A"
+       ],
+       "factored, row A, column A"
+      ],
+      [
+       [
+        "factored",
+        "A",
+        1
+       ],
+       "factored, row A, column 1"
+      ],
+      [
+       [
+        "factored",
+        "A",
+        37
+       ],
+       "factored, row A, column 37"
+      ],
+      [
+       [
+        "expanded",
+        0,
+        "A"
+       ],
+       "expanded, row 0, column A"
+      ],
+      [
+       [
+        "expanded",
+        0,
+        1
+       ],
+       "expanded, row 0, column 1"
+      ],
+      [
+       [
+        "expanded",
+        0,
+        37
+       ],
+       "expanded, row 0, column 37"
+      ],
+      [
+       [
+        "expanded",
+        1,
+        "A"
+       ],
+       "expanded, row 1, column A"
+      ],
+      [
+       [
+        "expanded",
+        1,
+        1
+       ],
+       "expanded, row 1, column 1"
+      ],
+      [
+       [
+        "expanded",
+        1,
+        37
+       ],
+       "expanded, row 1, column 37"
+      ],
+      [
+       [
+        "expanded",
+        2,
+        "A"
+       ],
+       "expanded, row 2, column A"
+      ],
+      [
+       [
+        "expanded",
+        2,
+        1
+       ],
+       "expanded, row 2, column 1"
+      ],
+      [
+       [
+        "expanded",
+        2,
+        37
+       ],
+       "expanded, row 2, column 37"
+      ],
+      [
+       [
+        "expanded",
+        37,
+        "A"
+       ],
+       "expanded, row 37, column A"
+      ],
+      [
+       [
+        "expanded",
+        37,
+        1
+       ],
+       "expanded, row 37, column 1"
+      ],
+      [
+       [
+        "expanded",
+        37,
+        37
+       ],
+       "expanded, row 37, column 37"
+      ],
+      [
+       [
+        "expanded",
+        "A",
+        "A"
+       ],
+       "expanded, row A, column A"
+      ],
+      [
+       [
+        "expanded",
+        "A",
+        1
+       ],
+       "expanded, row A, column 1"
+      ],
+      [
+       [
+        "expanded",
+        "A",
+        37
+       ],
+       "expanded, row A, column 37"
+      ],
+      [
+       [
+        "single_fraction",
+        0,
+        "A"
+       ],
+       "single_fraction, row 0, column A"
+      ],
+      [
+       [
+        "single_fraction",
+        0,
+        1
+       ],
+       "single_fraction, row 0, column 1"
+      ],
+      [
+       [
+        "single_fraction",
+        0,
+        37
+       ],
+       "single_fraction, row 0, column 37"
+      ],
+      [
+       [
+        "single_fraction",
+        1,
+        "A"
+       ],
+       "single_fraction, row 1, column A"
+      ],
+      [
+       [
+        "single_fraction",
+        1,
+        1
+       ],
+       "single_fraction, row 1, column 1"
+      ],
+      [
+       [
+        "single_fraction",
+        1,
+        37
+       ],
+       "single_fraction, row 1, column 37"
+      ],
+      [
+       [
+        "single_fraction",
+        2,
+        "A"
+       ],
+       "single_fraction, row 2, column A"
+      ],
+      [
+       [
+        "single_fraction",
+        2,
+        1
+       ],
+       "single_fraction, row 2, column 1"
+      ],
+      [
+       [
+        "single_fraction",
+        2,
+        37
+       ],
+       "single_fraction, row 2, column 37"
+      ],
+      [
+       [
+        "single_fraction",
+        37,
+        "A"
+       ],
+       "single_fraction, row 37, column A"
+      ],
+      [
+       [
+        "single_fraction",
+        37,
+        1
+       ],
+       "single_fraction, row 37, column 1"
+      ],
+      [
+       [
+        "single_fraction",
+        37,
+        37
+       ],
+       "single_fraction, row 37, column 37"
+      ],
+      [
+       [
+        "single_fraction",
+        "A",
+        "A"
+       ],
+       "single_fraction, row A, column A"
+      ],
+      [
+       [
+        "single_fraction",
+        "A",
+        1
+       ],
+       "single_fraction, row A, column 1"
+      ],
+      [
+       [
+        "single_fraction",
+        "A",
+        37
+       ],
+       "single_fraction, row A, column 37"
+      ],
+      [
+       [
+        "lowest_terms",
+        0,
+        "A"
+       ],
+       "lowest_terms, row 0, column A"
+      ],
+      [
+       [
+        "lowest_terms",
+        0,
+        1
+       ],
+       "lowest_terms, row 0, column 1"
+      ],
+      [
+       [
+        "lowest_terms",
+        0,
+        37
+       ],
+       "lowest_terms, row 0, column 37"
+      ],
+      [
+       [
+        "lowest_terms",
+        1,
+        "A"
+       ],
+       "lowest_terms, row 1, column A"
+      ],
+      [
+       [
+        "lowest_terms",
+        1,
+        1
+       ],
+       "lowest_terms, row 1, column 1"
+      ],
+      [
+       [
+        "lowest_terms",
+        1,
+        37
+       ],
+       "lowest_terms, row 1, column 37"
+      ],
+      [
+       [
+        "lowest_terms",
+        2,
+        "A"
+       ],
+       "lowest_terms, row 2, column A"
+      ],
+      [
+       [
+        "lowest_terms",
+        2,
+        1
+       ],
+       "lowest_terms, row 2, column 1"
+      ],
+      [
+       [
+        "lowest_terms",
+        2,
+        37
+       ],
+       "lowest_terms, row 2, column 37"
+      ],
+      [
+       [
+        "lowest_terms",
+        37,
+        "A"
+       ],
+       "lowest_terms, row 37, column A"
+      ],
+      [
+       [
+        "lowest_terms",
+        37,
+        1
+       ],
+       "lowest_terms, row 37, column 1"
+      ],
+      [
+       [
+        "lowest_terms",
+        37,
+        37
+       ],
+       "lowest_terms, row 37, column 37"
+      ],
+      [
+       [
+        "lowest_terms",
+        "A",
+        "A"
+       ],
+       "lowest_terms, row A, column A"
+      ],
+      [
+       [
+        "lowest_terms",
+        "A",
+        1
+       ],
+       "lowest_terms, row A, column 1"
+      ],
+      [
+       [
+        "lowest_terms",
+        "A",
+        37
+       ],
+       "lowest_terms, row A, column 37"
+      ],
+      [
+       [
+        "cubic",
+        0,
+        "A"
+       ],
+       "cubic, row 0, column A"
+      ],
+      [
+       [
+        "cubic",
+        0,
+        1
+       ],
+       "cubic, row 0, column 1"
+      ],
+      [
+       [
+        "cubic",
+        0,
+        37
+       ],
+       "cubic, row 0, column 37"
+      ],
+      [
+       [
+        "cubic",
+        1,
+        "A"
+       ],
+       "cubic, row 1, column A"
+      ],
+      [
+       [
+        "cubic",
+        1,
+        1
+       ],
+       "cubic, row 1, column 1"
+      ],
+      [
+       [
+        "cubic",
+        1,
+        37
+       ],
+       "cubic, row 1, column 37"
+      ],
+      [
+       [
+        "cubic",
+        2,
+        "A"
+       ],
+       "cubic, row 2, column A"
+      ],
+      [
+       [
+        "cubic",
+        2,
+        1
+       ],
+       "cubic, row 2, column 1"
+      ],
+      [
+       [
+        "cubic",
+        2,
+        37
+       ],
+       "cubic, row 2, column 37"
+      ],
+      [
+       [
+        "cubic",
+        37,
+        "A"
+       ],
+       "cubic, row 37, column A"
+      ],
+      [
+       [
+        "cubic",
+        37,
+        1
+       ],
+       "cubic, row 37, column 1"
+      ],
+      [
+       [
+        "cubic",
+        37,
+        37
+       ],
+       "cubic, row 37, column 37"
+      ],
+      [
+       [
+        "cubic",
+        "A",
+        "A"
+       ],
+       "cubic, row A, column A"
+      ],
+      [
+       [
+        "cubic",
+        "A",
+        1
+       ],
+       "cubic, row A, column 1"
+      ],
+      [
+       [
+        "cubic",
+        "A",
+        37
+       ],
+       "cubic, row A, column 37"
+      ]
+     ]
+    },
+    "matrixAddRow": "Add row",
+    "matrixRemoveRow": "Remove row",
+    "matrixAddColumn": "Add column",
+    "matrixRemoveColumn": "Remove column",
+    "matrixRows": "Rows",
+    "matrixColumns": "Columns",
+    "emptyMatrix": "Empty matrix",
+    "resEmpty": "Please enter an answer.",
+    "resCorrect": "Correct!",
+    "resPartial": {
+     "$calls": [
+      [
+       [
+        0
+       ],
+       "Partially correct (0%)."
+      ],
+      [
+       [
+        1
+       ],
+       "Partially correct (1%)."
+      ],
+      [
+       [
+        2
+       ],
+       "Partially correct (2%)."
+      ],
+      [
+       [
+        37
+       ],
+       "Partially correct (37%)."
+      ],
+      [
+       [
+        "A"
+       ],
+       "Partially correct (A%)."
+      ],
+      [
+       [
+        "factored"
+       ],
+       "Partially correct (factored%)."
+      ],
+      [
+       [
+        "expanded"
+       ],
+       "Partially correct (expanded%)."
+      ],
+      [
+       [
+        "single_fraction"
+       ],
+       "Partially correct (single_fraction%)."
+      ],
+      [
+       [
+        "lowest_terms"
+       ],
+       "Partially correct (lowest_terms%)."
+      ],
+      [
+       [
+        "cubic"
+       ],
+       "Partially correct (cubic%)."
+      ]
+     ]
+    },
+    "resPartialNoScore": "Partially correct.",
+    "resScore": {
+     "$calls": [
+      [
+       [
+        0
+       ],
+       "Overall score: 0%."
+      ],
+      [
+       [
+        1
+       ],
+       "Overall score: 1%."
+      ],
+      [
+       [
+        2
+       ],
+       "Overall score: 2%."
+      ],
+      [
+       [
+        37
+       ],
+       "Overall score: 37%."
+      ],
+      [
+       [
+        "A"
+       ],
+       "Overall score: A%."
+      ],
+      [
+       [
+        "factored"
+       ],
+       "Overall score: factored%."
+      ],
+      [
+       [
+        "expanded"
+       ],
+       "Overall score: expanded%."
+      ],
+      [
+       [
+        "single_fraction"
+       ],
+       "Overall score: single_fraction%."
+      ],
+      [
+       [
+        "lowest_terms"
+       ],
+       "Overall score: lowest_terms%."
+      ],
+      [
+       [
+        "cubic"
+       ],
+       "Overall score: cubic%."
+      ]
+     ]
+    },
+    "resWrong": "Not correct – try again.",
+    "resRejected": "Mathematically correct, but not simplified yet. Keep transforming the expression.",
+    "resNotExact": "Mathematically correct, but not in the requested form. Rewrite the expression exactly as asked.",
+    "resNotForm": {
+     "$calls": [
+      [
+       [
+        0
+       ],
+       "Mathematically correct, but not written in the required form. Rewrite the expression accordingly."
+      ],
+      [
+       [
+        1
+       ],
+       "Mathematically correct, but not written in the required form. Rewrite the expression accordingly."
+      ],
+      [
+       [
+        2
+       ],
+       "Mathematically correct, but not written in the required form. Rewrite the expression accordingly."
+      ],
+      [
+       [
+        37
+       ],
+       "Mathematically correct, but not written in the required form. Rewrite the expression accordingly."
+      ],
+      [
+       [
+        "A"
+       ],
+       "Mathematically correct, but not written in the required form. Rewrite the expression accordingly."
+      ],
+      [
+       [
+        "factored"
+       ],
+       "Mathematically correct, but not written in factored form. Rewrite the expression accordingly."
+      ],
+      [
+       [
+        "expanded"
+       ],
+       "Mathematically correct, but not written in expanded form. Rewrite the expression accordingly."
+      ],
+      [
+       [
+        "single_fraction"
+       ],
+       "Mathematically correct, but not written in a single fraction. Rewrite the expression accordingly."
+      ],
+      [
+       [
+        "lowest_terms"
+       ],
+       "Mathematically correct, but not written in lowest terms. Rewrite the expression accordingly."
+      ],
+      [
+       [
+        "cubic"
+       ],
+       "Mathematically correct, but not written in the required form. Rewrite the expression accordingly."
+      ]
+     ]
+    },
+    "loadingHelp": "&#9203; Loading help&hellip;",
+    "checking": "&#9203; Checking&hellip;",
+    "slowCheck": "Still checking – the answer may be too large to evaluate.",
+    "slowLoad": "Python is still loading.",
+    "stop": "Stop",
+    "errStopped": "Stopped. Python was restarted (interactive cells on this page lost their variables).",
+    "needAnswerFirst": "Please enter an answer first, then request feedback.",
+    "outputLanguageCode": "en",
+    "feedbackFieldSingle": "Answer",
+    "feedbackFieldNumbered": {
+     "$calls": [
+      [
+       [
+        0
+       ],
+       "Answer field 0"
+      ],
+      [
+       [
+        1
+       ],
+       "Answer field 1"
+      ],
+      [
+       [
+        2
+       ],
+       "Answer field 2"
+      ],
+      [
+       [
+        37
+       ],
+       "Answer field 37"
+      ],
+      [
+       [
+        "A"
+       ],
+       "Answer field A"
+      ],
+      [
+       [
+        "factored"
+       ],
+       "Answer field factored"
+      ],
+      [
+       [
+        "expanded"
+       ],
+       "Answer field expanded"
+      ],
+      [
+       [
+        "single_fraction"
+       ],
+       "Answer field single_fraction"
+      ],
+      [
+       [
+        "lowest_terms"
+       ],
+       "Answer field lowest_terms"
+      ],
+      [
+       [
+        "cubic"
+       ],
+       "Answer field cubic"
+      ]
+     ]
+    },
+    "warnExtraFieldLabels": "math-exercise: extra field-labels entries were ignored for",
+    "errorPrefix": "Error:"
+   },
+   "de": {
+    "legend": [
+     [
+      "x^2",
+      "x^2 \\text{ oder } x{**}2",
+      "Potenz"
+     ],
+     [
+      "\\sqrt{x}",
+      "sqrt(x)",
+      "Quadratwurzel"
+     ],
+     [
+      "\\sqrt[n]{x}",
+      "root(x, n)",
+      "n-te Wurzel"
+     ],
+     [
+      "\\dfrac{a}{b}",
+      "a/b",
+      "Bruch"
+     ],
+     [
+      "\\pi",
+      "pi",
+      "Kreiszahl π"
+     ],
+     [
+      "e",
+      "E",
+      "Eulersche Zahl e"
+     ],
+     [
+      "\\sin(x)",
+      "sin(x)",
+      "Sinus"
+     ],
+     [
+      "\\cos(x)",
+      "cos(x)",
+      "Kosinus"
+     ],
+     [
+      "\\tan(x)",
+      "tan(x)",
+      "Tangens"
+     ],
+     [
+      "\\ln(x)",
+      "ln(x)",
+      "Nat. Logarithmus"
+     ],
+     [
+      "\\log_a(x)",
+      "log(x, a)",
+      "Log. zur Basis a"
+     ],
+     [
+      "|x|",
+      "Abs(x)",
+      "Betrag"
+     ],
+     [
+      "\\infty",
+      "inf &nbsp;oder&nbsp; oo",
+      "Unendlich"
+     ],
+     [
+      "\\int f\\,dx",
+      "integrate(f, x)",
+      "Integral"
+     ],
+     [
+      "\\dfrac{d}{dx}f",
+      "diff(f, x)",
+      "Ableitung"
+     ]
+    ],
+    "legendOps": "Grundrechenzeichen:&nbsp;<code>+</code>&nbsp;<code>-</code>&nbsp;<code>*</code>&nbsp;<code>/</code>&nbsp;&nbsp;|&nbsp;&nbsp;Klammern:&nbsp;<code>(</code>&nbsp;<code>)</code>&nbsp;&nbsp;|&nbsp;&nbsp;Potenz:&nbsp;<code>^</code>&nbsp;oder&nbsp;<code>**</code>",
+    "legendThExpr": "Ausdruck",
+    "legendThInput": "Eingabe",
+    "legendThMeaning": "Bedeutung",
+    "errSyntax": "Syntax-Fehler: Prüfe ob alle Klammern geschlossen sind und kein Operatorzeichen fehlt.",
+    "errUnknownName": {
+     "$calls": [
+      [
+       [
+        0
+       ],
+       "Unbekannte Bezeichnung &bdquo;0&ldquo; – nutze die Eingabe-Hilfe (z.&nbsp;B. <code>pi</code> statt <code>π</code>)."
+      ],
+      [
+       [
+        1
+       ],
+       "Unbekannte Bezeichnung &bdquo;1&ldquo; – nutze die Eingabe-Hilfe (z.&nbsp;B. <code>pi</code> statt <code>π</code>)."
+      ],
+      [
+       [
+        2
+       ],
+       "Unbekannte Bezeichnung &bdquo;2&ldquo; – nutze die Eingabe-Hilfe (z.&nbsp;B. <code>pi</code> statt <code>π</code>)."
+      ],
+      [
+       [
+        37
+       ],
+       "Unbekannte Bezeichnung &bdquo;37&ldquo; – nutze die Eingabe-Hilfe (z.&nbsp;B. <code>pi</code> statt <code>π</code>)."
+      ],
+      [
+       [
+        "A"
+       ],
+       "Unbekannte Bezeichnung &bdquo;A&ldquo; – nutze die Eingabe-Hilfe (z.&nbsp;B. <code>pi</code> statt <code>π</code>)."
+      ],
+      [
+       [
+        "factored"
+       ],
+       "Unbekannte Bezeichnung &bdquo;factored&ldquo; – nutze die Eingabe-Hilfe (z.&nbsp;B. <code>pi</code> statt <code>π</code>)."
+      ],
+      [
+       [
+        "expanded"
+       ],
+       "Unbekannte Bezeichnung &bdquo;expanded&ldquo; – nutze die Eingabe-Hilfe (z.&nbsp;B. <code>pi</code> statt <code>π</code>)."
+      ],
+      [
+       [
+        "single_fraction"
+       ],
+       "Unbekannte Bezeichnung &bdquo;single_fraction&ldquo; – nutze die Eingabe-Hilfe (z.&nbsp;B. <code>pi</code> statt <code>π</code>)."
+      ],
+      [
+       [
+        "lowest_terms"
+       ],
+       "Unbekannte Bezeichnung &bdquo;lowest_terms&ldquo; – nutze die Eingabe-Hilfe (z.&nbsp;B. <code>pi</code> statt <code>π</code>)."
+      ],
+      [
+       [
+        "cubic"
+       ],
+       "Unbekannte Bezeichnung &bdquo;cubic&ldquo; – nutze die Eingabe-Hilfe (z.&nbsp;B. <code>pi</code> statt <code>π</code>)."
+      ]
+     ]
+    },
+    "errNameGeneric": "Unbekannte Bezeichnung – nutze die Eingabe-Hilfe für korrekte Schreibweisen.",
+    "errDivZero": "Division durch Null: der Ausdruck ist an dieser Stelle nicht definiert.",
+    "errType": "Typ-Fehler: Stelle sicher, dass Zahlen und Variablen korrekt kombiniert sind.",
+    "errGeneric": "Die Eingabe konnte nicht verarbeitet werden – nutze die Eingabe-Hilfe für korrekte Schreibweisen.",
+    "errRuntime": "Python konnte nicht geladen werden. Prüfe die Internetverbindung und drücke erneut auf Überprüfen.",
+    "vecComponent": {
+     "$calls": [
+      [
+       [
+        0
+       ],
+       "Komponente 0"
+      ],
+      [
+       [
+        1
+       ],
+       "Komponente 1"
+      ],
+      [
+       [
+        2
+       ],
+       "Komponente 2"
+      ],
+      [
+       [
+        37
+       ],
+       "Komponente 37"
+      ],
+      [
+       [
+        "A"
+       ],
+       "Komponente A"
+      ],
+      [
+       [
+        "factored"
+       ],
+       "Komponente factored"
+      ],
+      [
+       [
+        "expanded"
+       ],
+       "Komponente expanded"
+      ],
+      [
+       [
+        "single_fraction"
+       ],
+       "Komponente single_fraction"
+      ],
+      [
+       [
+        "lowest_terms"
+       ],
+       "Komponente lowest_terms"
+      ],
+      [
+       [
+        "cubic"
+       ],
+       "Komponente cubic"
+      ]
+     ]
+    },
+    "matCell": {
+     "$calls": [
+      [
+       [
+        0,
+        0
+       ],
+       "Zeile 0, Spalte 0"
+      ],
+      [
+       [
+        0,
+        1
+       ],
+       "Zeile 0, Spalte 1"
+      ],
+      [
+       [
+        0,
+        2
+       ],
+       "Zeile 0, Spalte 2"
+      ],
+      [
+       [
+        0,
+        37
+       ],
+       "Zeile 0, Spalte 37"
+      ],
+      [
+       [
+        0,
+        "A"
+       ],
+       "Zeile 0, Spalte A"
+      ],
+      [
+       [
+        1,
+        0
+       ],
+       "Zeile 1, Spalte 0"
+      ],
+      [
+       [
+        1,
+        1
+       ],
+       "Zeile 1, Spalte 1"
+      ],
+      [
+       [
+        1,
+        2
+       ],
+       "Zeile 1, Spalte 2"
+      ],
+      [
+       [
+        1,
+        37
+       ],
+       "Zeile 1, Spalte 37"
+      ],
+      [
+       [
+        1,
+        "A"
+       ],
+       "Zeile 1, Spalte A"
+      ],
+      [
+       [
+        2,
+        0
+       ],
+       "Zeile 2, Spalte 0"
+      ],
+      [
+       [
+        2,
+        1
+       ],
+       "Zeile 2, Spalte 1"
+      ],
+      [
+       [
+        2,
+        2
+       ],
+       "Zeile 2, Spalte 2"
+      ],
+      [
+       [
+        2,
+        37
+       ],
+       "Zeile 2, Spalte 37"
+      ],
+      [
+       [
+        2,
+        "A"
+       ],
+       "Zeile 2, Spalte A"
+      ],
+      [
+       [
+        37,
+        0
+       ],
+       "Zeile 37, Spalte 0"
+      ],
+      [
+       [
+        37,
+        1
+       ],
+       "Zeile 37, Spalte 1"
+      ],
+      [
+       [
+        37,
+        2
+       ],
+       "Zeile 37, Spalte 2"
+      ],
+      [
+       [
+        37,
+        37
+       ],
+       "Zeile 37, Spalte 37"
+      ],
+      [
+       [
+        37,
+        "A"
+       ],
+       "Zeile 37, Spalte A"
+      ],
+      [
+       [
+        "A",
+        0
+       ],
+       "Zeile A, Spalte 0"
+      ],
+      [
+       [
+        "A",
+        1
+       ],
+       "Zeile A, Spalte 1"
+      ],
+      [
+       [
+        "A",
+        2
+       ],
+       "Zeile A, Spalte 2"
+      ],
+      [
+       [
+        "A",
+        37
+       ],
+       "Zeile A, Spalte 37"
+      ],
+      [
+       [
+        "A",
+        "A"
+       ],
+       "Zeile A, Spalte A"
+      ],
+      [
+       [
+        "factored",
+        0
+       ],
+       "Zeile factored, Spalte 0"
+      ],
+      [
+       [
+        "factored",
+        1
+       ],
+       "Zeile factored, Spalte 1"
+      ],
+      [
+       [
+        "factored",
+        2
+       ],
+       "Zeile factored, Spalte 2"
+      ],
+      [
+       [
+        "factored",
+        37
+       ],
+       "Zeile factored, Spalte 37"
+      ],
+      [
+       [
+        "factored",
+        "A"
+       ],
+       "Zeile factored, Spalte A"
+      ],
+      [
+       [
+        "expanded",
+        0
+       ],
+       "Zeile expanded, Spalte 0"
+      ],
+      [
+       [
+        "expanded",
+        1
+       ],
+       "Zeile expanded, Spalte 1"
+      ],
+      [
+       [
+        "expanded",
+        2
+       ],
+       "Zeile expanded, Spalte 2"
+      ],
+      [
+       [
+        "expanded",
+        37
+       ],
+       "Zeile expanded, Spalte 37"
+      ],
+      [
+       [
+        "expanded",
+        "A"
+       ],
+       "Zeile expanded, Spalte A"
+      ],
+      [
+       [
+        "single_fraction",
+        0
+       ],
+       "Zeile single_fraction, Spalte 0"
+      ],
+      [
+       [
+        "single_fraction",
+        1
+       ],
+       "Zeile single_fraction, Spalte 1"
+      ],
+      [
+       [
+        "single_fraction",
+        2
+       ],
+       "Zeile single_fraction, Spalte 2"
+      ],
+      [
+       [
+        "single_fraction",
+        37
+       ],
+       "Zeile single_fraction, Spalte 37"
+      ],
+      [
+       [
+        "single_fraction",
+        "A"
+       ],
+       "Zeile single_fraction, Spalte A"
+      ],
+      [
+       [
+        "lowest_terms",
+        0
+       ],
+       "Zeile lowest_terms, Spalte 0"
+      ],
+      [
+       [
+        "lowest_terms",
+        1
+       ],
+       "Zeile lowest_terms, Spalte 1"
+      ],
+      [
+       [
+        "lowest_terms",
+        2
+       ],
+       "Zeile lowest_terms, Spalte 2"
+      ],
+      [
+       [
+        "lowest_terms",
+        37
+       ],
+       "Zeile lowest_terms, Spalte 37"
+      ],
+      [
+       [
+        "lowest_terms",
+        "A"
+       ],
+       "Zeile lowest_terms, Spalte A"
+      ],
+      [
+       [
+        "cubic",
+        0
+       ],
+       "Zeile cubic, Spalte 0"
+      ],
+      [
+       [
+        "cubic",
+        1
+       ],
+       "Zeile cubic, Spalte 1"
+      ],
+      [
+       [
+        "cubic",
+        2
+       ],
+       "Zeile cubic, Spalte 2"
+      ],
+      [
+       [
+        "cubic",
+        37
+       ],
+       "Zeile cubic, Spalte 37"
+      ],
+      [
+       [
+        "cubic",
+        "A"
+       ],
+       "Zeile cubic, Spalte A"
+      ]
+     ]
+    },
+    "dynamicMatCell": {
+     "$calls": [
+      [
+       [
+        0,
+        0,
+        "A"
+       ],
+       "0, Zeile 0, Spalte A"
+      ],
+      [
+       [
+        0,
+        0,
+        1
+       ],
+       "0, Zeile 0, Spalte 1"
+      ],
+      [
+       [
+        0,
+        0,
+        37
+       ],
+       "0, Zeile 0, Spalte 37"
+      ],
+      [
+       [
+        0,
+        1,
+        "A"
+       ],
+       "0, Zeile 1, Spalte A"
+      ],
+      [
+       [
+        0,
+        1,
+        1
+       ],
+       "0, Zeile 1, Spalte 1"
+      ],
+      [
+       [
+        0,
+        1,
+        37
+       ],
+       "0, Zeile 1, Spalte 37"
+      ],
+      [
+       [
+        0,
+        2,
+        "A"
+       ],
+       "0, Zeile 2, Spalte A"
+      ],
+      [
+       [
+        0,
+        2,
+        1
+       ],
+       "0, Zeile 2, Spalte 1"
+      ],
+      [
+       [
+        0,
+        2,
+        37
+       ],
+       "0, Zeile 2, Spalte 37"
+      ],
+      [
+       [
+        0,
+        37,
+        "A"
+       ],
+       "0, Zeile 37, Spalte A"
+      ],
+      [
+       [
+        0,
+        37,
+        1
+       ],
+       "0, Zeile 37, Spalte 1"
+      ],
+      [
+       [
+        0,
+        37,
+        37
+       ],
+       "0, Zeile 37, Spalte 37"
+      ],
+      [
+       [
+        0,
+        "A",
+        "A"
+       ],
+       "0, Zeile A, Spalte A"
+      ],
+      [
+       [
+        0,
+        "A",
+        1
+       ],
+       "0, Zeile A, Spalte 1"
+      ],
+      [
+       [
+        0,
+        "A",
+        37
+       ],
+       "0, Zeile A, Spalte 37"
+      ],
+      [
+       [
+        1,
+        0,
+        "A"
+       ],
+       "1, Zeile 0, Spalte A"
+      ],
+      [
+       [
+        1,
+        0,
+        1
+       ],
+       "1, Zeile 0, Spalte 1"
+      ],
+      [
+       [
+        1,
+        0,
+        37
+       ],
+       "1, Zeile 0, Spalte 37"
+      ],
+      [
+       [
+        1,
+        1,
+        "A"
+       ],
+       "1, Zeile 1, Spalte A"
+      ],
+      [
+       [
+        1,
+        1,
+        1
+       ],
+       "1, Zeile 1, Spalte 1"
+      ],
+      [
+       [
+        1,
+        1,
+        37
+       ],
+       "1, Zeile 1, Spalte 37"
+      ],
+      [
+       [
+        1,
+        2,
+        "A"
+       ],
+       "1, Zeile 2, Spalte A"
+      ],
+      [
+       [
+        1,
+        2,
+        1
+       ],
+       "1, Zeile 2, Spalte 1"
+      ],
+      [
+       [
+        1,
+        2,
+        37
+       ],
+       "1, Zeile 2, Spalte 37"
+      ],
+      [
+       [
+        1,
+        37,
+        "A"
+       ],
+       "1, Zeile 37, Spalte A"
+      ],
+      [
+       [
+        1,
+        37,
+        1
+       ],
+       "1, Zeile 37, Spalte 1"
+      ],
+      [
+       [
+        1,
+        37,
+        37
+       ],
+       "1, Zeile 37, Spalte 37"
+      ],
+      [
+       [
+        1,
+        "A",
+        "A"
+       ],
+       "1, Zeile A, Spalte A"
+      ],
+      [
+       [
+        1,
+        "A",
+        1
+       ],
+       "1, Zeile A, Spalte 1"
+      ],
+      [
+       [
+        1,
+        "A",
+        37
+       ],
+       "1, Zeile A, Spalte 37"
+      ],
+      [
+       [
+        2,
+        0,
+        "A"
+       ],
+       "2, Zeile 0, Spalte A"
+      ],
+      [
+       [
+        2,
+        0,
+        1
+       ],
+       "2, Zeile 0, Spalte 1"
+      ],
+      [
+       [
+        2,
+        0,
+        37
+       ],
+       "2, Zeile 0, Spalte 37"
+      ],
+      [
+       [
+        2,
+        1,
+        "A"
+       ],
+       "2, Zeile 1, Spalte A"
+      ],
+      [
+       [
+        2,
+        1,
+        1
+       ],
+       "2, Zeile 1, Spalte 1"
+      ],
+      [
+       [
+        2,
+        1,
+        37
+       ],
+       "2, Zeile 1, Spalte 37"
+      ],
+      [
+       [
+        2,
+        2,
+        "A"
+       ],
+       "2, Zeile 2, Spalte A"
+      ],
+      [
+       [
+        2,
+        2,
+        1
+       ],
+       "2, Zeile 2, Spalte 1"
+      ],
+      [
+       [
+        2,
+        2,
+        37
+       ],
+       "2, Zeile 2, Spalte 37"
+      ],
+      [
+       [
+        2,
+        37,
+        "A"
+       ],
+       "2, Zeile 37, Spalte A"
+      ],
+      [
+       [
+        2,
+        37,
+        1
+       ],
+       "2, Zeile 37, Spalte 1"
+      ],
+      [
+       [
+        2,
+        37,
+        37
+       ],
+       "2, Zeile 37, Spalte 37"
+      ],
+      [
+       [
+        2,
+        "A",
+        "A"
+       ],
+       "2, Zeile A, Spalte A"
+      ],
+      [
+       [
+        2,
+        "A",
+        1
+       ],
+       "2, Zeile A, Spalte 1"
+      ],
+      [
+       [
+        2,
+        "A",
+        37
+       ],
+       "2, Zeile A, Spalte 37"
+      ],
+      [
+       [
+        37,
+        0,
+        "A"
+       ],
+       "37, Zeile 0, Spalte A"
+      ],
+      [
+       [
+        37,
+        0,
+        1
+       ],
+       "37, Zeile 0, Spalte 1"
+      ],
+      [
+       [
+        37,
+        0,
+        37
+       ],
+       "37, Zeile 0, Spalte 37"
+      ],
+      [
+       [
+        37,
+        1,
+        "A"
+       ],
+       "37, Zeile 1, Spalte A"
+      ],
+      [
+       [
+        37,
+        1,
+        1
+       ],
+       "37, Zeile 1, Spalte 1"
+      ],
+      [
+       [
+        37,
+        1,
+        37
+       ],
+       "37, Zeile 1, Spalte 37"
+      ],
+      [
+       [
+        37,
+        2,
+        "A"
+       ],
+       "37, Zeile 2, Spalte A"
+      ],
+      [
+       [
+        37,
+        2,
+        1
+       ],
+       "37, Zeile 2, Spalte 1"
+      ],
+      [
+       [
+        37,
+        2,
+        37
+       ],
+       "37, Zeile 2, Spalte 37"
+      ],
+      [
+       [
+        37,
+        37,
+        "A"
+       ],
+       "37, Zeile 37, Spalte A"
+      ],
+      [
+       [
+        37,
+        37,
+        1
+       ],
+       "37, Zeile 37, Spalte 1"
+      ],
+      [
+       [
+        37,
+        37,
+        37
+       ],
+       "37, Zeile 37, Spalte 37"
+      ],
+      [
+       [
+        37,
+        "A",
+        "A"
+       ],
+       "37, Zeile A, Spalte A"
+      ],
+      [
+       [
+        37,
+        "A",
+        1
+       ],
+       "37, Zeile A, Spalte 1"
+      ],
+      [
+       [
+        37,
+        "A",
+        37
+       ],
+       "37, Zeile A, Spalte 37"
+      ],
+      [
+       [
+        "A",
+        0,
+        "A"
+       ],
+       "A, Zeile 0, Spalte A"
+      ],
+      [
+       [
+        "A",
+        0,
+        1
+       ],
+       "A, Zeile 0, Spalte 1"
+      ],
+      [
+       [
+        "A",
+        0,
+        37
+       ],
+       "A, Zeile 0, Spalte 37"
+      ],
+      [
+       [
+        "A",
+        1,
+        "A"
+       ],
+       "A, Zeile 1, Spalte A"
+      ],
+      [
+       [
+        "A",
+        1,
+        1
+       ],
+       "A, Zeile 1, Spalte 1"
+      ],
+      [
+       [
+        "A",
+        1,
+        37
+       ],
+       "A, Zeile 1, Spalte 37"
+      ],
+      [
+       [
+        "A",
+        2,
+        "A"
+       ],
+       "A, Zeile 2, Spalte A"
+      ],
+      [
+       [
+        "A",
+        2,
+        1
+       ],
+       "A, Zeile 2, Spalte 1"
+      ],
+      [
+       [
+        "A",
+        2,
+        37
+       ],
+       "A, Zeile 2, Spalte 37"
+      ],
+      [
+       [
+        "A",
+        37,
+        "A"
+       ],
+       "A, Zeile 37, Spalte A"
+      ],
+      [
+       [
+        "A",
+        37,
+        1
+       ],
+       "A, Zeile 37, Spalte 1"
+      ],
+      [
+       [
+        "A",
+        37,
+        37
+       ],
+       "A, Zeile 37, Spalte 37"
+      ],
+      [
+       [
+        "A",
+        "A",
+        "A"
+       ],
+       "A, Zeile A, Spalte A"
+      ],
+      [
+       [
+        "A",
+        "A",
+        1
+       ],
+       "A, Zeile A, Spalte 1"
+      ],
+      [
+       [
+        "A",
+        "A",
+        37
+       ],
+       "A, Zeile A, Spalte 37"
+      ],
+      [
+       [
+        "factored",
+        0,
+        "A"
+       ],
+       "factored, Zeile 0, Spalte A"
+      ],
+      [
+       [
+        "factored",
+        0,
+        1
+       ],
+       "factored, Zeile 0, Spalte 1"
+      ],
+      [
+       [
+        "factored",
+        0,
+        37
+       ],
+       "factored, Zeile 0, Spalte 37"
+      ],
+      [
+       [
+        "factored",
+        1,
+        "A"
+       ],
+       "factored, Zeile 1, Spalte A"
+      ],
+      [
+       [
+        "factored",
+        1,
+        1
+       ],
+       "factored, Zeile 1, Spalte 1"
+      ],
+      [
+       [
+        "factored",
+        1,
+        37
+       ],
+       "factored, Zeile 1, Spalte 37"
+      ],
+      [
+       [
+        "factored",
+        2,
+        "A"
+       ],
+       "factored, Zeile 2, Spalte A"
+      ],
+      [
+       [
+        "factored",
+        2,
+        1
+       ],
+       "factored, Zeile 2, Spalte 1"
+      ],
+      [
+       [
+        "factored",
+        2,
+        37
+       ],
+       "factored, Zeile 2, Spalte 37"
+      ],
+      [
+       [
+        "factored",
+        37,
+        "A"
+       ],
+       "factored, Zeile 37, Spalte A"
+      ],
+      [
+       [
+        "factored",
+        37,
+        1
+       ],
+       "factored, Zeile 37, Spalte 1"
+      ],
+      [
+       [
+        "factored",
+        37,
+        37
+       ],
+       "factored, Zeile 37, Spalte 37"
+      ],
+      [
+       [
+        "factored",
+        "A",
+        "A"
+       ],
+       "factored, Zeile A, Spalte A"
+      ],
+      [
+       [
+        "factored",
+        "A",
+        1
+       ],
+       "factored, Zeile A, Spalte 1"
+      ],
+      [
+       [
+        "factored",
+        "A",
+        37
+       ],
+       "factored, Zeile A, Spalte 37"
+      ],
+      [
+       [
+        "expanded",
+        0,
+        "A"
+       ],
+       "expanded, Zeile 0, Spalte A"
+      ],
+      [
+       [
+        "expanded",
+        0,
+        1
+       ],
+       "expanded, Zeile 0, Spalte 1"
+      ],
+      [
+       [
+        "expanded",
+        0,
+        37
+       ],
+       "expanded, Zeile 0, Spalte 37"
+      ],
+      [
+       [
+        "expanded",
+        1,
+        "A"
+       ],
+       "expanded, Zeile 1, Spalte A"
+      ],
+      [
+       [
+        "expanded",
+        1,
+        1
+       ],
+       "expanded, Zeile 1, Spalte 1"
+      ],
+      [
+       [
+        "expanded",
+        1,
+        37
+       ],
+       "expanded, Zeile 1, Spalte 37"
+      ],
+      [
+       [
+        "expanded",
+        2,
+        "A"
+       ],
+       "expanded, Zeile 2, Spalte A"
+      ],
+      [
+       [
+        "expanded",
+        2,
+        1
+       ],
+       "expanded, Zeile 2, Spalte 1"
+      ],
+      [
+       [
+        "expanded",
+        2,
+        37
+       ],
+       "expanded, Zeile 2, Spalte 37"
+      ],
+      [
+       [
+        "expanded",
+        37,
+        "A"
+       ],
+       "expanded, Zeile 37, Spalte A"
+      ],
+      [
+       [
+        "expanded",
+        37,
+        1
+       ],
+       "expanded, Zeile 37, Spalte 1"
+      ],
+      [
+       [
+        "expanded",
+        37,
+        37
+       ],
+       "expanded, Zeile 37, Spalte 37"
+      ],
+      [
+       [
+        "expanded",
+        "A",
+        "A"
+       ],
+       "expanded, Zeile A, Spalte A"
+      ],
+      [
+       [
+        "expanded",
+        "A",
+        1
+       ],
+       "expanded, Zeile A, Spalte 1"
+      ],
+      [
+       [
+        "expanded",
+        "A",
+        37
+       ],
+       "expanded, Zeile A, Spalte 37"
+      ],
+      [
+       [
+        "single_fraction",
+        0,
+        "A"
+       ],
+       "single_fraction, Zeile 0, Spalte A"
+      ],
+      [
+       [
+        "single_fraction",
+        0,
+        1
+       ],
+       "single_fraction, Zeile 0, Spalte 1"
+      ],
+      [
+       [
+        "single_fraction",
+        0,
+        37
+       ],
+       "single_fraction, Zeile 0, Spalte 37"
+      ],
+      [
+       [
+        "single_fraction",
+        1,
+        "A"
+       ],
+       "single_fraction, Zeile 1, Spalte A"
+      ],
+      [
+       [
+        "single_fraction",
+        1,
+        1
+       ],
+       "single_fraction, Zeile 1, Spalte 1"
+      ],
+      [
+       [
+        "single_fraction",
+        1,
+        37
+       ],
+       "single_fraction, Zeile 1, Spalte 37"
+      ],
+      [
+       [
+        "single_fraction",
+        2,
+        "A"
+       ],
+       "single_fraction, Zeile 2, Spalte A"
+      ],
+      [
+       [
+        "single_fraction",
+        2,
+        1
+       ],
+       "single_fraction, Zeile 2, Spalte 1"
+      ],
+      [
+       [
+        "single_fraction",
+        2,
+        37
+       ],
+       "single_fraction, Zeile 2, Spalte 37"
+      ],
+      [
+       [
+        "single_fraction",
+        37,
+        "A"
+       ],
+       "single_fraction, Zeile 37, Spalte A"
+      ],
+      [
+       [
+        "single_fraction",
+        37,
+        1
+       ],
+       "single_fraction, Zeile 37, Spalte 1"
+      ],
+      [
+       [
+        "single_fraction",
+        37,
+        37
+       ],
+       "single_fraction, Zeile 37, Spalte 37"
+      ],
+      [
+       [
+        "single_fraction",
+        "A",
+        "A"
+       ],
+       "single_fraction, Zeile A, Spalte A"
+      ],
+      [
+       [
+        "single_fraction",
+        "A",
+        1
+       ],
+       "single_fraction, Zeile A, Spalte 1"
+      ],
+      [
+       [
+        "single_fraction",
+        "A",
+        37
+       ],
+       "single_fraction, Zeile A, Spalte 37"
+      ],
+      [
+       [
+        "lowest_terms",
+        0,
+        "A"
+       ],
+       "lowest_terms, Zeile 0, Spalte A"
+      ],
+      [
+       [
+        "lowest_terms",
+        0,
+        1
+       ],
+       "lowest_terms, Zeile 0, Spalte 1"
+      ],
+      [
+       [
+        "lowest_terms",
+        0,
+        37
+       ],
+       "lowest_terms, Zeile 0, Spalte 37"
+      ],
+      [
+       [
+        "lowest_terms",
+        1,
+        "A"
+       ],
+       "lowest_terms, Zeile 1, Spalte A"
+      ],
+      [
+       [
+        "lowest_terms",
+        1,
+        1
+       ],
+       "lowest_terms, Zeile 1, Spalte 1"
+      ],
+      [
+       [
+        "lowest_terms",
+        1,
+        37
+       ],
+       "lowest_terms, Zeile 1, Spalte 37"
+      ],
+      [
+       [
+        "lowest_terms",
+        2,
+        "A"
+       ],
+       "lowest_terms, Zeile 2, Spalte A"
+      ],
+      [
+       [
+        "lowest_terms",
+        2,
+        1
+       ],
+       "lowest_terms, Zeile 2, Spalte 1"
+      ],
+      [
+       [
+        "lowest_terms",
+        2,
+        37
+       ],
+       "lowest_terms, Zeile 2, Spalte 37"
+      ],
+      [
+       [
+        "lowest_terms",
+        37,
+        "A"
+       ],
+       "lowest_terms, Zeile 37, Spalte A"
+      ],
+      [
+       [
+        "lowest_terms",
+        37,
+        1
+       ],
+       "lowest_terms, Zeile 37, Spalte 1"
+      ],
+      [
+       [
+        "lowest_terms",
+        37,
+        37
+       ],
+       "lowest_terms, Zeile 37, Spalte 37"
+      ],
+      [
+       [
+        "lowest_terms",
+        "A",
+        "A"
+       ],
+       "lowest_terms, Zeile A, Spalte A"
+      ],
+      [
+       [
+        "lowest_terms",
+        "A",
+        1
+       ],
+       "lowest_terms, Zeile A, Spalte 1"
+      ],
+      [
+       [
+        "lowest_terms",
+        "A",
+        37
+       ],
+       "lowest_terms, Zeile A, Spalte 37"
+      ],
+      [
+       [
+        "cubic",
+        0,
+        "A"
+       ],
+       "cubic, Zeile 0, Spalte A"
+      ],
+      [
+       [
+        "cubic",
+        0,
+        1
+       ],
+       "cubic, Zeile 0, Spalte 1"
+      ],
+      [
+       [
+        "cubic",
+        0,
+        37
+       ],
+       "cubic, Zeile 0, Spalte 37"
+      ],
+      [
+       [
+        "cubic",
+        1,
+        "A"
+       ],
+       "cubic, Zeile 1, Spalte A"
+      ],
+      [
+       [
+        "cubic",
+        1,
+        1
+       ],
+       "cubic, Zeile 1, Spalte 1"
+      ],
+      [
+       [
+        "cubic",
+        1,
+        37
+       ],
+       "cubic, Zeile 1, Spalte 37"
+      ],
+      [
+       [
+        "cubic",
+        2,
+        "A"
+       ],
+       "cubic, Zeile 2, Spalte A"
+      ],
+      [
+       [
+        "cubic",
+        2,
+        1
+       ],
+       "cubic, Zeile 2, Spalte 1"
+      ],
+      [
+       [
+        "cubic",
+        2,
+        37
+       ],
+       "cubic, Zeile 2, Spalte 37"
+      ],
+      [
+       [
+        "cubic",
+        37,
+        "A"
+       ],
+       "cubic, Zeile 37, Spalte A"
+      ],
+      [
+       [
+        "cubic",
+        37,
+        1
+       ],
+       "cubic, Zeile 37, Spalte 1"
+      ],
+      [
+       [
+        "cubic",
+        37,
+        37
+       ],
+       "cubic, Zeile 37, Spalte 37"
+      ],
+      [
+       [
+        "cubic",
+        "A",
+        "A"
+       ],
+       "cubic, Zeile A, Spalte A"
+      ],
+      [
+       [
+        "cubic",
+        "A",
+        1
+       ],
+       "cubic, Zeile A, Spalte 1"
+      ],
+      [
+       [
+        "cubic",
+        "A",
+        37
+       ],
+       "cubic, Zeile A, Spalte 37"
+      ]
+     ]
+    },
+    "matrixAddRow": "Zeile hinzufügen",
+    "matrixRemoveRow": "Zeile entfernen",
+    "matrixAddColumn": "Spalte hinzufügen",
+    "matrixRemoveColumn": "Spalte entfernen",
+    "matrixRows": "Zeilen",
+    "matrixColumns": "Spalten",
+    "emptyMatrix": "Leere Matrix",
+    "resEmpty": "Bitte eine Antwort eingeben.",
+    "resCorrect": "Richtig!",
+    "resPartial": {
+     "$calls": [
+      [
+       [
+        0
+       ],
+       "Teilweise richtig (0&nbsp;%)."
+      ],
+      [
+       [
+        1
+       ],
+       "Teilweise richtig (1&nbsp;%)."
+      ],
+      [
+       [
+        2
+       ],
+       "Teilweise richtig (2&nbsp;%)."
+      ],
+      [
+       [
+        37
+       ],
+       "Teilweise richtig (37&nbsp;%)."
+      ],
+      [
+       [
+        "A"
+       ],
+       "Teilweise richtig (A&nbsp;%)."
+      ],
+      [
+       [
+        "factored"
+       ],
+       "Teilweise richtig (factored&nbsp;%)."
+      ],
+      [
+       [
+        "expanded"
+       ],
+       "Teilweise richtig (expanded&nbsp;%)."
+      ],
+      [
+       [
+        "single_fraction"
+       ],
+       "Teilweise richtig (single_fraction&nbsp;%)."
+      ],
+      [
+       [
+        "lowest_terms"
+       ],
+       "Teilweise richtig (lowest_terms&nbsp;%)."
+      ],
+      [
+       [
+        "cubic"
+       ],
+       "Teilweise richtig (cubic&nbsp;%)."
+      ]
+     ]
+    },
+    "resPartialNoScore": "Teilweise richtig.",
+    "resScore": {
+     "$calls": [
+      [
+       [
+        0
+       ],
+       "Gesamtpunktzahl: 0&nbsp;%."
+      ],
+      [
+       [
+        1
+       ],
+       "Gesamtpunktzahl: 1&nbsp;%."
+      ],
+      [
+       [
+        2
+       ],
+       "Gesamtpunktzahl: 2&nbsp;%."
+      ],
+      [
+       [
+        37
+       ],
+       "Gesamtpunktzahl: 37&nbsp;%."
+      ],
+      [
+       [
+        "A"
+       ],
+       "Gesamtpunktzahl: A&nbsp;%."
+      ],
+      [
+       [
+        "factored"
+       ],
+       "Gesamtpunktzahl: factored&nbsp;%."
+      ],
+      [
+       [
+        "expanded"
+       ],
+       "Gesamtpunktzahl: expanded&nbsp;%."
+      ],
+      [
+       [
+        "single_fraction"
+       ],
+       "Gesamtpunktzahl: single_fraction&nbsp;%."
+      ],
+      [
+       [
+        "lowest_terms"
+       ],
+       "Gesamtpunktzahl: lowest_terms&nbsp;%."
+      ],
+      [
+       [
+        "cubic"
+       ],
+       "Gesamtpunktzahl: cubic&nbsp;%."
+      ]
+     ]
+    },
+    "resWrong": "Nicht korrekt – versuche es noch einmal.",
+    "resRejected": "Mathematisch korrekt, aber noch nicht vereinfacht. Forme den Ausdruck weiter um.",
+    "resNotExact": "Mathematisch korrekt, aber nicht in der gesuchten Form. Schreibe den Ausdruck genau so um, wie gefordert.",
+    "resNotForm": {
+     "$calls": [
+      [
+       [
+        0
+       ],
+       "Mathematisch korrekt, aber nicht in der geforderten Form geschrieben. Forme den Ausdruck entsprechend um."
+      ],
+      [
+       [
+        1
+       ],
+       "Mathematisch korrekt, aber nicht in der geforderten Form geschrieben. Forme den Ausdruck entsprechend um."
+      ],
+      [
+       [
+        2
+       ],
+       "Mathematisch korrekt, aber nicht in der geforderten Form geschrieben. Forme den Ausdruck entsprechend um."
+      ],
+      [
+       [
+        37
+       ],
+       "Mathematisch korrekt, aber nicht in der geforderten Form geschrieben. Forme den Ausdruck entsprechend um."
+      ],
+      [
+       [
+        "A"
+       ],
+       "Mathematisch korrekt, aber nicht in der geforderten Form geschrieben. Forme den Ausdruck entsprechend um."
+      ],
+      [
+       [
+        "factored"
+       ],
+       "Mathematisch korrekt, aber nicht in faktorisierter Form geschrieben. Forme den Ausdruck entsprechend um."
+      ],
+      [
+       [
+        "expanded"
+       ],
+       "Mathematisch korrekt, aber nicht in ausmultiplizierter Form geschrieben. Forme den Ausdruck entsprechend um."
+      ],
+      [
+       [
+        "single_fraction"
+       ],
+       "Mathematisch korrekt, aber nicht in einem einzigen Bruch geschrieben. Forme den Ausdruck entsprechend um."
+      ],
+      [
+       [
+        "lowest_terms"
+       ],
+       "Mathematisch korrekt, aber nicht in vollständig gekürzter Form geschrieben. Forme den Ausdruck entsprechend um."
+      ],
+      [
+       [
+        "cubic"
+       ],
+       "Mathematisch korrekt, aber nicht in der geforderten Form geschrieben. Forme den Ausdruck entsprechend um."
+      ]
+     ]
+    },
+    "loadingHelp": "&#9203; Lade Hilfe&hellip;",
+    "checking": "&#9203; Überprüfe&hellip;",
+    "slowCheck": "Die Prüfung dauert noch – die Antwort ist vielleicht zu groß zum Auswerten.",
+    "slowLoad": "Python wird noch geladen.",
+    "stop": "Abbrechen",
+    "errStopped": "Abgebrochen. Python wurde neu gestartet (interaktive Zellen auf dieser Seite haben ihre Variablen verloren).",
+    "needAnswerFirst": "Bitte zuerst eine Antwort eingeben, dann Feedback anfordern.",
+    "outputLanguageCode": "de",
+    "feedbackFieldSingle": "Antwort",
+    "feedbackFieldNumbered": {
+     "$calls": [
+      [
+       [
+        0
+       ],
+       "Antwortfeld 0"
+      ],
+      [
+       [
+        1
+       ],
+       "Antwortfeld 1"
+      ],
+      [
+       [
+        2
+       ],
+       "Antwortfeld 2"
+      ],
+      [
+       [
+        37
+       ],
+       "Antwortfeld 37"
+      ],
+      [
+       [
+        "A"
+       ],
+       "Antwortfeld A"
+      ],
+      [
+       [
+        "factored"
+       ],
+       "Antwortfeld factored"
+      ],
+      [
+       [
+        "expanded"
+       ],
+       "Antwortfeld expanded"
+      ],
+      [
+       [
+        "single_fraction"
+       ],
+       "Antwortfeld single_fraction"
+      ],
+      [
+       [
+        "lowest_terms"
+       ],
+       "Antwortfeld lowest_terms"
+      ],
+      [
+       [
+        "cubic"
+       ],
+       "Antwortfeld cubic"
+      ]
+     ]
+    },
+    "warnExtraFieldLabels": "math-exercise: Überzählige field-labels-Einträge wurden ignoriert für",
+    "errorPrefix": "Fehler:"
+   },
+   "nb": {
+    "legend": [
+     [
+      "x^2",
+      "x^2 \\text{ eller } x{**}2",
+      "Potens"
+     ],
+     [
+      "\\sqrt{x}",
+      "sqrt(x)",
+      "Kvadratrot"
+     ],
+     [
+      "\\sqrt[n]{x}",
+      "root(x, n)",
+      "n-te rot"
+     ],
+     [
+      "\\dfrac{a}{b}",
+      "a/b",
+      "Brøk"
+     ],
+     [
+      "\\pi",
+      "pi",
+      "Pi"
+     ],
+     [
+      "e",
+      "E",
+      "Eulers tall e"
+     ],
+     [
+      "\\sin(x)",
+      "sin(x)",
+      "Sinus"
+     ],
+     [
+      "\\cos(x)",
+      "cos(x)",
+      "Cosinus"
+     ],
+     [
+      "\\tan(x)",
+      "tan(x)",
+      "Tangens"
+     ],
+     [
+      "\\ln(x)",
+      "ln(x)",
+      "Naturlig logaritme"
+     ],
+     [
+      "\\log_a(x)",
+      "log(x, a)",
+      "Logaritme med grunntall a"
+     ],
+     [
+      "|x|",
+      "Abs(x)",
+      "Absoluttverdi"
+     ],
+     [
+      "\\infty",
+      "inf &nbsp;eller&nbsp; oo",
+      "Uendelig"
+     ],
+     [
+      "\\int f\\,dx",
+      "integrate(f, x)",
+      "Integral"
+     ],
+     [
+      "\\dfrac{d}{dx}f",
+      "diff(f, x)",
+      "Derivert"
+     ]
+    ],
+    "legendOps": "Grunnleggende operatorer:&nbsp;<code>+</code>&nbsp;<code>-</code>&nbsp;<code>*</code>&nbsp;<code>/</code>&nbsp;&nbsp;|&nbsp;&nbsp;Parenteser:&nbsp;<code>(</code>&nbsp;<code>)</code>&nbsp;&nbsp;|&nbsp;&nbsp;Potens:&nbsp;<code>^</code>&nbsp;eller&nbsp;<code>**</code>",
+    "legendThExpr": "Uttrykk",
+    "legendThInput": "Inntasting",
+    "legendThMeaning": "Betydning",
+    "errSyntax": "Syntaksfeil: Sjekk at alle parenteser er lukket, og at ingen operator mangler.",
+    "errUnknownName": {
+     "$calls": [
+      [
+       [
+        0
+       ],
+       "Ukjent navn «0» – bruk inntastingshjelpen (for eksempel <code>pi</code> i stedet for <code>π</code>)."
+      ],
+      [
+       [
+        1
+       ],
+       "Ukjent navn «1» – bruk inntastingshjelpen (for eksempel <code>pi</code> i stedet for <code>π</code>)."
+      ],
+      [
+       [
+        2
+       ],
+       "Ukjent navn «2» – bruk inntastingshjelpen (for eksempel <code>pi</code> i stedet for <code>π</code>)."
+      ],
+      [
+       [
+        37
+       ],
+       "Ukjent navn «37» – bruk inntastingshjelpen (for eksempel <code>pi</code> i stedet for <code>π</code>)."
+      ],
+      [
+       [
+        "A"
+       ],
+       "Ukjent navn «A» – bruk inntastingshjelpen (for eksempel <code>pi</code> i stedet for <code>π</code>)."
+      ],
+      [
+       [
+        "factored"
+       ],
+       "Ukjent navn «factored» – bruk inntastingshjelpen (for eksempel <code>pi</code> i stedet for <code>π</code>)."
+      ],
+      [
+       [
+        "expanded"
+       ],
+       "Ukjent navn «expanded» – bruk inntastingshjelpen (for eksempel <code>pi</code> i stedet for <code>π</code>)."
+      ],
+      [
+       [
+        "single_fraction"
+       ],
+       "Ukjent navn «single_fraction» – bruk inntastingshjelpen (for eksempel <code>pi</code> i stedet for <code>π</code>)."
+      ],
+      [
+       [
+        "lowest_terms"
+       ],
+       "Ukjent navn «lowest_terms» – bruk inntastingshjelpen (for eksempel <code>pi</code> i stedet for <code>π</code>)."
+      ],
+      [
+       [
+        "cubic"
+       ],
+       "Ukjent navn «cubic» – bruk inntastingshjelpen (for eksempel <code>pi</code> i stedet for <code>π</code>)."
+      ]
+     ]
+    },
+    "errNameGeneric": "Ukjent navn – bruk inntastingshjelpen for å finne riktig skrivemåte.",
+    "errDivZero": "Divisjon med null: Uttrykket er ikke definert i dette punktet.",
+    "errType": "Typefeil: Sjekk at tall og variabler er kombinert riktig.",
+    "errGeneric": "Inntastingen kunne ikke behandles – bruk inntastingshjelpen for å finne riktig skrivemåte.",
+    "errRuntime": "Python kunne ikke lastes inn. Kontroller internettforbindelsen og trykk Sjekk igjen.",
+    "vecComponent": {
+     "$calls": [
+      [
+       [
+        0
+       ],
+       "Komponent 0"
+      ],
+      [
+       [
+        1
+       ],
+       "Komponent 1"
+      ],
+      [
+       [
+        2
+       ],
+       "Komponent 2"
+      ],
+      [
+       [
+        37
+       ],
+       "Komponent 37"
+      ],
+      [
+       [
+        "A"
+       ],
+       "Komponent A"
+      ],
+      [
+       [
+        "factored"
+       ],
+       "Komponent factored"
+      ],
+      [
+       [
+        "expanded"
+       ],
+       "Komponent expanded"
+      ],
+      [
+       [
+        "single_fraction"
+       ],
+       "Komponent single_fraction"
+      ],
+      [
+       [
+        "lowest_terms"
+       ],
+       "Komponent lowest_terms"
+      ],
+      [
+       [
+        "cubic"
+       ],
+       "Komponent cubic"
+      ]
+     ]
+    },
+    "matCell": {
+     "$calls": [
+      [
+       [
+        0,
+        0
+       ],
+       "Rad 0, kolonne 0"
+      ],
+      [
+       [
+        0,
+        1
+       ],
+       "Rad 0, kolonne 1"
+      ],
+      [
+       [
+        0,
+        2
+       ],
+       "Rad 0, kolonne 2"
+      ],
+      [
+       [
+        0,
+        37
+       ],
+       "Rad 0, kolonne 37"
+      ],
+      [
+       [
+        0,
+        "A"
+       ],
+       "Rad 0, kolonne A"
+      ],
+      [
+       [
+        1,
+        0
+       ],
+       "Rad 1, kolonne 0"
+      ],
+      [
+       [
+        1,
+        1
+       ],
+       "Rad 1, kolonne 1"
+      ],
+      [
+       [
+        1,
+        2
+       ],
+       "Rad 1, kolonne 2"
+      ],
+      [
+       [
+        1,
+        37
+       ],
+       "Rad 1, kolonne 37"
+      ],
+      [
+       [
+        1,
+        "A"
+       ],
+       "Rad 1, kolonne A"
+      ],
+      [
+       [
+        2,
+        0
+       ],
+       "Rad 2, kolonne 0"
+      ],
+      [
+       [
+        2,
+        1
+       ],
+       "Rad 2, kolonne 1"
+      ],
+      [
+       [
+        2,
+        2
+       ],
+       "Rad 2, kolonne 2"
+      ],
+      [
+       [
+        2,
+        37
+       ],
+       "Rad 2, kolonne 37"
+      ],
+      [
+       [
+        2,
+        "A"
+       ],
+       "Rad 2, kolonne A"
+      ],
+      [
+       [
+        37,
+        0
+       ],
+       "Rad 37, kolonne 0"
+      ],
+      [
+       [
+        37,
+        1
+       ],
+       "Rad 37, kolonne 1"
+      ],
+      [
+       [
+        37,
+        2
+       ],
+       "Rad 37, kolonne 2"
+      ],
+      [
+       [
+        37,
+        37
+       ],
+       "Rad 37, kolonne 37"
+      ],
+      [
+       [
+        37,
+        "A"
+       ],
+       "Rad 37, kolonne A"
+      ],
+      [
+       [
+        "A",
+        0
+       ],
+       "Rad A, kolonne 0"
+      ],
+      [
+       [
+        "A",
+        1
+       ],
+       "Rad A, kolonne 1"
+      ],
+      [
+       [
+        "A",
+        2
+       ],
+       "Rad A, kolonne 2"
+      ],
+      [
+       [
+        "A",
+        37
+       ],
+       "Rad A, kolonne 37"
+      ],
+      [
+       [
+        "A",
+        "A"
+       ],
+       "Rad A, kolonne A"
+      ],
+      [
+       [
+        "factored",
+        0
+       ],
+       "Rad factored, kolonne 0"
+      ],
+      [
+       [
+        "factored",
+        1
+       ],
+       "Rad factored, kolonne 1"
+      ],
+      [
+       [
+        "factored",
+        2
+       ],
+       "Rad factored, kolonne 2"
+      ],
+      [
+       [
+        "factored",
+        37
+       ],
+       "Rad factored, kolonne 37"
+      ],
+      [
+       [
+        "factored",
+        "A"
+       ],
+       "Rad factored, kolonne A"
+      ],
+      [
+       [
+        "expanded",
+        0
+       ],
+       "Rad expanded, kolonne 0"
+      ],
+      [
+       [
+        "expanded",
+        1
+       ],
+       "Rad expanded, kolonne 1"
+      ],
+      [
+       [
+        "expanded",
+        2
+       ],
+       "Rad expanded, kolonne 2"
+      ],
+      [
+       [
+        "expanded",
+        37
+       ],
+       "Rad expanded, kolonne 37"
+      ],
+      [
+       [
+        "expanded",
+        "A"
+       ],
+       "Rad expanded, kolonne A"
+      ],
+      [
+       [
+        "single_fraction",
+        0
+       ],
+       "Rad single_fraction, kolonne 0"
+      ],
+      [
+       [
+        "single_fraction",
+        1
+       ],
+       "Rad single_fraction, kolonne 1"
+      ],
+      [
+       [
+        "single_fraction",
+        2
+       ],
+       "Rad single_fraction, kolonne 2"
+      ],
+      [
+       [
+        "single_fraction",
+        37
+       ],
+       "Rad single_fraction, kolonne 37"
+      ],
+      [
+       [
+        "single_fraction",
+        "A"
+       ],
+       "Rad single_fraction, kolonne A"
+      ],
+      [
+       [
+        "lowest_terms",
+        0
+       ],
+       "Rad lowest_terms, kolonne 0"
+      ],
+      [
+       [
+        "lowest_terms",
+        1
+       ],
+       "Rad lowest_terms, kolonne 1"
+      ],
+      [
+       [
+        "lowest_terms",
+        2
+       ],
+       "Rad lowest_terms, kolonne 2"
+      ],
+      [
+       [
+        "lowest_terms",
+        37
+       ],
+       "Rad lowest_terms, kolonne 37"
+      ],
+      [
+       [
+        "lowest_terms",
+        "A"
+       ],
+       "Rad lowest_terms, kolonne A"
+      ],
+      [
+       [
+        "cubic",
+        0
+       ],
+       "Rad cubic, kolonne 0"
+      ],
+      [
+       [
+        "cubic",
+        1
+       ],
+       "Rad cubic, kolonne 1"
+      ],
+      [
+       [
+        "cubic",
+        2
+       ],
+       "Rad cubic, kolonne 2"
+      ],
+      [
+       [
+        "cubic",
+        37
+       ],
+       "Rad cubic, kolonne 37"
+      ],
+      [
+       [
+        "cubic",
+        "A"
+       ],
+       "Rad cubic, kolonne A"
+      ]
+     ]
+    },
+    "dynamicMatCell": {
+     "$calls": [
+      [
+       [
+        0,
+        0,
+        "A"
+       ],
+       "0, rad 0, kolonne A"
+      ],
+      [
+       [
+        0,
+        0,
+        1
+       ],
+       "0, rad 0, kolonne 1"
+      ],
+      [
+       [
+        0,
+        0,
+        37
+       ],
+       "0, rad 0, kolonne 37"
+      ],
+      [
+       [
+        0,
+        1,
+        "A"
+       ],
+       "0, rad 1, kolonne A"
+      ],
+      [
+       [
+        0,
+        1,
+        1
+       ],
+       "0, rad 1, kolonne 1"
+      ],
+      [
+       [
+        0,
+        1,
+        37
+       ],
+       "0, rad 1, kolonne 37"
+      ],
+      [
+       [
+        0,
+        2,
+        "A"
+       ],
+       "0, rad 2, kolonne A"
+      ],
+      [
+       [
+        0,
+        2,
+        1
+       ],
+       "0, rad 2, kolonne 1"
+      ],
+      [
+       [
+        0,
+        2,
+        37
+       ],
+       "0, rad 2, kolonne 37"
+      ],
+      [
+       [
+        0,
+        37,
+        "A"
+       ],
+       "0, rad 37, kolonne A"
+      ],
+      [
+       [
+        0,
+        37,
+        1
+       ],
+       "0, rad 37, kolonne 1"
+      ],
+      [
+       [
+        0,
+        37,
+        37
+       ],
+       "0, rad 37, kolonne 37"
+      ],
+      [
+       [
+        0,
+        "A",
+        "A"
+       ],
+       "0, rad A, kolonne A"
+      ],
+      [
+       [
+        0,
+        "A",
+        1
+       ],
+       "0, rad A, kolonne 1"
+      ],
+      [
+       [
+        0,
+        "A",
+        37
+       ],
+       "0, rad A, kolonne 37"
+      ],
+      [
+       [
+        1,
+        0,
+        "A"
+       ],
+       "1, rad 0, kolonne A"
+      ],
+      [
+       [
+        1,
+        0,
+        1
+       ],
+       "1, rad 0, kolonne 1"
+      ],
+      [
+       [
+        1,
+        0,
+        37
+       ],
+       "1, rad 0, kolonne 37"
+      ],
+      [
+       [
+        1,
+        1,
+        "A"
+       ],
+       "1, rad 1, kolonne A"
+      ],
+      [
+       [
+        1,
+        1,
+        1
+       ],
+       "1, rad 1, kolonne 1"
+      ],
+      [
+       [
+        1,
+        1,
+        37
+       ],
+       "1, rad 1, kolonne 37"
+      ],
+      [
+       [
+        1,
+        2,
+        "A"
+       ],
+       "1, rad 2, kolonne A"
+      ],
+      [
+       [
+        1,
+        2,
+        1
+       ],
+       "1, rad 2, kolonne 1"
+      ],
+      [
+       [
+        1,
+        2,
+        37
+       ],
+       "1, rad 2, kolonne 37"
+      ],
+      [
+       [
+        1,
+        37,
+        "A"
+       ],
+       "1, rad 37, kolonne A"
+      ],
+      [
+       [
+        1,
+        37,
+        1
+       ],
+       "1, rad 37, kolonne 1"
+      ],
+      [
+       [
+        1,
+        37,
+        37
+       ],
+       "1, rad 37, kolonne 37"
+      ],
+      [
+       [
+        1,
+        "A",
+        "A"
+       ],
+       "1, rad A, kolonne A"
+      ],
+      [
+       [
+        1,
+        "A",
+        1
+       ],
+       "1, rad A, kolonne 1"
+      ],
+      [
+       [
+        1,
+        "A",
+        37
+       ],
+       "1, rad A, kolonne 37"
+      ],
+      [
+       [
+        2,
+        0,
+        "A"
+       ],
+       "2, rad 0, kolonne A"
+      ],
+      [
+       [
+        2,
+        0,
+        1
+       ],
+       "2, rad 0, kolonne 1"
+      ],
+      [
+       [
+        2,
+        0,
+        37
+       ],
+       "2, rad 0, kolonne 37"
+      ],
+      [
+       [
+        2,
+        1,
+        "A"
+       ],
+       "2, rad 1, kolonne A"
+      ],
+      [
+       [
+        2,
+        1,
+        1
+       ],
+       "2, rad 1, kolonne 1"
+      ],
+      [
+       [
+        2,
+        1,
+        37
+       ],
+       "2, rad 1, kolonne 37"
+      ],
+      [
+       [
+        2,
+        2,
+        "A"
+       ],
+       "2, rad 2, kolonne A"
+      ],
+      [
+       [
+        2,
+        2,
+        1
+       ],
+       "2, rad 2, kolonne 1"
+      ],
+      [
+       [
+        2,
+        2,
+        37
+       ],
+       "2, rad 2, kolonne 37"
+      ],
+      [
+       [
+        2,
+        37,
+        "A"
+       ],
+       "2, rad 37, kolonne A"
+      ],
+      [
+       [
+        2,
+        37,
+        1
+       ],
+       "2, rad 37, kolonne 1"
+      ],
+      [
+       [
+        2,
+        37,
+        37
+       ],
+       "2, rad 37, kolonne 37"
+      ],
+      [
+       [
+        2,
+        "A",
+        "A"
+       ],
+       "2, rad A, kolonne A"
+      ],
+      [
+       [
+        2,
+        "A",
+        1
+       ],
+       "2, rad A, kolonne 1"
+      ],
+      [
+       [
+        2,
+        "A",
+        37
+       ],
+       "2, rad A, kolonne 37"
+      ],
+      [
+       [
+        37,
+        0,
+        "A"
+       ],
+       "37, rad 0, kolonne A"
+      ],
+      [
+       [
+        37,
+        0,
+        1
+       ],
+       "37, rad 0, kolonne 1"
+      ],
+      [
+       [
+        37,
+        0,
+        37
+       ],
+       "37, rad 0, kolonne 37"
+      ],
+      [
+       [
+        37,
+        1,
+        "A"
+       ],
+       "37, rad 1, kolonne A"
+      ],
+      [
+       [
+        37,
+        1,
+        1
+       ],
+       "37, rad 1, kolonne 1"
+      ],
+      [
+       [
+        37,
+        1,
+        37
+       ],
+       "37, rad 1, kolonne 37"
+      ],
+      [
+       [
+        37,
+        2,
+        "A"
+       ],
+       "37, rad 2, kolonne A"
+      ],
+      [
+       [
+        37,
+        2,
+        1
+       ],
+       "37, rad 2, kolonne 1"
+      ],
+      [
+       [
+        37,
+        2,
+        37
+       ],
+       "37, rad 2, kolonne 37"
+      ],
+      [
+       [
+        37,
+        37,
+        "A"
+       ],
+       "37, rad 37, kolonne A"
+      ],
+      [
+       [
+        37,
+        37,
+        1
+       ],
+       "37, rad 37, kolonne 1"
+      ],
+      [
+       [
+        37,
+        37,
+        37
+       ],
+       "37, rad 37, kolonne 37"
+      ],
+      [
+       [
+        37,
+        "A",
+        "A"
+       ],
+       "37, rad A, kolonne A"
+      ],
+      [
+       [
+        37,
+        "A",
+        1
+       ],
+       "37, rad A, kolonne 1"
+      ],
+      [
+       [
+        37,
+        "A",
+        37
+       ],
+       "37, rad A, kolonne 37"
+      ],
+      [
+       [
+        "A",
+        0,
+        "A"
+       ],
+       "A, rad 0, kolonne A"
+      ],
+      [
+       [
+        "A",
+        0,
+        1
+       ],
+       "A, rad 0, kolonne 1"
+      ],
+      [
+       [
+        "A",
+        0,
+        37
+       ],
+       "A, rad 0, kolonne 37"
+      ],
+      [
+       [
+        "A",
+        1,
+        "A"
+       ],
+       "A, rad 1, kolonne A"
+      ],
+      [
+       [
+        "A",
+        1,
+        1
+       ],
+       "A, rad 1, kolonne 1"
+      ],
+      [
+       [
+        "A",
+        1,
+        37
+       ],
+       "A, rad 1, kolonne 37"
+      ],
+      [
+       [
+        "A",
+        2,
+        "A"
+       ],
+       "A, rad 2, kolonne A"
+      ],
+      [
+       [
+        "A",
+        2,
+        1
+       ],
+       "A, rad 2, kolonne 1"
+      ],
+      [
+       [
+        "A",
+        2,
+        37
+       ],
+       "A, rad 2, kolonne 37"
+      ],
+      [
+       [
+        "A",
+        37,
+        "A"
+       ],
+       "A, rad 37, kolonne A"
+      ],
+      [
+       [
+        "A",
+        37,
+        1
+       ],
+       "A, rad 37, kolonne 1"
+      ],
+      [
+       [
+        "A",
+        37,
+        37
+       ],
+       "A, rad 37, kolonne 37"
+      ],
+      [
+       [
+        "A",
+        "A",
+        "A"
+       ],
+       "A, rad A, kolonne A"
+      ],
+      [
+       [
+        "A",
+        "A",
+        1
+       ],
+       "A, rad A, kolonne 1"
+      ],
+      [
+       [
+        "A",
+        "A",
+        37
+       ],
+       "A, rad A, kolonne 37"
+      ],
+      [
+       [
+        "factored",
+        0,
+        "A"
+       ],
+       "factored, rad 0, kolonne A"
+      ],
+      [
+       [
+        "factored",
+        0,
+        1
+       ],
+       "factored, rad 0, kolonne 1"
+      ],
+      [
+       [
+        "factored",
+        0,
+        37
+       ],
+       "factored, rad 0, kolonne 37"
+      ],
+      [
+       [
+        "factored",
+        1,
+        "A"
+       ],
+       "factored, rad 1, kolonne A"
+      ],
+      [
+       [
+        "factored",
+        1,
+        1
+       ],
+       "factored, rad 1, kolonne 1"
+      ],
+      [
+       [
+        "factored",
+        1,
+        37
+       ],
+       "factored, rad 1, kolonne 37"
+      ],
+      [
+       [
+        "factored",
+        2,
+        "A"
+       ],
+       "factored, rad 2, kolonne A"
+      ],
+      [
+       [
+        "factored",
+        2,
+        1
+       ],
+       "factored, rad 2, kolonne 1"
+      ],
+      [
+       [
+        "factored",
+        2,
+        37
+       ],
+       "factored, rad 2, kolonne 37"
+      ],
+      [
+       [
+        "factored",
+        37,
+        "A"
+       ],
+       "factored, rad 37, kolonne A"
+      ],
+      [
+       [
+        "factored",
+        37,
+        1
+       ],
+       "factored, rad 37, kolonne 1"
+      ],
+      [
+       [
+        "factored",
+        37,
+        37
+       ],
+       "factored, rad 37, kolonne 37"
+      ],
+      [
+       [
+        "factored",
+        "A",
+        "A"
+       ],
+       "factored, rad A, kolonne A"
+      ],
+      [
+       [
+        "factored",
+        "A",
+        1
+       ],
+       "factored, rad A, kolonne 1"
+      ],
+      [
+       [
+        "factored",
+        "A",
+        37
+       ],
+       "factored, rad A, kolonne 37"
+      ],
+      [
+       [
+        "expanded",
+        0,
+        "A"
+       ],
+       "expanded, rad 0, kolonne A"
+      ],
+      [
+       [
+        "expanded",
+        0,
+        1
+       ],
+       "expanded, rad 0, kolonne 1"
+      ],
+      [
+       [
+        "expanded",
+        0,
+        37
+       ],
+       "expanded, rad 0, kolonne 37"
+      ],
+      [
+       [
+        "expanded",
+        1,
+        "A"
+       ],
+       "expanded, rad 1, kolonne A"
+      ],
+      [
+       [
+        "expanded",
+        1,
+        1
+       ],
+       "expanded, rad 1, kolonne 1"
+      ],
+      [
+       [
+        "expanded",
+        1,
+        37
+       ],
+       "expanded, rad 1, kolonne 37"
+      ],
+      [
+       [
+        "expanded",
+        2,
+        "A"
+       ],
+       "expanded, rad 2, kolonne A"
+      ],
+      [
+       [
+        "expanded",
+        2,
+        1
+       ],
+       "expanded, rad 2, kolonne 1"
+      ],
+      [
+       [
+        "expanded",
+        2,
+        37
+       ],
+       "expanded, rad 2, kolonne 37"
+      ],
+      [
+       [
+        "expanded",
+        37,
+        "A"
+       ],
+       "expanded, rad 37, kolonne A"
+      ],
+      [
+       [
+        "expanded",
+        37,
+        1
+       ],
+       "expanded, rad 37, kolonne 1"
+      ],
+      [
+       [
+        "expanded",
+        37,
+        37
+       ],
+       "expanded, rad 37, kolonne 37"
+      ],
+      [
+       [
+        "expanded",
+        "A",
+        "A"
+       ],
+       "expanded, rad A, kolonne A"
+      ],
+      [
+       [
+        "expanded",
+        "A",
+        1
+       ],
+       "expanded, rad A, kolonne 1"
+      ],
+      [
+       [
+        "expanded",
+        "A",
+        37
+       ],
+       "expanded, rad A, kolonne 37"
+      ],
+      [
+       [
+        "single_fraction",
+        0,
+        "A"
+       ],
+       "single_fraction, rad 0, kolonne A"
+      ],
+      [
+       [
+        "single_fraction",
+        0,
+        1
+       ],
+       "single_fraction, rad 0, kolonne 1"
+      ],
+      [
+       [
+        "single_fraction",
+        0,
+        37
+       ],
+       "single_fraction, rad 0, kolonne 37"
+      ],
+      [
+       [
+        "single_fraction",
+        1,
+        "A"
+       ],
+       "single_fraction, rad 1, kolonne A"
+      ],
+      [
+       [
+        "single_fraction",
+        1,
+        1
+       ],
+       "single_fraction, rad 1, kolonne 1"
+      ],
+      [
+       [
+        "single_fraction",
+        1,
+        37
+       ],
+       "single_fraction, rad 1, kolonne 37"
+      ],
+      [
+       [
+        "single_fraction",
+        2,
+        "A"
+       ],
+       "single_fraction, rad 2, kolonne A"
+      ],
+      [
+       [
+        "single_fraction",
+        2,
+        1
+       ],
+       "single_fraction, rad 2, kolonne 1"
+      ],
+      [
+       [
+        "single_fraction",
+        2,
+        37
+       ],
+       "single_fraction, rad 2, kolonne 37"
+      ],
+      [
+       [
+        "single_fraction",
+        37,
+        "A"
+       ],
+       "single_fraction, rad 37, kolonne A"
+      ],
+      [
+       [
+        "single_fraction",
+        37,
+        1
+       ],
+       "single_fraction, rad 37, kolonne 1"
+      ],
+      [
+       [
+        "single_fraction",
+        37,
+        37
+       ],
+       "single_fraction, rad 37, kolonne 37"
+      ],
+      [
+       [
+        "single_fraction",
+        "A",
+        "A"
+       ],
+       "single_fraction, rad A, kolonne A"
+      ],
+      [
+       [
+        "single_fraction",
+        "A",
+        1
+       ],
+       "single_fraction, rad A, kolonne 1"
+      ],
+      [
+       [
+        "single_fraction",
+        "A",
+        37
+       ],
+       "single_fraction, rad A, kolonne 37"
+      ],
+      [
+       [
+        "lowest_terms",
+        0,
+        "A"
+       ],
+       "lowest_terms, rad 0, kolonne A"
+      ],
+      [
+       [
+        "lowest_terms",
+        0,
+        1
+       ],
+       "lowest_terms, rad 0, kolonne 1"
+      ],
+      [
+       [
+        "lowest_terms",
+        0,
+        37
+       ],
+       "lowest_terms, rad 0, kolonne 37"
+      ],
+      [
+       [
+        "lowest_terms",
+        1,
+        "A"
+       ],
+       "lowest_terms, rad 1, kolonne A"
+      ],
+      [
+       [
+        "lowest_terms",
+        1,
+        1
+       ],
+       "lowest_terms, rad 1, kolonne 1"
+      ],
+      [
+       [
+        "lowest_terms",
+        1,
+        37
+       ],
+       "lowest_terms, rad 1, kolonne 37"
+      ],
+      [
+       [
+        "lowest_terms",
+        2,
+        "A"
+       ],
+       "lowest_terms, rad 2, kolonne A"
+      ],
+      [
+       [
+        "lowest_terms",
+        2,
+        1
+       ],
+       "lowest_terms, rad 2, kolonne 1"
+      ],
+      [
+       [
+        "lowest_terms",
+        2,
+        37
+       ],
+       "lowest_terms, rad 2, kolonne 37"
+      ],
+      [
+       [
+        "lowest_terms",
+        37,
+        "A"
+       ],
+       "lowest_terms, rad 37, kolonne A"
+      ],
+      [
+       [
+        "lowest_terms",
+        37,
+        1
+       ],
+       "lowest_terms, rad 37, kolonne 1"
+      ],
+      [
+       [
+        "lowest_terms",
+        37,
+        37
+       ],
+       "lowest_terms, rad 37, kolonne 37"
+      ],
+      [
+       [
+        "lowest_terms",
+        "A",
+        "A"
+       ],
+       "lowest_terms, rad A, kolonne A"
+      ],
+      [
+       [
+        "lowest_terms",
+        "A",
+        1
+       ],
+       "lowest_terms, rad A, kolonne 1"
+      ],
+      [
+       [
+        "lowest_terms",
+        "A",
+        37
+       ],
+       "lowest_terms, rad A, kolonne 37"
+      ],
+      [
+       [
+        "cubic",
+        0,
+        "A"
+       ],
+       "cubic, rad 0, kolonne A"
+      ],
+      [
+       [
+        "cubic",
+        0,
+        1
+       ],
+       "cubic, rad 0, kolonne 1"
+      ],
+      [
+       [
+        "cubic",
+        0,
+        37
+       ],
+       "cubic, rad 0, kolonne 37"
+      ],
+      [
+       [
+        "cubic",
+        1,
+        "A"
+       ],
+       "cubic, rad 1, kolonne A"
+      ],
+      [
+       [
+        "cubic",
+        1,
+        1
+       ],
+       "cubic, rad 1, kolonne 1"
+      ],
+      [
+       [
+        "cubic",
+        1,
+        37
+       ],
+       "cubic, rad 1, kolonne 37"
+      ],
+      [
+       [
+        "cubic",
+        2,
+        "A"
+       ],
+       "cubic, rad 2, kolonne A"
+      ],
+      [
+       [
+        "cubic",
+        2,
+        1
+       ],
+       "cubic, rad 2, kolonne 1"
+      ],
+      [
+       [
+        "cubic",
+        2,
+        37
+       ],
+       "cubic, rad 2, kolonne 37"
+      ],
+      [
+       [
+        "cubic",
+        37,
+        "A"
+       ],
+       "cubic, rad 37, kolonne A"
+      ],
+      [
+       [
+        "cubic",
+        37,
+        1
+       ],
+       "cubic, rad 37, kolonne 1"
+      ],
+      [
+       [
+        "cubic",
+        37,
+        37
+       ],
+       "cubic, rad 37, kolonne 37"
+      ],
+      [
+       [
+        "cubic",
+        "A",
+        "A"
+       ],
+       "cubic, rad A, kolonne A"
+      ],
+      [
+       [
+        "cubic",
+        "A",
+        1
+       ],
+       "cubic, rad A, kolonne 1"
+      ],
+      [
+       [
+        "cubic",
+        "A",
+        37
+       ],
+       "cubic, rad A, kolonne 37"
+      ]
+     ]
+    },
+    "matrixAddRow": "Legg til rad",
+    "matrixRemoveRow": "Fjern rad",
+    "matrixAddColumn": "Legg til kolonne",
+    "matrixRemoveColumn": "Fjern kolonne",
+    "matrixRows": "Rader",
+    "matrixColumns": "Kolonner",
+    "emptyMatrix": "Tom matrise",
+    "resEmpty": "Skriv inn et svar.",
+    "resCorrect": "Riktig!",
+    "resPartial": {
+     "$calls": [
+      [
+       [
+        0
+       ],
+       "Delvis riktig (0%)."
+      ],
+      [
+       [
+        1
+       ],
+       "Delvis riktig (1%)."
+      ],
+      [
+       [
+        2
+       ],
+       "Delvis riktig (2%)."
+      ],
+      [
+       [
+        37
+       ],
+       "Delvis riktig (37%)."
+      ],
+      [
+       [
+        "A"
+       ],
+       "Delvis riktig (A%)."
+      ],
+      [
+       [
+        "factored"
+       ],
+       "Delvis riktig (factored%)."
+      ],
+      [
+       [
+        "expanded"
+       ],
+       "Delvis riktig (expanded%)."
+      ],
+      [
+       [
+        "single_fraction"
+       ],
+       "Delvis riktig (single_fraction%)."
+      ],
+      [
+       [
+        "lowest_terms"
+       ],
+       "Delvis riktig (lowest_terms%)."
+      ],
+      [
+       [
+        "cubic"
+       ],
+       "Delvis riktig (cubic%)."
+      ]
+     ]
+    },
+    "resPartialNoScore": "Delvis riktig.",
+    "resScore": {
+     "$calls": [
+      [
+       [
+        0
+       ],
+       "Samlet poengsum: 0 %."
+      ],
+      [
+       [
+        1
+       ],
+       "Samlet poengsum: 1 %."
+      ],
+      [
+       [
+        2
+       ],
+       "Samlet poengsum: 2 %."
+      ],
+      [
+       [
+        37
+       ],
+       "Samlet poengsum: 37 %."
+      ],
+      [
+       [
+        "A"
+       ],
+       "Samlet poengsum: A %."
+      ],
+      [
+       [
+        "factored"
+       ],
+       "Samlet poengsum: factored %."
+      ],
+      [
+       [
+        "expanded"
+       ],
+       "Samlet poengsum: expanded %."
+      ],
+      [
+       [
+        "single_fraction"
+       ],
+       "Samlet poengsum: single_fraction %."
+      ],
+      [
+       [
+        "lowest_terms"
+       ],
+       "Samlet poengsum: lowest_terms %."
+      ],
+      [
+       [
+        "cubic"
+       ],
+       "Samlet poengsum: cubic %."
+      ]
+     ]
+    },
+    "resWrong": "Ikke riktig – prøv igjen.",
+    "resRejected": "Matematisk riktig, men ikke forenklet ennå. Fortsett å omforme uttrykket.",
+    "resNotExact": "Matematisk riktig, men ikke på formen det ble spurt om. Skriv om uttrykket nøyaktig som angitt.",
+    "resNotForm": {
+     "$calls": [
+      [
+       [
+        0
+       ],
+       "Matematisk riktig, men ikke skrevet på den påkrevde formen. Skriv om uttrykket."
+      ],
+      [
+       [
+        1
+       ],
+       "Matematisk riktig, men ikke skrevet på den påkrevde formen. Skriv om uttrykket."
+      ],
+      [
+       [
+        2
+       ],
+       "Matematisk riktig, men ikke skrevet på den påkrevde formen. Skriv om uttrykket."
+      ],
+      [
+       [
+        37
+       ],
+       "Matematisk riktig, men ikke skrevet på den påkrevde formen. Skriv om uttrykket."
+      ],
+      [
+       [
+        "A"
+       ],
+       "Matematisk riktig, men ikke skrevet på den påkrevde formen. Skriv om uttrykket."
+      ],
+      [
+       [
+        "factored"
+       ],
+       "Matematisk riktig, men ikke skrevet på faktorisert form. Skriv om uttrykket."
+      ],
+      [
+       [
+        "expanded"
+       ],
+       "Matematisk riktig, men ikke skrevet på utvidet form. Skriv om uttrykket."
+      ],
+      [
+       [
+        "single_fraction"
+       ],
+       "Matematisk riktig, men ikke skrevet på én brøk. Skriv om uttrykket."
+      ],
+      [
+       [
+        "lowest_terms"
+       ],
+       "Matematisk riktig, men ikke skrevet på fullstendig forkortet form. Skriv om uttrykket."
+      ],
+      [
+       [
+        "cubic"
+       ],
+       "Matematisk riktig, men ikke skrevet på den påkrevde formen. Skriv om uttrykket."
+      ]
+     ]
+    },
+    "loadingHelp": "&#9203; Laster hjelp&hellip;",
+    "checking": "&#9203; Sjekker&hellip;",
+    "slowCheck": "Sjekken pågår fortsatt – svaret er kanskje for stort til å regnes ut.",
+    "slowLoad": "Python lastes fortsatt inn.",
+    "stop": "Avbryt",
+    "errStopped": "Avbrutt. Python ble startet på nytt (interaktive celler på denne siden mistet variablene sine).",
+    "needAnswerFirst": "Skriv inn et svar før du ber om tilbakemelding.",
+    "outputLanguageCode": "nb",
+    "feedbackFieldSingle": "Svar",
+    "feedbackFieldNumbered": {
+     "$calls": [
+      [
+       [
+        0
+       ],
+       "Svarfelt 0"
+      ],
+      [
+       [
+        1
+       ],
+       "Svarfelt 1"
+      ],
+      [
+       [
+        2
+       ],
+       "Svarfelt 2"
+      ],
+      [
+       [
+        37
+       ],
+       "Svarfelt 37"
+      ],
+      [
+       [
+        "A"
+       ],
+       "Svarfelt A"
+      ],
+      [
+       [
+        "factored"
+       ],
+       "Svarfelt factored"
+      ],
+      [
+       [
+        "expanded"
+       ],
+       "Svarfelt expanded"
+      ],
+      [
+       [
+        "single_fraction"
+       ],
+       "Svarfelt single_fraction"
+      ],
+      [
+       [
+        "lowest_terms"
+       ],
+       "Svarfelt lowest_terms"
+      ],
+      [
+       [
+        "cubic"
+       ],
+       "Svarfelt cubic"
+      ]
+     ]
+    },
+    "warnExtraFieldLabels": "math-exercise: Overflødige field-labels-oppføringer ble ignorert for",
+    "errorPrefix": "Feil:"
+   }
+  },
+  "lua": {
+   "uiText": {
+    "en": {
+     "check": "Check",
+     "legend": "Input help",
+     "feedback": "Feedback",
+     "reconfig": "Change AI configuration",
+     "poolReload": "Load a new random task"
+    },
+    "de": {
+     "check": "Überprüfen",
+     "legend": "Eingabe-Hilfe",
+     "feedback": "Feedback",
+     "reconfig": "KI-Konfiguration ändern",
+     "poolReload": "Neue Zufallsaufgabe laden"
+    },
+    "nb": {
+     "check": "Sjekk",
+     "legend": "Inntastingshjelp",
+     "feedback": "Tilbakemelding",
+     "reconfig": "Endre KI-oppsett",
+     "poolReload": "Last inn en ny tilfeldig oppgave"
+    }
+   }
+  }
+ },
+ "py-exercise": {
+  "js": {
+   "en": {
+    "btnCheck": "<i class=\"fa-solid fa-check\"></i> Check",
+    "btnCheckTitle": "Run checks (Shift+Enter)",
+    "btnReset": "<i class=\"fa-solid fa-arrows-rotate\"></i> Reset",
+    "btnResetTitle": "Restore starter code",
+    "running": "⏳ Checking…",
+    "errorHeader": "❌ Error in code:",
+    "unexpectedError": "❌ Unexpected error:",
+    "editorUnavailable": "The code editor could not be loaded (no connection to cdn.jsdelivr.net?). Reload the page to try again.",
+    "pythonUnavailable": "Python could not be loaded (no connection to cdn.jsdelivr.net?). Check the connection and press Check again.",
+    "slowCheck": "Still running – an endless loop?",
+    "slowLoad": "Python is still loading.",
+    "stop": "Stop",
+    "stopped": "Stopped. Python was restarted (interactive cells on this page lost their variables).",
+    "stdoutLabel": "Output:",
+    "allPassed": {
+     "$calls": [
+      [
+       [
+        0
+       ],
+       "✅ All 0 tests passed!"
+      ],
+      [
+       [
+        1
+       ],
+       "✅ All 1 test passed!"
+      ],
+      [
+       [
+        2
+       ],
+       "✅ All 2 tests passed!"
+      ],
+      [
+       [
+        37
+       ],
+       "✅ All 37 tests passed!"
+      ],
+      [
+       [
+        "A"
+       ],
+       "✅ All A tests passed!"
+      ],
+      [
+       [
+        "factored"
+       ],
+       "✅ All factored tests passed!"
+      ],
+      [
+       [
+        "expanded"
+       ],
+       "✅ All expanded tests passed!"
+      ],
+      [
+       [
+        "single_fraction"
+       ],
+       "✅ All single_fraction tests passed!"
+      ],
+      [
+       [
+        "lowest_terms"
+       ],
+       "✅ All lowest_terms tests passed!"
+      ],
+      [
+       [
+        "cubic"
+       ],
+       "✅ All cubic tests passed!"
+      ]
+     ]
+    },
+    "someFailed": {
+     "$calls": [
+      [
+       [
+        0,
+        0
+       ],
+       "❌ 0 of 0 tests passed"
+      ],
+      [
+       [
+        0,
+        1
+       ],
+       "❌ 0 of 1 test passed"
+      ],
+      [
+       [
+        0,
+        2
+       ],
+       "❌ 0 of 2 tests passed"
+      ],
+      [
+       [
+        0,
+        37
+       ],
+       "❌ 0 of 37 tests passed"
+      ],
+      [
+       [
+        0,
+        "A"
+       ],
+       "❌ 0 of A tests passed"
+      ],
+      [
+       [
+        1,
+        0
+       ],
+       "❌ 1 of 0 tests passed"
+      ],
+      [
+       [
+        1,
+        1
+       ],
+       "❌ 1 of 1 test passed"
+      ],
+      [
+       [
+        1,
+        2
+       ],
+       "❌ 1 of 2 tests passed"
+      ],
+      [
+       [
+        1,
+        37
+       ],
+       "❌ 1 of 37 tests passed"
+      ],
+      [
+       [
+        1,
+        "A"
+       ],
+       "❌ 1 of A tests passed"
+      ],
+      [
+       [
+        2,
+        0
+       ],
+       "❌ 2 of 0 tests passed"
+      ],
+      [
+       [
+        2,
+        1
+       ],
+       "❌ 2 of 1 test passed"
+      ],
+      [
+       [
+        2,
+        2
+       ],
+       "❌ 2 of 2 tests passed"
+      ],
+      [
+       [
+        2,
+        37
+       ],
+       "❌ 2 of 37 tests passed"
+      ],
+      [
+       [
+        2,
+        "A"
+       ],
+       "❌ 2 of A tests passed"
+      ],
+      [
+       [
+        37,
+        0
+       ],
+       "❌ 37 of 0 tests passed"
+      ],
+      [
+       [
+        37,
+        1
+       ],
+       "❌ 37 of 1 test passed"
+      ],
+      [
+       [
+        37,
+        2
+       ],
+       "❌ 37 of 2 tests passed"
+      ],
+      [
+       [
+        37,
+        37
+       ],
+       "❌ 37 of 37 tests passed"
+      ],
+      [
+       [
+        37,
+        "A"
+       ],
+       "❌ 37 of A tests passed"
+      ],
+      [
+       [
+        "A",
+        0
+       ],
+       "❌ A of 0 tests passed"
+      ],
+      [
+       [
+        "A",
+        1
+       ],
+       "❌ A of 1 test passed"
+      ],
+      [
+       [
+        "A",
+        2
+       ],
+       "❌ A of 2 tests passed"
+      ],
+      [
+       [
+        "A",
+        37
+       ],
+       "❌ A of 37 tests passed"
+      ],
+      [
+       [
+        "A",
+        "A"
+       ],
+       "❌ A of A tests passed"
+      ],
+      [
+       [
+        "factored",
+        0
+       ],
+       "❌ factored of 0 tests passed"
+      ],
+      [
+       [
+        "factored",
+        1
+       ],
+       "❌ factored of 1 test passed"
+      ],
+      [
+       [
+        "factored",
+        2
+       ],
+       "❌ factored of 2 tests passed"
+      ],
+      [
+       [
+        "factored",
+        37
+       ],
+       "❌ factored of 37 tests passed"
+      ],
+      [
+       [
+        "factored",
+        "A"
+       ],
+       "❌ factored of A tests passed"
+      ],
+      [
+       [
+        "expanded",
+        0
+       ],
+       "❌ expanded of 0 tests passed"
+      ],
+      [
+       [
+        "expanded",
+        1
+       ],
+       "❌ expanded of 1 test passed"
+      ],
+      [
+       [
+        "expanded",
+        2
+       ],
+       "❌ expanded of 2 tests passed"
+      ],
+      [
+       [
+        "expanded",
+        37
+       ],
+       "❌ expanded of 37 tests passed"
+      ],
+      [
+       [
+        "expanded",
+        "A"
+       ],
+       "❌ expanded of A tests passed"
+      ],
+      [
+       [
+        "single_fraction",
+        0
+       ],
+       "❌ single_fraction of 0 tests passed"
+      ],
+      [
+       [
+        "single_fraction",
+        1
+       ],
+       "❌ single_fraction of 1 test passed"
+      ],
+      [
+       [
+        "single_fraction",
+        2
+       ],
+       "❌ single_fraction of 2 tests passed"
+      ],
+      [
+       [
+        "single_fraction",
+        37
+       ],
+       "❌ single_fraction of 37 tests passed"
+      ],
+      [
+       [
+        "single_fraction",
+        "A"
+       ],
+       "❌ single_fraction of A tests passed"
+      ],
+      [
+       [
+        "lowest_terms",
+        0
+       ],
+       "❌ lowest_terms of 0 tests passed"
+      ],
+      [
+       [
+        "lowest_terms",
+        1
+       ],
+       "❌ lowest_terms of 1 test passed"
+      ],
+      [
+       [
+        "lowest_terms",
+        2
+       ],
+       "❌ lowest_terms of 2 tests passed"
+      ],
+      [
+       [
+        "lowest_terms",
+        37
+       ],
+       "❌ lowest_terms of 37 tests passed"
+      ],
+      [
+       [
+        "lowest_terms",
+        "A"
+       ],
+       "❌ lowest_terms of A tests passed"
+      ],
+      [
+       [
+        "cubic",
+        0
+       ],
+       "❌ cubic of 0 tests passed"
+      ],
+      [
+       [
+        "cubic",
+        1
+       ],
+       "❌ cubic of 1 test passed"
+      ],
+      [
+       [
+        "cubic",
+        2
+       ],
+       "❌ cubic of 2 tests passed"
+      ],
+      [
+       [
+        "cubic",
+        37
+       ],
+       "❌ cubic of 37 tests passed"
+      ],
+      [
+       [
+        "cubic",
+        "A"
+       ],
+       "❌ cubic of A tests passed"
+      ]
+     ]
+    },
+    "violationsHeader": "🚫 Not allowed:",
+    "submissionTitle": "📋 Submission",
+    "studentIdLabel": "Student ID",
+    "studentIdPlaceholder": "e.g. s123456",
+    "quizIdLabel": "Quiz ID",
+    "quizIdPlaceholder": "e.g. quiz-01",
+    "exportBtn": "<i class=\"fa-solid fa-file-export\"></i> Export results",
+    "outputLabel": "Copy encoded string and submit:",
+    "copyBtn": "<i class=\"fa-regular fa-copy\"></i> Copy",
+    "copyOk": "<i class=\"fa-solid fa-check\"></i> Copied!",
+    "validationError": "Please fill in Student ID and Quiz ID.",
+    "encodingError": "Error during encoding: ",
+    "downloadBtn": "<i class=\"fa-solid fa-download\"></i> Download as JSON",
+    "downloadBtnTitle": "Save current code and test results for all exercises",
+    "downloadHint": "Saves your code and test results for personal documentation.",
+    "downloadFilename": "exercises-",
+    "msgForbiddenImport": "Forbidden import: '{}'",
+    "msgForbiddenFunction": "Forbidden function: '{}'",
+    "msgForbiddenMethod": "Forbidden method: '.{}'",
+    "msgForbiddenKeyword": "Forbidden keyword: '{}'",
+    "msgAssertionFailed": "Assertion failed",
+    "msgTestError": "Error: {}",
+    "msgSyntaxError": "Syntax error in tests: {}"
+   },
+   "de": {
+    "btnCheck": "<i class=\"fa-solid fa-check\"></i> Überprüfen",
+    "btnCheckTitle": "Code prüfen (Shift+Enter)",
+    "btnReset": "<i class=\"fa-solid fa-arrows-rotate\"></i> Zurücksetzen",
+    "btnResetTitle": "Starter-Code wiederherstellen",
+    "running": "⏳ Überprüfe…",
+    "errorHeader": "❌ Fehler im Code:",
+    "unexpectedError": "❌ Unerwarteter Fehler:",
+    "editorUnavailable": "Der Code-Editor konnte nicht geladen werden (keine Verbindung zu cdn.jsdelivr.net?). Lade die Seite neu, um es erneut zu versuchen.",
+    "pythonUnavailable": "Python konnte nicht geladen werden (keine Verbindung zu cdn.jsdelivr.net?). Prüfe die Verbindung und klicke erneut auf Überprüfen.",
+    "slowCheck": "Läuft noch – eine Endlosschleife?",
+    "slowLoad": "Python wird noch geladen.",
+    "stop": "Abbrechen",
+    "stopped": "Abgebrochen. Python wurde neu gestartet (interaktive Zellen auf dieser Seite haben ihre Variablen verloren).",
+    "stdoutLabel": "Ausgabe:",
+    "allPassed": {
+     "$calls": [
+      [
+       [
+        0
+       ],
+       "✅ Alle 0 Tests bestanden!"
+      ],
+      [
+       [
+        1
+       ],
+       "✅ Alle 1 Test bestanden!"
+      ],
+      [
+       [
+        2
+       ],
+       "✅ Alle 2 Tests bestanden!"
+      ],
+      [
+       [
+        37
+       ],
+       "✅ Alle 37 Tests bestanden!"
+      ],
+      [
+       [
+        "A"
+       ],
+       "✅ Alle A Tests bestanden!"
+      ],
+      [
+       [
+        "factored"
+       ],
+       "✅ Alle factored Tests bestanden!"
+      ],
+      [
+       [
+        "expanded"
+       ],
+       "✅ Alle expanded Tests bestanden!"
+      ],
+      [
+       [
+        "single_fraction"
+       ],
+       "✅ Alle single_fraction Tests bestanden!"
+      ],
+      [
+       [
+        "lowest_terms"
+       ],
+       "✅ Alle lowest_terms Tests bestanden!"
+      ],
+      [
+       [
+        "cubic"
+       ],
+       "✅ Alle cubic Tests bestanden!"
+      ]
+     ]
+    },
+    "someFailed": {
+     "$calls": [
+      [
+       [
+        0,
+        0
+       ],
+       "❌ 0 von 0 Tests bestanden"
+      ],
+      [
+       [
+        0,
+        1
+       ],
+       "❌ 0 von 1 Test bestanden"
+      ],
+      [
+       [
+        0,
+        2
+       ],
+       "❌ 0 von 2 Tests bestanden"
+      ],
+      [
+       [
+        0,
+        37
+       ],
+       "❌ 0 von 37 Tests bestanden"
+      ],
+      [
+       [
+        0,
+        "A"
+       ],
+       "❌ 0 von A Tests bestanden"
+      ],
+      [
+       [
+        1,
+        0
+       ],
+       "❌ 1 von 0 Tests bestanden"
+      ],
+      [
+       [
+        1,
+        1
+       ],
+       "❌ 1 von 1 Test bestanden"
+      ],
+      [
+       [
+        1,
+        2
+       ],
+       "❌ 1 von 2 Tests bestanden"
+      ],
+      [
+       [
+        1,
+        37
+       ],
+       "❌ 1 von 37 Tests bestanden"
+      ],
+      [
+       [
+        1,
+        "A"
+       ],
+       "❌ 1 von A Tests bestanden"
+      ],
+      [
+       [
+        2,
+        0
+       ],
+       "❌ 2 von 0 Tests bestanden"
+      ],
+      [
+       [
+        2,
+        1
+       ],
+       "❌ 2 von 1 Test bestanden"
+      ],
+      [
+       [
+        2,
+        2
+       ],
+       "❌ 2 von 2 Tests bestanden"
+      ],
+      [
+       [
+        2,
+        37
+       ],
+       "❌ 2 von 37 Tests bestanden"
+      ],
+      [
+       [
+        2,
+        "A"
+       ],
+       "❌ 2 von A Tests bestanden"
+      ],
+      [
+       [
+        37,
+        0
+       ],
+       "❌ 37 von 0 Tests bestanden"
+      ],
+      [
+       [
+        37,
+        1
+       ],
+       "❌ 37 von 1 Test bestanden"
+      ],
+      [
+       [
+        37,
+        2
+       ],
+       "❌ 37 von 2 Tests bestanden"
+      ],
+      [
+       [
+        37,
+        37
+       ],
+       "❌ 37 von 37 Tests bestanden"
+      ],
+      [
+       [
+        37,
+        "A"
+       ],
+       "❌ 37 von A Tests bestanden"
+      ],
+      [
+       [
+        "A",
+        0
+       ],
+       "❌ A von 0 Tests bestanden"
+      ],
+      [
+       [
+        "A",
+        1
+       ],
+       "❌ A von 1 Test bestanden"
+      ],
+      [
+       [
+        "A",
+        2
+       ],
+       "❌ A von 2 Tests bestanden"
+      ],
+      [
+       [
+        "A",
+        37
+       ],
+       "❌ A von 37 Tests bestanden"
+      ],
+      [
+       [
+        "A",
+        "A"
+       ],
+       "❌ A von A Tests bestanden"
+      ],
+      [
+       [
+        "factored",
+        0
+       ],
+       "❌ factored von 0 Tests bestanden"
+      ],
+      [
+       [
+        "factored",
+        1
+       ],
+       "❌ factored von 1 Test bestanden"
+      ],
+      [
+       [
+        "factored",
+        2
+       ],
+       "❌ factored von 2 Tests bestanden"
+      ],
+      [
+       [
+        "factored",
+        37
+       ],
+       "❌ factored von 37 Tests bestanden"
+      ],
+      [
+       [
+        "factored",
+        "A"
+       ],
+       "❌ factored von A Tests bestanden"
+      ],
+      [
+       [
+        "expanded",
+        0
+       ],
+       "❌ expanded von 0 Tests bestanden"
+      ],
+      [
+       [
+        "expanded",
+        1
+       ],
+       "❌ expanded von 1 Test bestanden"
+      ],
+      [
+       [
+        "expanded",
+        2
+       ],
+       "❌ expanded von 2 Tests bestanden"
+      ],
+      [
+       [
+        "expanded",
+        37
+       ],
+       "❌ expanded von 37 Tests bestanden"
+      ],
+      [
+       [
+        "expanded",
+        "A"
+       ],
+       "❌ expanded von A Tests bestanden"
+      ],
+      [
+       [
+        "single_fraction",
+        0
+       ],
+       "❌ single_fraction von 0 Tests bestanden"
+      ],
+      [
+       [
+        "single_fraction",
+        1
+       ],
+       "❌ single_fraction von 1 Test bestanden"
+      ],
+      [
+       [
+        "single_fraction",
+        2
+       ],
+       "❌ single_fraction von 2 Tests bestanden"
+      ],
+      [
+       [
+        "single_fraction",
+        37
+       ],
+       "❌ single_fraction von 37 Tests bestanden"
+      ],
+      [
+       [
+        "single_fraction",
+        "A"
+       ],
+       "❌ single_fraction von A Tests bestanden"
+      ],
+      [
+       [
+        "lowest_terms",
+        0
+       ],
+       "❌ lowest_terms von 0 Tests bestanden"
+      ],
+      [
+       [
+        "lowest_terms",
+        1
+       ],
+       "❌ lowest_terms von 1 Test bestanden"
+      ],
+      [
+       [
+        "lowest_terms",
+        2
+       ],
+       "❌ lowest_terms von 2 Tests bestanden"
+      ],
+      [
+       [
+        "lowest_terms",
+        37
+       ],
+       "❌ lowest_terms von 37 Tests bestanden"
+      ],
+      [
+       [
+        "lowest_terms",
+        "A"
+       ],
+       "❌ lowest_terms von A Tests bestanden"
+      ],
+      [
+       [
+        "cubic",
+        0
+       ],
+       "❌ cubic von 0 Tests bestanden"
+      ],
+      [
+       [
+        "cubic",
+        1
+       ],
+       "❌ cubic von 1 Test bestanden"
+      ],
+      [
+       [
+        "cubic",
+        2
+       ],
+       "❌ cubic von 2 Tests bestanden"
+      ],
+      [
+       [
+        "cubic",
+        37
+       ],
+       "❌ cubic von 37 Tests bestanden"
+      ],
+      [
+       [
+        "cubic",
+        "A"
+       ],
+       "❌ cubic von A Tests bestanden"
+      ]
+     ]
+    },
+    "violationsHeader": "🚫 Nicht erlaubt:",
+    "submissionTitle": "📋 Abgabe",
+    "studentIdLabel": "Student-ID",
+    "studentIdPlaceholder": "z.B. s123456",
+    "quizIdLabel": "Quiz-ID",
+    "quizIdPlaceholder": "z.B. quiz-01",
+    "exportBtn": "<i class=\"fa-solid fa-file-export\"></i> Ergebnis exportieren",
+    "outputLabel": "Kodierten String kopieren und abgeben:",
+    "copyBtn": "<i class=\"fa-regular fa-copy\"></i> Kopieren",
+    "copyOk": "<i class=\"fa-solid fa-check\"></i> Kopiert!",
+    "validationError": "Bitte Student-ID und Quiz-ID ausfüllen.",
+    "encodingError": "Fehler beim Kodieren: ",
+    "downloadBtn": "<i class=\"fa-solid fa-download\"></i> Als JSON herunterladen",
+    "downloadBtnTitle": "Aktuellen Code und Testergebnisse aller Aufgaben speichern",
+    "downloadHint": "Speichert Code-Eingaben und Testergebnisse zur eigenen Dokumentation.",
+    "downloadFilename": "aufgaben-",
+    "msgForbiddenImport": "Verbotener Import: '{}'",
+    "msgForbiddenFunction": "Verbotene Funktion: '{}'",
+    "msgForbiddenMethod": "Verbotene Methode: '.{}'",
+    "msgForbiddenKeyword": "Verbotenes Schlüsselwort: '{}'",
+    "msgAssertionFailed": "Assertion fehlgeschlagen",
+    "msgTestError": "Fehler: {}",
+    "msgSyntaxError": "Syntaxfehler in Tests: {}"
+   }
+  },
+  "lua": {
+   "noscriptMessages": {
+    "en": "Please enable JavaScript to load the interactive exercise.",
+    "de": "Bitte JavaScript aktivieren, um die interaktive Aufgabe zu laden."
+   }
+  }
+ }
+}

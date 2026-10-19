@@ -3,6 +3,9 @@
 
 Generated from their sources:
   feedback/feedback-core.js   shipped teaching policies   <- feedback/feedback-defaults.yml
+  feedback/ai-feedback.js     interface strings           <- locales/feedback.js (the catalogue;
+                              ai-feedback.js stays self-contained for pages and tests that load
+                              only the three feedback files)
 
 Versions follow _extensions/ctm-libs/_extension.yml: the ai-feedback alias
 manifest (older components' loaders compare it with ctm-libs' registration),
@@ -37,6 +40,13 @@ def sub_once(pattern, replacement, text, path, flags=0):
     return new
 
 
+def catalogue_json(path):
+    found = re.search(r'/\*BEGIN-JSON\*/(.*?)/\*END-JSON\*/', path.read_text(), re.S)
+    if not found:
+        raise SystemExit(f'{path}: no /*BEGIN-JSON*/ ... /*END-JSON*/ catalogue')
+    return json.loads(found[1])
+
+
 def expected_files(version):
     """{path: (old text, expected text)} for every generated or versioned file."""
     files = {}
@@ -55,6 +65,22 @@ def expected_files(version):
         return sub_once(r'^/\* AI Feedback v[\w.-]+', f'/* AI Feedback v{version}', text, path)
 
     update(FEEDBACK / 'feedback-core.js', core)
+
+    catalogue = catalogue_json(LIBRARY / 'locales' / 'feedback.js')
+    strings = {}
+    for lang in catalogue['$languages']:
+        entries = catalogue[lang]
+        for key, value in entries.items():
+            if not isinstance(value, str):
+                raise SystemExit(f'locales/feedback.js: {lang}.{key} must be a plain string (ai-feedback.js has no locale runtime)')
+        strings[lang] = entries
+
+    def interface(text, path):
+        return sub_once(r'(// BEGIN GENERATED FEEDBACK STRINGS[^\n]*\n).*?(\n  // END GENERATED FEEDBACK STRINGS)',
+                        lambda m: m[1] + '  const locale = ' + json.dumps(strings, ensure_ascii=False) + ';' + m[2],
+                        text, path, re.S)
+
+    update(FEEDBACK / 'ai-feedback.js', interface)
     update(ROOT / '_extensions' / 'ai-feedback' / '_extension.yml',
            lambda text, path: sub_once(r'^version:.*$', f'version: {version}', text, path, re.M))
     update(ROOT / 'package.json',
