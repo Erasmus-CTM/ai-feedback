@@ -40,8 +40,9 @@ Checks at render time:
   `secret`, `password`, `authorization`, in any CTM section and at any level)
   **stops the render**: Quarto metadata is published with the site. Remove
   the key; learners enter their own key in the Feedback settings. ctm-libs'
-  messages never repeat the value, but Quarto itself may print the page's
-  metadata, key included, when a single-file render fails.
+  messages never repeat the value. Quarto itself prints a page's metadata
+  block, the key included, at the start of every single-file render
+  (`quarto render page.qmd`); full project renders do not.
 - Unknown `ai-feedback` and `ctm-assessment` options warn and are ignored;
   they become errors in CTM Assessment 1.0. `version` is not an option.
 - `mode`, `storage` and `base-url` values that cannot be used warn and fall
@@ -91,11 +92,19 @@ pyodide-interaktiv 1.8 reads its own `pyodide: feedback`; ctm-libs sets it to
 false when its filter runs before pyodide-interaktiv's (the package order, or
 `filters: [ai-feedback, pyodide-interaktiv]`). Components released before
 CTM Assessment 0.9 do not know the switch when they run outside the package:
-pyodide-interaktiv 1.8 listed before ctm-libs (`filters: [pyodide-interaktiv,
-ai-feedback]`), math-exercise 0.9 and py-exercise 0.3 (whose
-`__pyExerciseConfig.feedback` stays true) keep their Feedback buttons, which
-their scripts disable with a note that ai-feedback is missing; nothing of AI
-feedback is loaded or written into the page.
+ctm-libs still writes none of its own feedback scripts, configuration,
+policies or context, but the older components keep their own feedback code
+and fields. pyodide-interaktiv 1.8 listed before ctm-libs
+(`filters: [pyodide-interaktiv, ai-feedback]`) keeps
+`qpyodideFeedbackOptions` enabled, its feedback script and its cells'
+`#| task:` text; math-exercise 0.9 keeps its Feedback and settings buttons and
+`data-feedback-policy`; py-exercise 0.3 keeps `feedback: true` in its
+configuration, its exercises' task, feedback language and (empty) policy and
+context fields, and its feedback script. Their Feedback buttons are disabled
+by their own scripts, with a note that ai-feedback is missing, and no build
+message names them. A clean site without AI feedback needs the package
+(`filters: [ctm-assessment]`): its order runs ctm-libs first, and its
+components know the switch.
 
 ## Author text, translation and image tasks
 

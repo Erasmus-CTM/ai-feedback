@@ -113,6 +113,7 @@ test('without AI feedback, pyodide-interaktiv 1.8 listed before ai-feedback keep
   const html = C.html(dir, 'page.qmd');
   assert.match(html, /qpyodideFeedbackOptions = \{\s*enabled: true/);
   assert.doesNotMatch(html, /feedback-core\.js|window\.__aiFeedbackConfig =|window\.__aiFeedbackPolicies =/);
+  assert.doesNotMatch(r.stderr, /AI feedback is off for this build/, 'no build message names an older component');
 }));
 
 test('without AI feedback, math-exercise 0.9 and py-exercise 0.3 alone keep Feedback buttons that their scripts disable', {skip}, () => withProject({
@@ -123,14 +124,22 @@ test('without AI feedback, math-exercise 0.9 and py-exercise 0.3 alone keep Feed
   assert.equal(r.status, 0, r.stderr);
   let html = C.html(dir, 'math.qmd');
   assert.match(html, /math-feedback-btn/);
+  assert.match(html, /math-reconfig-btn/);
+  assert.match(html, /data-feedback-policy="[^"]*exercise[^"]*area[^"]*name&quot;:&quot;&quot;/);
   assert.match(html, /Math feedback requires ai-feedback 0\.5\.0 or later/);
   assert.doesNotMatch(html, /feedback-core\.js|window\.__aiFeedbackConfig =/);
+  assert.doesNotMatch(r.stderr, /AI feedback is off for this build/);
   r = C.render(dir, ['py.qmd'], {CTM_FEEDBACK: 'off'});
   assert.equal(r.status, 0, r.stderr);
   html = C.html(dir, 'py.qmd');
   assert.match(html, /window\.__pyExerciseConfig = \{[^}]*"feedback":true/);
+  // Its own feedback fields stay; ctm-libs' parts of them are empty.
+  assert.match(html, /"task":"Write add\(a, b\)\."/);
+  assert.match(html, /"policySelection":\{[^}]*"name":""/);
+  assert.match(html, /"feedbackContext":\{[^}]*"mode":"none"/);
   assert.match(html, /Python feedback requires ai-feedback 0\.5\.0 or later/);
   assert.doesNotMatch(html, /feedback-core\.js|window\.__aiFeedbackConfig =/);
+  assert.doesNotMatch(r.stderr, /AI feedback is off for this build/);
 }));
 
 test('an old standalone ai-feedback 0.8.1 next to ctm-libs stops the page, in either order', {skip}, () => withProject({

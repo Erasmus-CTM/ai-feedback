@@ -127,8 +127,11 @@ it out, `context` returns mode `none`, and the Meta pass sets
 for blocks that are on the page; whatever a page asked for but did not get
 (those requests, its activities and pyodide cells, its own
 `ai-feedback: enabled: true`) is listed in one build message per page. The
-package prints it from its last filter, `ctm-libs-end.lua`; elsewhere it is
-printed when Pandoc closes the page's Lua state.
+package prints it from `ctm-libs-end.lua`, which it lists after every CTM
+filter, including any that runs at a later `at:` stage; elsewhere the message
+is printed when Pandoc closes the page's Lua state. A CTM filter running after
+the end filter that leaves out something new produces a second message (from
+that fallback).
 
 ### ctm.runtime
 

@@ -121,7 +121,7 @@ test('a credential in the metadata stops the render without showing its value (A
     const r = render(dir);
     assert.notEqual(r.status, 0);
     assert.match(r.stderr, /ai-feedback: api-key in bad\.qmd looks like a credential\. Remove it: Quarto metadata is published with the site; learners enter their own key in the Feedback settings\./);
-    // (Quarto itself may print the page's metadata when a render fails; the message never holds the value.)
+    // (Quarto prints a page's metadata block at the start of a single-file render; the message never holds the value.)
     assert.doesNotMatch(r.stderr.split('\n').filter(line => /credential/.test(line)).join('\n'), /sk-secret-value/);
     assert.equal(fs.existsSync(path.join(dir, 'bad.html')), false);
   } finally { fs.rmSync(dir, {recursive: true, force: true}); }

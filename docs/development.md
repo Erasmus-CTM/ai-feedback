@@ -8,7 +8,7 @@
 _extensions/ctm-libs/            the library (authors never list it; the package does)
   _extension.yml                 version of everything below
   ctm-libs.lua                   filter entry: ctm.filters() (Meta, Callout, Pandoc)
-  ctm-libs-end.lua               the package's last filter: prints the page's P22 build message
+  ctm-libs-end.lua               listed by the package after every CTM filter: prints the page's P22 build message
   read-settings.ts, deno.json    settings reader (quarto run), with its isolated Deno configuration
   lua/ctm.lua                    the page's instance; lazily loaded modules:
   lua/settings.lua               ctm.settings
