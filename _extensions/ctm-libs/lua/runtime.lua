@@ -9,5 +9,12 @@ return function(ctm)
     ctm.deps.html({name = "ctm-runtime", scripts = {"runtime/pyodide-runtime.js"}})
   end
 
+  -- Seconds after which a running check offers Stop (worker runtimes only):
+  -- `<component>: stop-after:` for one component, `ctm-assessment: stop-after:`
+  -- for all components; default 20.
+  function M.stopAfter(component)
+    return (ctm.settings.number(component, "stop-after", {shared = true, default = 20, positive = true, unit = "seconds"}))
+  end
+
   return M
 end

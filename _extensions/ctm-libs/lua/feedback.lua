@@ -5,6 +5,7 @@ return function(ctm)
 local M = {}
 local policy = ctm.policy
 local counter = 0
+-- The page's ai-feedback settings (ctm.settings), read in prepare.
 local cfg = {}
 -- One ai-feedback version per page. Older components' loaders
 -- (feedback-loader.lua, through the ai-feedback alias) and ctm-libs register
@@ -162,8 +163,12 @@ function M.prepare(doc)
   if not quarto.doc.is_format("html") then return doc end
   if doc.meta["ctm-feedback-prepared"] then return doc end
   doc.meta["ctm-feedback-prepared"] = true
+  ctm.settings.load(doc.meta)
   language = str(doc.meta.lang, "en")
-  cfg = policy.emit(doc.meta)
+  for _, key in ipairs({"mode", "storage", "base-url", "model", "ui-language", "feedback-language"}) do
+    cfg[key] = ctm.settings.string("ai-feedback", key)
+  end
+  policy.emit()
   ctm.deps.html({
     name = "ai-feedback",
     scripts = {"feedback/feedback-core.js", "feedback/feedback-dom.js", "feedback/ai-feedback.js"},
