@@ -426,10 +426,13 @@
     return {materials, attachments};
   }
 
+  // auto: the section's prose; explicit: the listed blocks, then the section's
+  // own prose (without context blocks; A5); none: nothing.
   function contextMaterials({mode = 'auto', refs = '', text = ''} = {}) {
     if (mode === 'none') return [];
-    if (mode === 'explicit') return collectExplicitContexts(refs).map(c => ({id:c.id, role:'context', text:c.content}));
-    return text ? [{id:'section-context', role:'context', text}] : [];
+    const section = text ? [{id:'section-context', role:'context', text}] : [];
+    if (mode === 'explicit') return [...collectExplicitContexts(refs).map(c => ({id:c.id, role:'context', text:c.content})), ...section];
+    return section;
   }
   Object.assign(root.AIFeedback, { renderMarkdown: simpleMarkdown, typesetFeedback, contextMaterials, collectVisualContexts, contextText, sourceText, questionText, collectExplicitContexts });
 })(globalThis);

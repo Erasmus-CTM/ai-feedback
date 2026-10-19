@@ -1,8 +1,201 @@
-# API v1
+# ctm-libs API
 
-The JavaScript global is `AIFeedback`. The headless `feedback-core.js` also
-exports CommonJS for tests. No editor, checker, Python runtime or DOM is needed
-to construct requests. The Quarto filter loads the runtime and shared UI.
+For maintainers of CTM components. Course authors never use ctm-libs
+directly: they install CTM Assessment, which bundles it.
+
+- [Loading ctm-libs from a component](#loading-ctm-libs-from-a-component)
+- [Lua: ctm.settings](#ctmsettings) · [ctm.locale](#ctmlocale) ·
+  [ctm.feedback](#ctmfeedback) · [ctm.runtime](#ctmruntime) · [ctm.deps](#ctmdeps)
+- [Browser: dependencies and globals](#browser-dependencies-and-globals) ·
+  [CTMLocales](#ctmlocales) · [MathExerciseRuntime](#mathexerciseruntime) ·
+  [AIFeedback](#aifeedback-api-v1)
+
+## Loading ctm-libs from a component
+
+A component copies [`bootstrap/ctm-bootstrap.lua`](../bootstrap/ctm-bootstrap.lua)
+next to its filter, byte for byte (the CTM Assessment build compares the
+copies), and loads the page's instance with it:
+
+```lua
+local ctm = dofile(quarto.utils.resolve_path("ctm-bootstrap.lua"))("math-exercise")
+```
+
+The bootstrap
+
+1. requires the CTM Assessment package: a `ctm-assessment` extension next to
+   the component (the package layout) or in the project's `_extensions`
+   (also under an owner folder). Without it the render stops with
+   `Install CTM Assessment: quarto add https://erasmus-ctm.github.io/ctm-assessment/ctm-assessment.tar.gz`.
+   Component development builds and component CI set `CTM_COMPONENT_DEV=1`
+   to build against a ctm-libs installation without the package;
+2. finds ctm-libs next to the component first (`_extensions/ctm-libs` in the
+   package, or the same owner folder), then in the project's `_extensions`
+   (`ctm-libs` or `<owner>/ctm-libs`; the nearest `_extensions` for a
+   single file), and stops with the same install command when there is none;
+3. checks the interface level (`ctm.api >= 1`).
+
+Every filter of a page gets the same instance (`_G.__ctmLibs`); a page that
+would combine two installations of different versions stops. The instance
+has `ctm.dir`, `ctm.version`, `ctm.api`, `ctm.path(...)` (absolute path of a
+file of the installation) and `ctm.filters()` (the passes of the
+`ctm-libs` filter: Meta, Callout, Pandoc). Modules load on first use.
+
+Rules inside ctm-libs: paths only from its own installation (never
+`quarto.utils.resolve_path` or relative dependency paths, which resolve
+against the running component); HTML only (neutral values for other
+formats); authoring errors stop the render with `assert(false, message)`.
+
+### ctm.settings
+
+Every CTM section (`ai-feedback`, `ctm-assessment`, `math-exercise`,
+`py-exercise`) is read key by key from `_quarto.yml`, the active profiles
+(the first listed wins), `_quarto.yml.local`, the `_metadata.yml` files from
+the project root to the page and the page's front matter, plus Quarto's
+merged metadata ([precedence](reference.md#settings)). A page that sets one
+key of a section keeps the project's other keys.
+
+```lua
+ctm.settings.load(meta)                          -- every entry point, once per page (the first call counts)
+ctm.settings.get(section, key, opts)             -- value, origin, section
+ctm.settings.string(section, key, opts)          -- lists are joined, as pandoc.utils.stringify did
+ctm.settings.bool(section, key, opts)            -- true/false or "true"/"false"; else stops, naming key and origin
+ctm.settings.number(section, key, opts)          -- opts.positive (> 0), opts.unit ("seconds") for the message
+ctm.settings.choice(section, key, values, opts)  -- one of values; true/false count as "true"/"false"
+ctm.settings.list(section, key, opts)            -- YAML list or comma-separated string -> trimmed strings
+ctm.settings.policies()                          -- {json = "<browser policy configuration>", names = {[name] = true}}
+```
+
+`opts.default` is the value when the key is unset; `opts.shared` falls back
+to `ctm-assessment.<key>` (for `stop-after` and `lang`; a component's own
+spelling wins at any level); `opts.loose` (bool) warns and uses the default
+instead of stopping, for values that were accepted loosely before 0.9.
+`origin` names the file (`_quarto.yml`, `chapter/_metadata.yml`,
+`chapter/page.qmd`) or `document metadata`.
+
+The reader (`read-settings.ts`, one `quarto run` per page) starts on the
+first value asked for, and only on HTML pages whose metadata has a CTM
+section; without one every value is its default. Its warnings print once;
+its errors stop the render in one message.
+
+### ctm.locale
+
+One resolver and one message catalogue ([`locales/`](../_extensions/ctm-libs/locales)).
+
+```lua
+local lang, tag, origin = ctm.locale.resolve("py-exercise")   -- "nb", "nn", "page.qmd"
+ctm.locale.text("py-exercise", "noscript", lang)              -- a string (or data); extra arguments fill {placeholders}
+ctm.locale.use("py-exercise")                                 -- HTML dependencies ctm-locale and ctm-locale-py-exercise
+ctm.locale.supported("feedback")                              -- {"en", "de", "nb", "es"}
+ctm.locale.tag("ai-feedback", "feedback-language")            -- the raw tag of an option, through ctm-assessment: lang and lang
+ctm.locale.language("feedback", "de-CH")                      -- "de": the first language of the chain the catalogue has
+ctm.locale.normalize("nb-NO"), ctm.locale.chain("nn")         -- "nb"; {"nn", "nb", "en"}
+```
+
+A component's language is its own option (`math-exercise: lang`,
+`py-exercise: lang`; `ai-feedback: ui-language` for `"ai-feedback"`), then
+`ctm-assessment: lang`, then Quarto's `lang`, then `en`; then the first
+language of that tag's chain the namespace supports (`nb-NO` → nb, en;
+`no` → nb; `nn` → nn, nb, en; `de-CH` → de, en). A text a language lacks
+falls back to English with one build warning.
+
+### ctm.feedback
+
+```lua
+ctm.feedback.prepare(doc)                         -- idempotent page preparation (loads the settings itself)
+ctm.feedback.markCallout(callout)                 -- Callout pass: hidden callouts never reach a feedback context
+ctm.feedback.selection(block, opts)               -- {exercise = label or id, name = feedback-policy}
+ctm.feedback.context(block, opts, isPyodide)      -- {mode = auto|explicit|none, refs, text}
+ctm.feedback.enabled()                            -- true, or false and the reason (P22)
+ctm.feedback.request(component, wanted, origin)   -- wanted and enabled; a refused wish is named in the page's build message
+ctm.feedback.flush()                              -- prints that message now (ctm-libs-end.lua; the package lists it last)
+```
+
+`prepare` registers the `ai-feedback` dependency, `window.__aiFeedbackConfig`
+and `window.__aiFeedbackPolicies`, turns `.ai-feedback` activities into
+`.ai-feedback-activity` with their data, and records for every code cell the
+prose of its section (`data-ai-feedback-context`) before components convert
+the cells. With an explicit context the context blocks are left out of that
+prose (A5). `selection` and `context` need the page's settings: call them
+after `prepare` or after `ctm.settings.load`.
+
+Without AI feedback (P22: `ai-feedback: enabled: false` or `CTM_FEEDBACK=off`)
+`prepare` writes nothing of AI feedback (activities keep their visible task
+as `.ai-feedback-task`), `selection` still checks the policy name and leaves
+it out, `context` returns mode `none`, and the Meta pass sets
+`pyodide: feedback: false` for pyodide-interaktiv 1.8. A component asks with
+`request("math-exercise", wanted, "feedback: true in _quarto.yml")`, and only
+for blocks that are on the page; whatever a page asked for but did not get
+(those requests, its activities, its pyodide cells under an explicit
+`pyodide: feedback: true`, its own `ai-feedback: enabled: true`) is listed in
+one build message per page. The
+package prints it from `ctm-libs-end.lua`, which it lists after every CTM
+filter, including any that runs at a later `at:` stage; elsewhere the message
+is printed when Pandoc closes the page's Lua state. A CTM filter running after
+the end filter that leaves out something new produces a second message (from
+that fallback).
+
+### ctm.runtime
+
+```lua
+ctm.runtime.use()                      -- HTML dependency ctm-runtime (runtime/pyodide-runtime.js, head)
+ctm.runtime.stopAfter("py-exercise")   -- seconds before a running check offers Stop: <component>: stop-after,
+                                       -- ctm-assessment: stop-after, 20
+```
+
+### ctm.deps
+
+```lua
+ctm.deps.installed("jsxgraph")             -- next to ctm-libs, or in the project's _extensions
+ctm.deps.uses(doc)                         -- {["ai-feedback"] = true, jsxgraph = true} for the page's blocks
+ctm.deps.requireUsed(doc, "math-exercise") -- stops with the install command when .jsxgraph blocks lack JSXGraph
+ctm.deps.html{name = ..., scripts = {"locales/common.js"}}  -- add_html_dependency with files of ctm-libs
+```
+
+## Browser: dependencies and globals
+
+| Dependency (stable name) | Files (head) | Registered by | Global |
+|---|---|---|---|
+| `ctm-locale` | `locales/ctm-locale.js`, `locales/common.js` | `ctm.locale.use()` | `CTMLocales` |
+| `ctm-locale-<namespace>` | `locales/<namespace>.js` | `ctm.locale.use(namespace)` | (adds the catalogue) |
+| `ctm-runtime` | `runtime/pyodide-runtime.js` | `ctm.runtime.use()` | `MathExerciseRuntime` |
+| `ai-feedback` | `feedback/feedback-core.js`, `feedback-dom.js`, `ai-feedback.js`, `ai-feedback.css` | `ctm.feedback.prepare` (when on) | `AIFeedback` |
+
+All carry ctm-libs' version. Quarto keeps one dependency per name, so each
+file loads once per page whatever the mix of components, as a cacheable file
+(inlined only with `embed-resources`). Configuration objects stay inline
+before the body: `window.__aiFeedbackConfig`, `window.__aiFeedbackPolicies`.
+
+### CTMLocales
+
+```js
+CTMLocales.add(namespace, catalogue)        // what each locales/<namespace>.js does
+CTMLocales.table('math-exercise', 'nb')     // compiled messages: strings, data and functions (L.resPartial(50))
+CTMLocales.t('py-exercise', 'allPassed', 'de', 3)
+CTMLocales.resolve('py-exercise', 'nn')     // 'nb'
+CTMLocales.normalize('nb-NO'); CTMLocales.chain('nn'); CTMLocales.languages('feedback')
+```
+
+A key a language lacks falls back to English, with one console warning per
+table. Catalogue entries: a string (may hold HTML), data (arrays, objects
+without `$` keys), `{"$ref": "common.stop"}`, `{"$t": "Row {row}", "$args":
+["row"]}` (optionally `"$lookup": {"form": "formNames"}`, a data entry with a
+`"*"` default), and plurals `{"$args": ["n"], "$plural": "n", "one": "...",
+"other": "..."}` (`one` when the argument is exactly 1). See
+[development](development.md#messages) for adding messages.
+
+### MathExerciseRuntime
+
+The page-wide Python runtime (Pyodide from jsDelivr, or pyodide-interaktiv's
+worker when that is on the page): `indexURL`, `loadTimeout`, `loadScript`,
+`ensurePyodide`, `installModule`, `forgetModules`, `ensureGuard`, `canStop`,
+`stop`, `stopCount`, `whenSlow`. A copy with this interface replaces an older
+one that loaded first.
+
+## AIFeedback (API v1)
+
+The JavaScript global is `AIFeedback` (version = ctm-libs' version). The
+headless `feedback-core.js` also exports CommonJS for tests. No editor,
+checker, Python runtime or DOM is needed to construct requests.
 
 ```js
 const client = AIFeedback.createClient({
@@ -14,7 +207,7 @@ const reply = await client.request(request, { signal: abortController.signal });
 // { text: '...', format: 'markdown' }
 ```
 
-## Request
+### Request
 
 | Property | Contract |
 |---|---|
@@ -52,7 +245,7 @@ An adapter can preserve an existing teaching policy, including mathematics'
 fourth-step full solution, by setting the current step and rewrite permission.
 The core does not infer progression from previous API calls.
 
-## Prompt and transport
+### Prompt and transport
 
 `AIFeedback.normalizeRequest(request)` returns a validated snapshot.
 `AIFeedback.buildMessages(request)` returns system/user messages.
@@ -80,7 +273,7 @@ Errors are `FeedbackError` objects with a stable `code`: `INVALID_REQUEST`,
 `CONFIGURATION`, `HTTP`, `NETWORK`, `TIMEOUT`, `ABORTED`, `EMPTY`, `TRUNCATED`,
 `REASONING`, `VALIDATION`, `IMAGE_UNSUPPORTED`, or `COMPATIBILITY`.
 
-## UI adapter
+### UI adapter
 
 ```js
 const adapter = AIFeedback.attach({
@@ -115,7 +308,7 @@ domains cannot share browser storage. Legacy configurations are offered as
 explicit import choices, never silently combined. Supported initial UI languages: English, German, Norwegian Bokmål
 and Spanish; explanation languages remain unrestricted.
 
-## Feedback rendering
+### Feedback rendering
 
 Model replies render safe Markdown and inline/display LaTeX (`$...$`, `$$...$$`,
 `\(...\)` and `\[...\]`). Math is typeset after insertion using a lazy-loaded
@@ -123,12 +316,13 @@ KaTeX module, including on pages without initial mathematical content. Code
 spans/blocks and copy prompts stay literal. If the renderer cannot load, readable
 TeX remains in place. `afterRender` runs after shared typesetting.
 
-## Quarto authoring
+### Quarto authoring
 
 Use a fenced Div with `.ai-feedback` and a unique ID. Supported attributes:
 `profile`, `ui-language`, `response-language`, `feedback-language`,
 `source-language`, `learner-level`, `max-issues`, `context`, `source`,
-`image-upload="true"`, and `image-role`.
+`image-upload="true"`, and `image-role`. `ui-language` goes through the
+language chain (`de-CH` → de); `feedback-language` is passed as written.
 
 Within it, `.feedback-source` supplies visible original text;
 `.feedback-criteria` supplies author-selected criteria to the feedback request
@@ -143,7 +337,14 @@ IDs are included once, in reference order. Multiple alias classes on one block d
 duplicate it. `context="none"` disables learning context; an explicit `source`
 still supplies the source required for the task. Without `context`, recent
 section prose is collected at render time, capped at 1,500 Unicode characters
-without splitting blocks. Explicit references share a 6,000-character budget.
+without splitting blocks. The section is the innermost heading or tab (a tab
+of a tabset starts one, as a heading does). The content of `<details>` blocks
+and collapsed callouts (solutions, reading steps, hints) is not sent as
+section prose; blocks an exercise lists explicitly are still sent, and an
+exercise inside such a block gets its text. Explicit references share a
+6,000-character budget; since 0.9.0 they are followed by the section's own
+prose, without context blocks (the listed ones are sent on their own, the
+others belong to other exercises), under the same 1,500-character cap.
 Missing, untagged, empty or oversized context blocks are skipped with warnings.
 An unavailable required translation source produces an error.
 
@@ -164,7 +365,7 @@ output empty even if network, snapshot collection or typesetting later finishes.
 Adapters use this for edits, Reset and execution invalidation. No-argument
 `cancel()` retains the visible cancellation notice. Neither consumes a hint.
 
-## Explicit policies (0.8.0)
+### Explicit policies
 
 Use `attach({integration: 'math-exercise', ...})` (or `plain-text`, `py-exercise`,
 `pyodide-interaktiv`) to resolve shipped and local policies centrally. The adapter
@@ -191,20 +392,17 @@ selection, runtimeOptions)` returns the effective policy and named scope chains
 for author-facing summaries. Adapters pass `policySelection` and `policyDefaults`
 to `attach` rather than copying teaching prompts. See [policy authoring](feedback-policies.md).
 
-## Shared context and Quarto preparation
+### Shared context
 
 `AIFeedback.contextMaterials({mode, refs, text})` returns request materials.
 `mode` is `auto`, `none` or `explicit`; `refs` is a comma-separated list of
-tagged element IDs; `text` is the source-filter snapshot for automatic context.
-All integrations use this API.
+tagged element IDs; `text` is the section prose collected at render time.
+`auto` sends the prose; `explicit` sends the listed blocks (6,000-character
+budget) followed by the prose of the exercise's own section without context
+blocks (0.9.0); `none` sends nothing. All integrations use this API; the Lua
+side is `ctm.feedback` (above).
 
-`feedback-quarto.lua` exposes `markCallout` (a Quarto Callout prepass),
-`prepare(doc)` (idempotent document preparation/resource registration), and
-`context(block, options, isPyodide)` (the shared context descriptor). The module
-uses its installed directory for resources. A consumer's small loader locates
-the project installation; it must run preparation before converting code cells.
-
-## JSXGraph visual context (0.7.0)
+### JSXGraph visual context
 
 Plain-text activities may mix tagged text and explicit diagram references:
 `context="lesson, jsxgraph:diagram-id"`. The math-exercise integration supports

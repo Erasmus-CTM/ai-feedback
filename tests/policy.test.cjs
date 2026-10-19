@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
-const F=require('../_extensions/ai-feedback/feedback-core.js');
+const F=require('../_extensions/ctm-libs/feedback/feedback-core.js');
 const request={profile:'python',task:'Add the values.',responses:[{id:'code',format:'code',value:'print(2)'}],criteria:['Do not import math.'],feedback:{language:'nb'}};
 const config=(defaults={},integrations={})=>{
  const policies={},projectPolicy={};
@@ -40,7 +40,7 @@ for(const policy of [{steps:false},{steps:[{}]},{steps:['bad']},{'reset-on-run':
 const {JSDOM}=require('jsdom');
 function attached({reset=true,client}={}){
  const w=new JSDOM('<button>Feedback</button><div id="out"></div>',{url:'https://course.invalid/task',runScripts:'outside-only'}).window;w.AbortController=AbortController;
- for(const f of ['feedback-core.js','feedback-dom.js','ai-feedback.js'])w.eval(fs.readFileSync(path.join(__dirname,'../_extensions/ai-feedback',f),'utf8'));
+ for(const f of ['feedback-core.js','feedback-dom.js','ai-feedback.js'])w.eval(fs.readFileSync(path.join(__dirname,'../_extensions/ctm-libs/feedback',f),'utf8'));
  w.__aiFeedbackPolicies=config({'reset-on-run':reset,steps:[{'step-prompt':'First'},{'step-prompt':'Second'},{'step-prompt':'Third'}]});
  let value='print(2)';
  const api=w.AIFeedback.attach({integration:'py-exercise',id:'one',button:w.document.querySelector('button'),output:w.document.querySelector('#out'),client,getRequest:()=>({...request,responses:[{id:'code',format:'code',value}]})});
@@ -74,7 +74,7 @@ test('blocked browser storage still permits progressive feedback',async()=>{
 test('real text activities inherit YAML issue limits unless explicitly overridden',async()=>{
  for(const [explicit,expected] of [[undefined,5],[1,1]]){
   const w=new JSDOM('<div id="activity"><script class="ai-feedback-data" type="application/json"></script></div>',{url:'https://course.invalid/text',runScripts:'outside-only'}).window;
-  for(const f of ['feedback-core.js','feedback-dom.js','ai-feedback.js'])w.eval(fs.readFileSync(path.join(__dirname,'../_extensions/ai-feedback',f),'utf8'));
+  for(const f of ['feedback-core.js','feedback-dom.js','ai-feedback.js'])w.eval(fs.readFileSync(path.join(__dirname,'../_extensions/ctm-libs/feedback',f),'utf8'));
   w.__aiFeedbackPolicies=config({'max-issues':5});
   const el=w.document.querySelector('#activity');
   el.querySelector('script').textContent=JSON.stringify({id:'text',task:'Explain your answer.',starter:'My answer',profile:'review',uiLanguage:'en',feedbackLanguage:'en',maxIssues:explicit});

@@ -1,4 +1,4 @@
-name: Shared feedback tests
+name: ctm-libs tests
 on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
@@ -16,6 +16,7 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install 'PyYAML>=6'
       - run: python scripts/sync-feedback-defaults.py --check
+      - run: python scripts/check-locales.py
       - uses: quarto-dev/quarto-actions/setup@v2
         with:
           version: "1.8.27"

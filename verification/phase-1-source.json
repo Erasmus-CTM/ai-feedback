@@ -87,5 +87,5 @@
       "git_blob_sha": "0a8846ce1c694ecab704d8f52bb229ca44469d23"
     }
   ],
-  "note": "Exact source snapshot used for recovery; follow-up changes are recorded by the containing commit."
+  "note": "Exact source snapshot used for recovery; follow-up changes are recorded by the containing commit. The repository was later renamed Erasmus-CTM/ctm-libs (GitHub redirects the old name; the commit is unchanged). The paths are those of the recorded commit: since 0.9.0 the extension lives in _extensions/ctm-libs (feedback files in its feedback/ folder), and _extensions/ai-feedback is a thin alias."
 }

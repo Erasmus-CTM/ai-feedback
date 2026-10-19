@@ -1,6 +1,6 @@
 # Explicit teaching policies
 
-AI Feedback 0.8 uses `base-prompt` for instructions throughout an activity and
+AI feedback uses `base-prompt` for instructions throughout an activity and
 `step-prompt` for the current feedback step. The old `prompt` key is rejected
 with a migration message. Fixed shared instructions and authored exercise
 criteria remain separate from configurable teaching instructions.
@@ -32,43 +32,57 @@ ai-feedback:
           max-words: 250
 ```
 
-Select explicitly in Quarto metadata:
+Two keys, at any level (`_quarto.yml`, a profile, `_quarto.yml.local`, a
+`_metadata.yml`, the page's front matter):
+
+| Key | Rule |
+|---|---|
+| `policy-files` | one path or an ordered list; **adds up** over the levels in that order (project, profiles, `_metadata`, page), each file once |
+| `policy` | the selected policy (a name, or a map of integrations to names); **the nearest level wins** |
 
 ```yaml
+# _quarto.yml
 ai-feedback:
   policy-files: feedback.yml
-  project-policy: guided-practice
+  policy: guided-practice
 ```
 
-A page can load additional definitions and explicitly change its baseline:
+A page can load more definitions and select another policy; the project's
+files stay loaded:
 
 ```yaml
 ai-feedback:
-  page-policy-files: feedback/chapter.yml
-  page-policy: brief-practice
+  policy-files: feedback/chapter.yml
+  policy: brief-practice      # brief-practice extends guided-practice where the page builds on it
 ```
 
-Policy selections are read from project configuration, active profile files,
-directory `_metadata` files and page front matter (both `.yml` and `.yaml`
-configuration filenames are supported). Use these sources for policy selectors
-rather than CLI metadata or native `metadata-files`.
-
-Both file options accept one path or an ordered list. A file name has no special
-meaning. `page-policy-files` alone never changes the page baseline. No automatic
-`defaults` or `integrations` sections are accepted in authored policy files or
-inline metadata. The installed `feedback-defaults.yml` is the internal shipped
+Paths are relative to the project root (or the standalone document). A file
+name has no special meaning. Loading files never changes a selection. Values
+from `metadata-files` or `format: html:` scoped metadata count when no
+configuration file or front matter sets the key. No automatic `defaults` or
+`integrations` sections are accepted in authored policy files or inline
+metadata. The installed `feedback-defaults.yml` is the internal shipped
 baseline, not an authored override file.
+
+Until CTM Assessment 0.9 there were four keys. They keep working in 0.9, each
+with one build warning:
+
+| Old key | Meaning in 0.9 | Use instead |
+|---|---|---|
+| `project-policy` | the same selection as `policy` (at one level `policy` wins) | `policy` |
+| `page-policy-files` | adds up like `policy-files`, loaded after them | `policy-files` |
+| `page-policy` | a second selection applied over `policy`, the nearest wins | `policy`, with a policy that `extends` the project's |
 
 Select a specialization on one exercise with `#| feedback-policy: worked-review`.
 For text activities use `feedback-policy="worked-review"` on the `.ai-feedback`
 Div. Without a selection, the effective integration baseline remains active.
 
-Project/page selections can instead map integration names to policies:
+A selection can instead map integration names to policies:
 
 ```yaml
 ai-feedback:
   policy-files: feedback.yml
-  page-policy:
+  policy:
     default: guided-practice
     math-exercise: brief-practice
 ```
@@ -83,7 +97,7 @@ instructions are both included; a scalar selection replaces the integration base
 Each named policy has at most one parent. Parent definitions may appear before
 or after children. Unknown parents and cycles fail rendering, even when the
 invalid policy is unused. Definitions with the same name merge field by field
-in project-file order followed by page-file order. An omitted parent retains an
+in the order the files are loaded (project first, page last). An omitted parent retains an
 earlier declaration; `extends: null` explicitly removes that named-parent link.
 
 A policy with no parent inherits the effective integration settings at its point
@@ -94,8 +108,8 @@ inherits the appropriate defaults for whichever integration selects it.
 Resolution order is:
 
 1. Shipped common/integration defaults and integration runtime options.
-2. Explicit `project-policy` selection(s).
-3. Explicit `page-policy` selection(s).
+2. The `policy` selection(s).
+3. The deprecated `page-policy` selection(s), if any.
 4. Matching YAML exercise-ID overrides.
 5. The exercise's explicitly selected `feedback-policy`, including its ancestry.
 6. The current step's settings.
@@ -151,12 +165,17 @@ active.
 
 ## Migration and maintenance
 
+From the old keys: `project-policy` becomes `policy`; `page-policy-files`
+becomes `policy-files` (it adds up with the project's); a `page-policy`
+becomes the page's `policy`, and the selected policy `extends` the project's
+when the page built on it, so the effective policy stays the same.
+
 Rename policy `prompt` to `base-prompt`, and step `prompt` to `step-prompt`.
 Move authored automatic defaults/integration overrides into named policies and
-select them explicitly using `project-policy` or `page-policy` (use integration
-maps when scope-specific behavior is needed). There are no old spelling aliases.
+select them explicitly with `policy` (use integration maps when
+scope-specific behavior is needed).
 
 After editing shipped defaults run `python scripts/sync-feedback-defaults.py`;
-CI checks generated/browser defaults agree with the YAML. All consumers use the
-single installed shared extension. Test adapters and runtime behavior in the
-CTM Assessment umbrella before adopting changes in course sites.
+CI checks generated/browser defaults agree with the YAML. Test adapters and
+runtime behavior in the CTM Assessment umbrella before adopting changes in
+course sites.

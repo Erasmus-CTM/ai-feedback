@@ -1,51 +1,54 @@
-# ai-feedback: Help students improve their next draft
+# ctm-libs: the internal library of CTM Assessment
 
-Give students useful advice while they write, translate, explain or work through a problem. You decide what the feedback should focus on: one helpful question, a grammar point, a clearer explanation, or a more detailed hint.
+ctm-libs holds what the components of [CTM Assessment](https://github.com/Erasmus-CTM/ctm-assessment)
+share: their settings, their languages, the Python runtime of the page and AI
+feedback (formerly the ai-feedback extension). It is bundled with CTM
+Assessment, and course authors never install or list it themselves:
 
-[Try the writing and image activities](https://erasmus-ctm.github.io/ctm-assessment/example.html) · [Authoring guide](docs/authoring.md)
+```sh
+quarto add https://erasmus-ctm.github.io/ctm-assessment/ctm-assessment.tar.gz
+```
 
-## Try it, then make it yours
+```yaml
+filters: [ctm-assessment]
+```
 
-Choose the **Plain text** tab.
+[Installation and setup](docs/installation.md) · [Reference](docs/reference.md) ·
+[API for components](docs/api.md) · [Development](docs/development.md) ·
+[Changes](CHANGELOG.md)
 
-Try a short Spanish writing activity, then adapt it to your subject. A starter response gives students something to improve instead of an empty box.
+## What it provides
 
-Write a short task and decide what a useful next step would look like. Keep instructions for the student separate from the advice you want the AI to give.
+- **Settings, key by key.** One reader for every CTM section (`ai-feedback`,
+  `ctm-assessment`, `math-exercise`, `py-exercise`) across `_quarto.yml`,
+  profiles, `_quarto.yml.local`, `_metadata.yml` and the page, so a page that
+  sets one option keeps the project's other options. Credentials in the
+  metadata stop the render.
+- **Languages.** One resolver and one message catalogue for every component:
+  English, German and Norwegian Bokmål (and Spanish for the feedback
+  interface), with `ctm-assessment: lang` for all components at once.
+- **The Python runtime** of the page (Pyodide), loaded once whatever the mix
+  of components, with Stop for long checks.
+- **AI feedback.** Text, translation and image activities (`.ai-feedback`),
+  feedback for the exercises of every component, teaching policies, and a
+  build switch for sites without AI feedback (`ai-feedback: enabled: false`).
+- **Cacheable files.** Every browser file is an HTML dependency, loaded once
+  per page.
 
-## Ideas for your teaching
+Components load the library through a small file they all copy,
+[`bootstrap/ctm-bootstrap.lua`](bootstrap/ctm-bootstrap.lua).
 
-- Practise a language with feedback suited to the learner’s level.
-- Compare a translation with its original.
-- Discuss a photograph of handwritten work.
-- Offer increasingly detailed help without immediately revealing a solution.
+## Formerly ai-feedback
 
-## Choose the kind of help
+This repository was Erasmus-CTM/ai-feedback; GitHub redirects the old name.
+For CTM Assessment 0.9 the repository keeps a thin `ai-feedback` extension,
+so `quarto add Erasmus-CTM/ai-feedback` and `filters: [ai-feedback]` keep
+working (with one build warning), and so do components released before the
+consolidation. [Details](docs/installation.md#projects-set-up-for-ai-feedback-09x).
 
-A useful hint leaves the student something to do. You can ask for one question,
-a short explanation, or a review focused on a particular skill. The same task
-can offer different help at different stages of learning.
-
-**Feedback** can prepare a message to paste into an AI chat you already use.
-If your course has an AI service set up, it can show the reply on the exercise
-page. AI advice is for discussion and revision; it does not replace your
-judgment or the exercise's checks.
-
-## Open an example in your editor
-
-[Example source — download and open in your editor](https://github.com/Erasmus-CTM/ai-feedback/blob/main/example.qmd).
-
-On GitHub, choose **Download raw file**, then open the saved `.qmd` in your
-editor—for example, **VS Code**. The link above is editable Quarto source; use
-the example link at the top of this README to try the rendered page.
-
-## Take the next step
-
-- [Adapt your first activity](docs/authoring.md)
-- [Install and configure the extension](docs/installation.md)
-- [Look up a specific option](docs/reference.md)
-
-These guides assume you can edit and render a Quarto document. The authoring
-guide starts with the teaching task; setup details are kept separately.
+[Example source](example.qmd): AI feedback activities with the library alone
+(`filters: [ctm-libs]`), built on every push as the `standalone-example`
+artifact. The authoring guides for activities are [here](docs/authoring.md).
 
 ## License
 
