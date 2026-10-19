@@ -147,6 +147,28 @@ test('flush() prints the message once, at once; the end filter and the fallback 
   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
 });
 
+test('the end filter prints the message: nothing is left for a filter after it', {skip}, () => {
+  const dir = C.tempdir('ctm-no-ai-end-');
+  try {
+    C.installPackage(dir); C.install(dir); C.installProbe(dir);
+    const ask = C.probe('ask', 'return ctm.feedback.request("math-exercise", true, "feedback: auto")');
+    C.write(dir, {
+      // Runs after the filters before it and reports whether anything was still to print.
+      'after.lua': 'return {{Pandoc = function(doc)\n  local ctm = rawget(_G, "__ctmLibs")\n  local left = ctm.feedback.flush()\n'
+        + '  doc.blocks:insert(pandoc.RawBlock("html", \'<script type="application/json" class="ctm-probe" data-name="after">\' .. tostring(left) .. "</script>"))\n'
+        + '  return doc\nend}}\n',
+      'ended.qmd': '---\ntitle: t\nfilters: [ctm-libs, probe, _extensions/ctm-libs/ctm-libs-end.lua, after.lua]\n---\n' + ask,
+      'unended.qmd': '---\ntitle: t\nfilters: [ctm-libs, probe, after.lua]\n---\n' + ask,
+    });
+    for (const [file, left] of [['ended.qmd', false], ['unended.qmd', true]]) {
+      const r = C.render(dir, [file], {CTM_FEEDBACK: 'off'});
+      assert.equal(r.status, 0, r.stderr);
+      assert.equal(C.probes(C.html(dir, file)).after, left, file);
+      assert.deepEqual(messages(r.stderr).map(m => m.items), ['math-exercise feedback (feedback: auto)'], file);
+    }
+  } finally { fs.rmSync(dir, {recursive: true, force: true}); }
+});
+
 test('the normal build keeps AI feedback; an unknown CTM_FEEDBACK value warns', {skip}, () => withProject(dir => {
   const r = C.render(dir, [], {CTM_FEEDBACK: 'maybe'});
   assert.equal(r.status, 0, r.stderr);
