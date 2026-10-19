@@ -1,0 +1,134 @@
+-- The page's Markdown source, for messages that name a file and line
+-- (ctm.source): Quarto does not tell which file or line a block came from.
+--
+--   ctm.source.pageName()        "pages/x.qmd", followed by " (or a file it includes)" when it does
+--   ctm.source.files()           the page and the files it includes ({{< include >}}), in order:
+--                                {{path, label, lines}}; labels are relative to the project
+--   ctm.source.scan(visit)       visit(text, file, line, raw) for every line outside code,
+--                                comments and front matter; `raw` is true inside ```{=html}
+--   ctm.source.fences(class)     "file:line" of each fenced div with the class, with its attributes
+--                                ({where, attributes = "{...}"})
+return function(ctm)
+  local M = {}
+
+  local function label(path)
+    local root = quarto.project and quarto.project.directory
+    if root and root ~= "" then return pandoc.path.make_relative(path, root) end
+    return pandoc.path.filename(path)
+  end
+
+  local function readLines(path)
+    local handle = io.open(path, "r")
+    if not handle then return nil end
+    local text = handle:read("*a")
+    handle:close()
+    local lines = {}
+    for line in (text:gsub("\r\n", "\n") .. "\n"):gmatch("([^\n]*)\n") do lines[#lines + 1] = line end
+    return lines
+  end
+
+  local cached = nil
+  function M.files()
+    if cached then return cached end
+    cached = {}
+    local seen = {}
+    local function add(path)
+      path = pandoc.path.normalize(path)
+      if seen[path] then return end
+      seen[path] = true
+      local lines = readLines(path)
+      if not lines then return end
+      cached[#cached + 1] = {path = path, label = label(path), lines = lines}
+      for _, line in ipairs(lines) do
+        local include = line:match("{{<%s*include%s+(.-)%s*>}}")
+        if include then
+          include = include:gsub('^"(.*)"$', "%1"):gsub("^'(.*)'$", "%1")
+          local root = quarto.project and quarto.project.directory
+          if include:sub(1, 1) == "/" and root and root ~= "" then
+            add(pandoc.path.join({root, include:sub(2)}))
+          else
+            add(pandoc.path.join({pandoc.path.directory(path), include}))
+          end
+        end
+      end
+    end
+    if quarto.doc.input_file then add(quarto.doc.input_file) end
+    return cached
+  end
+
+  -- The page as messages name it: its file, and the files it includes.
+  function M.pageName()
+    local file = quarto.doc.input_file or ""
+    local name = label(file)
+    local page = M.files()[1]
+    if page and table.concat(page.lines, "\n"):find("{{<%s*include%s") then name = name .. " (or a file it includes)" end
+    return name
+  end
+
+  -- Lines outside code blocks, inline code, HTML comments and front matter.
+  function M.scan(visit)
+    for _, file in ipairs(M.files()) do
+      local fence, raw, comment = nil, false, false
+      for number, line in ipairs(file.lines) do
+        local skip = false
+        if number == 1 and line:match("^%-%-%-%s*$") then
+          fence = "front matter"
+          skip = true
+        elseif fence == "front matter" then
+          if line:match("^%-%-%-%s*$") or line:match("^%.%.%.%s*$") then fence = nil end
+          skip = true
+        elseif fence then
+          local close = line:match("^%s*([`~]+)%s*$")
+          if close and close:sub(1, 1) == fence:sub(1, 1) and #close >= #fence then
+            fence, raw = nil, false
+            skip = true
+          else
+            skip = not raw
+          end
+        else
+          local open, info = line:match("^%s*(```+)%s*(.-)%s*$")
+          if not open then open, info = line:match("^%s*(~~~+)%s*(.-)%s*$") end
+          if open then
+            fence, raw = open, info:match("^{=html5?}$") ~= nil
+            skip = true
+          end
+        end
+        if not skip then
+          local text = line
+          if comment then
+            local stop = text:find("-->", 1, true)
+            if stop then text, comment = text:sub(stop + 3), false else text = "" end
+          end
+          text = text:gsub("<!%-%-.-%-%->", "")
+          local start = text:find("<!--", 1, true)
+          if start then text, comment = text:sub(1, start - 1), true end
+          if not raw then text = text:gsub("``.-``", ""):gsub("`[^`]*`", "") end
+          if text:match("%S") then visit(text, file, number, raw) end
+        end
+      end
+    end
+  end
+
+  -- Fenced divs (::: {...} or ::: name) whose classes include `class`.
+  function M.fences(class)
+    local found = {}
+    M.scan(function(text, file, number, raw)
+      if raw then return end
+      local attributes = text:match("^%s*:::+%s*(%b{})")
+      local word = not attributes and text:match("^%s*:::+%s*([%w_%-]+)%s*:*%s*$")
+      local classes = {}
+      if attributes then
+        local bare = attributes:gsub('"[^"]*"', '""'):gsub("'[^']*'", "''")
+        for name in bare:gmatch("%.([%w_%-]+)") do classes[name] = true end
+      elseif word then
+        classes[word] = true
+      end
+      if classes[class] then
+        found[#found + 1] = {where = file.label .. ":" .. number, attributes = attributes or ""}
+      end
+    end)
+    return found
+  end
+
+  return M
+end
