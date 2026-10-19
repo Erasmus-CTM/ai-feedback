@@ -1,5 +1,30 @@
 # Changes
 
+## Unreleased
+
+### Changed for authors
+
+- **A build without AI feedback stops at exercises that only AI feedback can
+  assess** (breaking for builds without AI feedback; there are no such sites
+  yet). With `ai-feedback: enabled: false` or `CTM_FEEDBACK=off`, a page with
+  `.ai-feedback` activities, a math-exercise in `mode: custom` without a
+  `checker`, or a py-exercise without tests (where their feedback is on)
+  stops the build with one error that names every such exercise of the page.
+  The new setting `ai-feedback: without-ai:` (project, profile,
+  `_metadata.yml` or page, the nearest winning) decides instead:
+  - `text`: the question stays, without answer box and Check button, with a
+    note that the exercise has no automatic feedback in this version
+    (English, German, Norwegian Bokmål); the page's build message names them.
+    Before, activities became `.ai-feedback-task` without a note, and the
+    components' exercises kept a Check that could not assess anything.
+  - `self-check`: accepted; the same as `text` until exercises have model
+    answers to compare with.
+  - `drop`: removes those exercises from the page. Only where you write it;
+    it is never a default.
+
+  Builds with AI feedback do not use the setting; another value stops both
+  builds, naming the allowed ones.
+
 ## 0.9.0 (CTM Assessment 0.9.0)
 
 The ai-feedback repository becomes **ctm-libs**, the internal library of CTM

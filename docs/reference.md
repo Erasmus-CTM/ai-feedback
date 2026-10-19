@@ -78,15 +78,63 @@ or `CTM_FEEDBACK=off quarto render` (other values than `off` and `on` warn).
 Any level can turn AI feedback off; no page can turn it back on. Then:
 
 - no Feedback buttons, no settings gear, no ai-feedback scripts or styles;
-- `.ai-feedback` activities keep their visible task (and source text) as an
-  `.ai-feedback-task` block, without answer box or button;
+- exercises that only AI feedback can assess stop the build, unless
+  `without-ai` says what becomes of them (below);
 - criteria, starters, teaching policies and learning context are not written
   into the HTML; policy files are still checked, so both builds fail alike;
 - a page that asked for feedback gets one build message naming what was left
-  out (its activities, the exercises and cells whose feedback a component
-  left out, or its own `ai-feedback: enabled: true`); a project-wide
-  `enabled: true` is not repeated on every page, and pages without AI content
-  stay quiet. It is never an error.
+  out (its exercises that only AI feedback can assess, the exercises and
+  cells whose feedback a component left out, or its own
+  `ai-feedback: enabled: true`); a project-wide `enabled: true` is not
+  repeated on every page, and pages without AI content stay quiet.
+
+### Exercises that only AI feedback can assess
+
+Some exercises have no static check; without AI feedback they could not be
+assessed at all:
+
+- `.ai-feedback` activities (the learner writes, the model gives feedback);
+- a math-exercise in `mode: custom` without a `checker` (its Check stops with
+  "mode custom requires a checker"), where its feedback is on (any
+  `math-exercise: feedback:` but `false`);
+- a py-exercise without tests (nothing after `## TESTS ##`: its Check only
+  runs the code), where `py-exercise: feedback: true`.
+
+They count wherever they are on the page, also in tabs, `<details>` blocks and
+collapsed callouts; hidden and author-only blocks (`.hidden`,
+`.example-author-notes`, `.ai-feedback-ignore`) do not count. pyodide-interaktiv
+cells stay runnable and are not counted.
+
+By default a build without AI feedback **stops** at a page that has such
+exercises, with one error that names all of them (the file, and each
+exercise's id or label, or the start of its text), so that you decide.
+`ai-feedback: without-ai:` decides, in `_quarto.yml`, a profile, a
+`_metadata.yml` or a page's front matter (the nearest wins):
+
+```yaml
+# _quarto-no-ai.yml
+ai-feedback:
+  enabled: false
+  without-ai: text
+```
+
+- `text`: the question stays, without answer box and Check button, with the
+  line "This exercise has no automatic feedback in this version." (in the
+  page's language). Activities keep their task and source as
+  `.ai-feedback-task`; a math-exercise shows its caption and question, its
+  answer fields as "…"; a py-exercise shows its starter code. The page's
+  build message names the exercises.
+- `self-check`: the question and a model answer to compare with. Exercises
+  have no model answers yet, so for now `self-check` is the same as `text`
+  (and later it is `text` for exercises without a model answer); the build
+  message says so.
+- `drop`: the exercise is removed from the page, named in the page's build
+  message. A last resort: the page loses the exercise, and nothing on it
+  says so. CTM Assessment never chooses it for you; write it only where the
+  question has no value without feedback.
+
+Other values stop both builds (with and without AI feedback) and name the
+allowed ones. Builds with AI feedback do not use `without-ai`.
 
 pyodide-interaktiv 1.8 reads its own `pyodide: feedback`; ctm-libs sets it to
 false when its filter runs before pyodide-interaktiv's (the package order, or

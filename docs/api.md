@@ -119,20 +119,31 @@ prose (A5). `selection` and `context` need the page's settings: call them
 after `prepare` or after `ctm.settings.load`.
 
 Without AI feedback (P22: `ai-feedback: enabled: false` or `CTM_FEEDBACK=off`)
-`prepare` writes nothing of AI feedback (activities keep their visible task
-as `.ai-feedback-task`), `selection` still checks the policy name and leaves
-it out, `context` returns mode `none`, and the Meta pass sets
+`prepare` writes nothing of AI feedback, `selection` still checks the policy
+name and leaves it out, `context` returns mode `none`, and the Meta pass sets
 `pyodide: feedback: false` for pyodide-interaktiv 1.8. A component asks with
 `request("math-exercise", wanted, "feedback: true in _quarto.yml")`, and only
 for blocks that are on the page; whatever a page asked for but did not get
-(those requests, its activities, its pyodide cells under an explicit
-`pyodide: feedback: true`, its own `ai-feedback: enabled: true`) is listed in
-one build message per page. The
+(those requests, its exercises that only AI feedback can assess, its pyodide
+cells under an explicit `pyodide: feedback: true`, its own
+`ai-feedback: enabled: true`) is listed in one build message per page. The
 package prints it from `ctm-libs-end.lua`, which it lists after every CTM
 filter, including any that runs at a later `at:` stage; elsewhere the message
 is printed when Pandoc closes the page's Lua state. A CTM filter running after
 the end filter that leaves out something new produces a second message (from
 that fallback).
+
+Exercises that only AI feedback can assess (activities; math-exercise in
+`mode: custom` without a checker; py-exercise without tests; reference.md)
+are found by `prepare`'s walk, before the components see their blocks, and
+handled by `ai-feedback: without-ai` (`policy.withoutAI()`,
+`policy.withoutAIAction()` in `lua/policy.lua`): `text` (and `self-check`,
+for now) replaces each by its question with a localized note
+(`common.withoutAI`), `drop` removes it, and unset makes `flush()` stop the
+build with one error naming them all. Components need no code of their own
+for it. The end filter announces itself when Quarto loads it
+(`_G.__ctmLibsEnd`); where it is not listed, `prepare` stops the page
+itself.
 
 ### ctm.runtime
 
