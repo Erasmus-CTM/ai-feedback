@@ -1,0 +1,17 @@
+name: Runtime in a browser
+# ctm-runtime in Chromium: Pyodide from jsDelivr, the guard module, SymPy.
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --ignore-scripts playwright@1.55.1
+      - run: npx playwright install --with-deps chromium
+      - name: Runtime smoke test
+        run: node tests/browser/runtime-smoke.mjs
