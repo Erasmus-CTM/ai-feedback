@@ -339,6 +339,11 @@ function M.prepare(doc)
     ctm.settings.policies()
     local state = {context = {}, from = {}, off = true, activities = 0}
     doc.blocks = walk(doc.blocks, state)
+    -- The walk passes hidden and author-only blocks through untouched; their
+    -- activities' criteria and starters must not reach the HTML either.
+    doc.blocks = doc.blocks:walk({Div = function(div)
+      if div.classes:includes("feedback-criteria") or div.classes:includes("feedback-starter") then return {} end
+    end})
     if state.activities > 0 then
       leaveOut(state.activities .. " AI feedback " .. (state.activities == 1 and "activity" or "activities"))
     end

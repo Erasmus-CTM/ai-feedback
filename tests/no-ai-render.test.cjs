@@ -16,7 +16,12 @@ const activity = [
   '::: {.feedback-source}', 'Source with $s$.', ':::', '',
   '::: {.feedback-criteria}', 'CRITERIA_MARKER_4412', ':::', '',
   '::: {.feedback-starter}', 'STARTER_MARKER_9183', ':::', ':::', '',
-  '```python', 'print(1)', '```', ''].join('\n');
+  '```python', 'print(1)', '```', '',
+  // Hidden and author-only activities pass through the walk; their criteria and starters must go too.
+  '::: {.ai-feedback .hidden}', 'Hidden task.', '', '::: {.feedback-criteria}', 'CRITERIA_MARKER_4412 hidden class', ':::', '', '::: {.feedback-starter}', 'STARTER_MARKER_9183 hidden class', ':::', ':::', '',
+  '::: {.ai-feedback hidden="hidden"}', 'Hidden task.', '', '::: {.feedback-criteria}', 'CRITERIA_MARKER_4412 hidden attribute', ':::', ':::', '',
+  '::: {.ai-feedback style="display: none"}', 'Hidden task.', '', '::: {.feedback-starter}', 'STARTER_MARKER_9183 display none', ':::', ':::', '',
+  '::: {.example-author-notes}', '::: {.ai-feedback}', 'Author example.', '', '::: {.feedback-criteria}', 'CRITERIA_MARKER_4412 author notes', ':::', ':::', ':::', ''].join('\n');
 const probes = C.probe('switch', 'return {ctm.feedback.enabled()}')
   + C.probe('request', 'return ctm.feedback.request("math-exercise", true, "feedback: auto")')
   + C.probe('declined', 'return ctm.feedback.request("py-exercise", false, "feedback: false")')
