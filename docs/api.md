@@ -40,12 +40,15 @@ would combine two installations of different versions stops. The instance
 has `ctm.dir`, `ctm.version`, `ctm.api`, `ctm.path(...)` (absolute path of a
 file of the installation) and `ctm.filters()` (the passes of the
 `ctm-libs` filter: Meta, Callout, the page's interface (`ctm.ui`, two
-passes), then AI feedback's preparation). Modules load on first use.
+passes), then AI feedback's preparation) and `ctm.fail(message)` (stops the
+render with a message for authors: Quarto's `error` only logs, and `assert`
+on a string puts the Lua file and line in front of it). Modules load on
+first use.
 
 Rules inside ctm-libs: paths only from its own installation (never
 `quarto.utils.resolve_path` or relative dependency paths, which resolve
 against the running component); HTML only (neutral values for other
-formats); authoring errors stop the render with `assert(false, message)`.
+formats); authoring errors stop the render with `ctm.fail(message)`.
 
 ### ctm.settings
 

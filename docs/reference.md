@@ -78,7 +78,7 @@ the settings and before AI feedback's preparation (`lua/ui.lua`).
 |---|---|
 | `::: {.reading-step title="Gå i dybden: …"}` … `:::` | `<details class="ctm-reveal reading-step">`, closed; follows the switch |
 | `::: {.hint}`, `::: {.solution}` | `<details class="ctm-reveal hint">`, `… solution">`, closed |
-| `::: {.details title="…"}` | `<details class="ctm-reveal details">`, closed; a title is required |
+| `::: {.details title="…"}` | `<details class="ctm-reveal details">`, closed |
 | `::: {.modes}` + `:::` | where the switch goes (else at the top of a page with reading steps) |
 | `::: {.embed src="…" title="…" height="920px"}` + `:::` | `<iframe class="ctm-embed" loading="lazy">`; `src` and `title` required, `height` a length (default 600px) |
 
@@ -88,8 +88,9 @@ the settings and before AI feedback's preparation (`lua/ui.lua`).
   carries the block's id, other classes and attributes (not `title`, `name`
   or `open`: a reveal starts closed). AI feedback reads a reveal as the scope
   of hand-written `<details>`: the same context, byte for byte.
-- **Titles** are inline Markdown. Pandoc applies backslash escapes in
-  attribute values first, so TeX takes doubled backslashes:
+- **Titles** are inline Markdown: what would start a block ("2. forsøk",
+  "- …", "# …") stays text. Pandoc applies backslash escapes in attribute
+  values first, so TeX takes doubled backslashes:
   `title="Bruk $\\mathbf{A}\\,x$"`. Default titles:
 
   | | en | de | nb | nn |
@@ -97,6 +98,10 @@ the settings and before AI feedback's preparation (`lua/ui.lua`).
   | `.reading-step` | Go deeper | Vertiefung | Gå i dybden | Gå i djupna |
   | `.solution` | Solution | Lösungsvorschlag | Løsningsforslag | Løysingsforslag |
   | `.hint` | Hint | Hinweis | Hint | Hint |
+  | `.details` | Details | Details | Detaljer | Detaljar |
+
+  A `.details` should say what it holds; `markdown-lint` names one without a
+  title.
 
 - **`.solution`** is Quarto's Solution, taken over in HTML. Its `name="…"`
   is an alias of `title`; a heading as its first block is its name too
@@ -120,17 +125,26 @@ the settings and before AI feedback's preparation (`lua/ui.lua`).
   own id needs CTM Assessment's pre-ast `tab-ids.lua` (Quarto drops ids on
   tab headings); its target is a `div.ctm-tab-target` at the start of the
   pane, and the link then focuses the tab panel with its tab row in view.
-- **Errors** name the file and line, also in included files: a `.details`
-  without a title, an `.embed` without `src` or `title` or whose height is
-  not a length, two `::: {.modes}` on a page, or one with content.
+- **Errors** name the file and line, also in included files: an `.embed`
+  without `src` or `title` or whose height is not a length, two
+  `::: {.modes}` on a page, or one with content, a `.solution` with both
+  `title=` and a name, a block that is two kinds of reveal.
+- **Look.** `ui/ctm-ui.css` keeps the theme's text colours. Backgrounds are
+  faint tints over the page: on white they give the courses' colours
+  exactly, and under a dark theme they stay dark. The `.details` marker is
+  drawn, so screen readers do not read it.
 - **`markdown-lint: true`** warns, once per kind and page, about raw
   `<details>`/`<summary>`, empty `<div id="…"></div>` anchors, `<iframe>`,
-  a hand-written switch (`data-learning-mode`), and tabsets on a page whose
-  project lacks the `tab-ids.lua` line. Code, inline code and HTML comments
-  are not read; ` ```{=html} ` blocks are.
+  a hand-written switch (`data-learning-mode` in a tag), tabsets on a page
+  whose project lacks the `tab-ids.lua` line, and a `.details` without a
+  title. A `<details>` and its `<summary>` count once. Code (fenced, or
+  indented by four spaces), inline code and HTML comments are not read;
+  ` ```{=html} ` blocks are.
 
-Pages without this syntax render as before; a page with a tabset loads the
-tab links (`ctm-ui`, `ctm-nav`), unless `tab-links: false`.
+The six class names (`reading-step`, `hint`, `solution`, `details`, `embed`,
+`modes`) are reserved: a div that already used one changes. Pages without
+them render as before; a page with a tabset loads the tab links (`ctm-ui`,
+`ctm-nav`), unless `tab-links: false`.
 
 ## A site without AI feedback
 

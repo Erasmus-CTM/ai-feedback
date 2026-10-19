@@ -8,11 +8,14 @@
   ("Gå i dybden"), `::: {.hint}`, `::: {.solution}` and
   `::: {.details title="…"}` become closed boxes (`<details>`) in HTML, in
   the courses' look; `.details` is drawn related but distinct (a dashed line,
-  no fill), since the switch leaves it alone. Titles are Markdown, with
-  default titles in English, German, Bokmål and Nynorsk; `.details` needs
-  one. Headings inside a reveal stay inside it. AI feedback reads a reveal as
-  it reads hand-written `<details>`. Other formats show reveals open, with
-  the title in bold; `.solution` stays Quarto's Solution there.
+  no fill), since the switch leaves it alone. Titles are inline Markdown
+  (a title such as "2. forsøk" stays as written), with default titles in
+  English, German, Bokmål and Nynorsk for every kind. The colours are tints
+  over the page, so reveals and the switch stay readable under dark themes,
+  also one without a light twin. Headings inside a reveal stay inside it. AI
+  feedback reads a reveal as it reads hand-written `<details>`. Other
+  formats show reveals open, with the title in bold; `.solution` stays
+  Quarto's Solution there.
 - **The lecture/reading switch** (F2) appears at the top of every page with
   a reading step, or where `::: {.modes}` + `:::` puts it;
   `ctm-assessment: modes: false` leaves it out. The mode lasts for the
@@ -27,17 +30,27 @@
   Assessment's `tab-ids.lua` pre-ast filter.
 - **`ctm-assessment: markdown-lint: true`** warns at render time about raw
   HTML that has a Markdown form (`<details>`, `<summary>`, `<div id>`
-  anchors, `<iframe>`, a hand-written switch) and about tabsets without the
-  `tab-ids.lua` line, naming files and lines.
+  anchors, `<iframe>`, a hand-written switch), about tabsets without the
+  `tab-ids.lua` line and about a `.details` without a title, naming files
+  and lines.
 
 ### Changed for authors
 
+- **Reveals take over six class names** (backwards-incompatible for a site
+  that uses them; none of the CTM courses, the umbrella or its components
+  does). In HTML, `::: {.solution}` is no longer Quarto's visible
+  *Solution.* but a closed reveal, and divs with `.hint`, `.details` or
+  `.reading-step` become closed reveals too. `::: {.embed}` becomes an
+  embedded page (it needs `src` and `title`), and `::: {.modes}` the place of
+  the lecture/reading switch.
 - **Pages with a tabset load the tab links** (`ctm-ui.css`, `ctm-nav.js`;
   nothing else changes on pages without the new syntax).
   `ctm-assessment: tab-links: false` turns them off; a site that still has
   its own tab-link script sets it until it removes the script. `tab-links`,
   `modes` and `markdown-lint` take `true` or `false`; another value stops
   the render.
+- **Render errors of ctm-libs are the message alone**, without a Lua file
+  and line in front of it.
 
 - **A build without AI feedback stops at exercises that only AI feedback can
   assess** (breaking for builds without AI feedback; there are no such sites
@@ -67,6 +80,7 @@
 
 ### For component developers
 
+- `ctm.fail(message)` stops the render with a message for authors.
 - `ctm.ui` (the page's interface, two passes of `ctm.filters()` before
   `ctm.feedback.prepare`), `ctm.sections` (the walk AI feedback's context
   follows: headings, tabs, scopes; lifted from `feedback.lua`) and
