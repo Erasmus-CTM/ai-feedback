@@ -1,5 +1,5 @@
-/* CTM Assessment: reveals, the lecture/reading switch and embedded pages
- * (ctm-libs) — AGPL-3.0-or-later. Colours are custom properties;
+/* CTM Assessment: reveals, the lecture/reading switch, embedded pages and
+ * link targets (ctm-libs) — AGPL-3.0-or-later. Colours are custom properties;
  * a site overrides them on :root (light) or .quarto-dark (dark). The values
  * are the courses' own: ingmat3a's "Gå i dybden" box and switch, ctm-demo's
  * green solution box. */
@@ -108,6 +108,10 @@ details.ctm-reveal.details[open] > summary::before { transform: rotate(90deg); }
   border: 1px solid var(--ctm-embed-border);
   border-radius: 6px;
 }
+
+/* Link targets that ui/ctm-nav.js focuses (tabindex -1 while focused): no
+ * ring for mouse users, as Bootstrap does. */
+[tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
 
 @media print {
   .ctm-modes { display: none !important; }

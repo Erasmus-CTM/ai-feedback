@@ -1,6 +1,6 @@
 // The page's interface (lua/ui.lua), rendered: reveals, the lecture/reading
-// switch, embedded pages and their dependencies. Pages without the new
-// syntax are unchanged.
+// switch, embedded pages and the dependencies (tab links on by default).
+// Pages without the new syntax are unchanged.
 const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), path = require('node:path');
 const {JSDOM} = require('jsdom');
 const C = require('./helpers/ctm-libs.cjs');
@@ -189,7 +189,7 @@ test('the lecture/reading switch: at the top of pages with reading steps, where 
   assert.ok(html.indexOf(SWITCH_NB) < html.indexOf('<p>Intro.</p>'), 'at the top of the body');
   let doc = documentOf(html);
   assert.equal(doc.querySelector('.ctm-modes-status').getAttribute('role'), null);
-  assert.deepEqual(dependencies(html), ['ctm-ui', 'ctm-reveal']);
+  assert.deepEqual(dependencies(html), ['ctm-ui', 'ctm-reveal', 'ctm-nav']);
   html = C.html(dir, 'marker.qmd');
   doc = documentOf(html);
   const modes = doc.querySelector('.ctm-modes');
@@ -223,7 +223,8 @@ test('the switch: one marker per page, and it takes no content', {skip}, () => w
   assert.match(r.stderr, /::: \{\.modes\} marks where the lecture\/reading switch goes and takes no content \(content\.qmd:5\)\./);
 }));
 
-// Today's pages (raw HTML) render as before; the rest only where it is used.
+// Today's pages (raw HTML, no tabsets) render as before; tab links come with
+// tabsets unless tab-links: false; the rest only where it is used.
 const OLD = '<div class="learning-mode" data-learning-mode role="group" aria-label="Velg lesemodus">\n'
   + '<button type="button" data-mode="lecture" aria-pressed="true">Forelesning</button>\n'
   + '<button type="button" data-mode="reading" aria-pressed="false">Gå i dybden</button>\n'
@@ -231,10 +232,11 @@ const OLD = '<div class="learning-mode" data-learning-mode role="group" aria-lab
   + '<details class="reading-step">\n<summary>Gå i dybden: noe</summary>\n\nInner text.\n\n</details>\n\n'
   + '<iframe src="a.html" title="A" loading="lazy" style="width:100%;height:920px;"></iframe>\n';
 
-test('dependencies: pages without the new syntax are unchanged; the rest only where it is used', {skip}, () => withProject({
+test('dependencies: pages without the new syntax are unchanged; tab links come with tabsets (tab-links: false turns them off)', {skip}, () => withProject({
   'old.qmd': front('lang: nb\n') + OLD,
   'tabs.qmd': front() + '::: {.panel-tabset}\n## A\n\nA.\n\n## B\n\nB.\n:::\n',
-  'reveal.qmd': front() + '::: {.hint}\nHint.\n:::\n',
+  'tabs-off.qmd': front('ctm-assessment:\n  tab-links: false\n') + '::: {.panel-tabset}\n## A\n\nA.\n\n## B\n\nB.\n:::\n',
+  'reveal-off.qmd': front('ctm-assessment:\n  tab-links: false\n') + '::: {.hint}\nHint.\n:::\n',
   'plain.qmd': front() + 'Plain text.\n',
 }, dir => {
   const r = C.render(dir);
@@ -243,10 +245,11 @@ test('dependencies: pages without the new syntax are unchanged; the rest only wh
   assert.deepEqual(dependencies(old), []);
   assert.ok(old.includes('<details class="reading-step">') && old.includes('<div class="learning-mode" data-learning-mode'), 'raw HTML passes through');
   assert.doesNotMatch(old, /ctm-reveal|ctm-modes|ctm-embed/);
-  assert.deepEqual(dependencies(C.html(dir, 'tabs.qmd')), []);
-  assert.deepEqual(dependencies(C.html(dir, 'reveal.qmd')), ['ctm-ui', 'ctm-reveal']);
+  assert.deepEqual(dependencies(C.html(dir, 'tabs.qmd')), ['ctm-ui', 'ctm-nav']);
+  assert.deepEqual(dependencies(C.html(dir, 'tabs-off.qmd')), []);
+  assert.deepEqual(dependencies(C.html(dir, 'reveal-off.qmd')), ['ctm-ui', 'ctm-reveal']);
   assert.deepEqual(dependencies(C.html(dir, 'plain.qmd')), []);
-  assert.deepEqual(warnings(r.stderr), []);
+  assert.deepEqual(warnings(r.stderr), [], 'no warnings without markdown-lint');
 }));
 
 test('ctm-assessment: tab-links, modes and markdown-lint take true or false', {skip}, () => withProject({

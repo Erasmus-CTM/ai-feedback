@@ -1,6 +1,7 @@
-// The reveals' script in jsdom (ui/ctm-reveal.js): the switch, its storage
-// per course, its announcements, one resize per frame, printing, and
-// opening <details> for a link.
+// The page's interface scripts in jsdom (ui/ctm-reveal.js, ui/ctm-nav.js):
+// the switch, its storage per course, its announcements, one resize per
+// frame, printing, and opening tabs and <details> for a link. Layout, scroll
+// and focus are checked in real browsers (tests/browser/ui.mjs).
 const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), path = require('node:path');
 const {JSDOM} = require('jsdom');
 const C = require('./helpers/ctm-libs.cjs');
@@ -120,5 +121,61 @@ test('without ctm-nav, a link into closed <details> opens them; with it, ctm-nav
   w.close();
   w = await load(BODY, {url: 'https://example.invalid/course/pages/a.html#deep', before: w => { w.CTMNav = {}; }});
   assert.deepEqual(opened(w), []);
+  w.close();
+});
+
+// Two tabsets, the inner one in the second tab; a <details> in the inner tab.
+const TABS = '<header id="quarto-header"></header><main><p><a id="to-deep" href="#deep">to deep</a> <a id="to-tab" role="tab" href="">tab</a></p>'
+  + '<div class="panel-tabset"><ul class="nav nav-tabs" role="tablist">'
+  + '<li><a class="nav-link active" id="t1-tab" role="tab" aria-selected="true" href="">One</a></li>'
+  + '<li><a class="nav-link" id="t2-tab" role="tab" aria-selected="false" href="">Two</a></li></ul>'
+  + '<div class="tab-content"><div id="t1" class="tab-pane active" role="tabpanel" aria-labelledby="t1-tab">One.</div>'
+  + '<div id="t2" class="tab-pane" role="tabpanel" aria-labelledby="t2-tab">'
+  + '<div class="panel-tabset"><ul class="nav nav-tabs" role="tablist">'
+  + '<li><a class="nav-link active" id="i1-tab" role="tab" aria-selected="true" href="">A</a></li>'
+  + '<li><a class="nav-link" id="i2-tab" role="tab" aria-selected="false" href="">B</a></li></ul>'
+  + '<div class="tab-content"><div id="i1" class="tab-pane active" role="tabpanel" aria-labelledby="i1-tab">A.</div>'
+  + '<div id="i2" class="tab-pane" role="tabpanel" aria-labelledby="i2-tab">' + step('closed', '<section id="deep"><h4>Deep</h4></section>')
+  + '</div></div></div></div></div></div></main>';
+const active = w => [...w.document.querySelectorAll('.tab-pane.active')].map(p => p.id);
+
+test('ctm-nav: a link in the page opens every enclosing tab and <details>, with pushState', async () => {
+  const w = new JSDOM('<!doctype html><html><head></head><body>' + TABS + '</body></html>', {url: 'https://example.invalid/c/p.html', runScripts: 'outside-only', pretendToBeVisual: true}).window;
+  w.scrollTo = () => {};
+  w.eval(script('ctm-nav.js'));
+  await new Promise(resolve => w.addEventListener('load', resolve));
+  await wait(50);
+  assert.equal(typeof w.CTMNav.reveal, 'function');
+  const pushed = [];
+  const push = w.history.pushState.bind(w.history);
+  w.history.pushState = (state, title, url) => { pushed.push(url); return push(state, title, url); };
+  let hashchanges = 0;
+  w.addEventListener('hashchange', () => hashchanges++);
+  w.document.getElementById('to-deep').dispatchEvent(new w.MouseEvent('click', {bubbles: true, cancelable: true, button: 0}));
+  await wait(150);
+  assert.deepEqual(pushed, ['#deep']);
+  assert.equal(w.location.hash, '#deep');
+  assert.equal(hashchanges, 0, 'handled by the script, not by navigation');
+  assert.deepEqual(active(w), ['t2', 'i2']);
+  assert.equal(w.document.getElementById('t2-tab').getAttribute('aria-selected'), 'true');
+  assert.equal(w.document.getElementById('t1-tab').classList.contains('active'), false);
+  assert.equal(w.document.getElementById('closed').open, true);
+  assert.deepEqual([...w.history.state.__quartoTabPosition.panes], ['t2', 'i2'], 'the entry keeps its open tabs');
+  // Tab buttons are Bootstrap's: the script only records the position.
+  const event = new w.MouseEvent('click', {bubbles: true, cancelable: true, button: 0});
+  w.document.getElementById('to-tab').dispatchEvent(event);
+  assert.equal(event.defaultPrevented, false);
+  w.close();
+});
+
+test('ctm-nav: CTMNav.reveal opens an element\'s tabs without changing the address', async () => {
+  const w = new JSDOM('<!doctype html><html><head></head><body>' + TABS + '</body></html>', {url: 'https://example.invalid/c/p.html', runScripts: 'outside-only', pretendToBeVisual: true}).window;
+  w.scrollTo = () => {};
+  w.eval(script('ctm-nav.js'));
+  await new Promise(resolve => w.addEventListener('load', resolve));
+  await wait(50);
+  await w.CTMNav.reveal(w.document.getElementById('deep'));
+  assert.deepEqual(active(w), ['t2', 'i2']);
+  assert.equal(w.location.hash, '');
   w.close();
 });

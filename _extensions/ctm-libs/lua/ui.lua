@@ -1,5 +1,5 @@
--- Reveals, the lecture/reading switch and embedded pages of CTM Assessment
--- pages (ctm.ui; P18, F1, F2). Authors
+-- Reveals, the lecture/reading switch, embedded pages and links into tabs of
+-- CTM Assessment pages (ctm.ui; P18, F1, F2). Authors
 -- write Markdown only:
 --
 --   ::: {.reading-step title="Gå i dybden: …"}   follows the lecture/reading switch
@@ -11,7 +11,9 @@
 -- feedback's preparation. A reveal becomes raw <details> and <summary> tags
 -- around a Div that holds its content, so headings inside it stay inside it,
 -- and the context walk meets the same scope as for hand-written <details>
--- (lua/sections.lua). Pages without the syntax are unchanged.
+-- (lua/sections.lua). Pages without the syntax are unchanged, except that a
+-- page with a tabset loads the tab links (ui/ctm-nav.js; ctm-assessment:
+-- tab-links: false turns them off).
 return function(ctm)
   local M = {}
 
@@ -19,7 +21,7 @@ return function(ctm)
   local KINDS = {"reading-step", "hint", "details"}
   local DEFAULT_TITLE = {["reading-step"] = "readingStep", hint = "hint", solution = "solution"}
   -- What pass 1 found on the page.
-  local page = {reveals = 0, readingSteps = 0, embeds = 0, markers = {}}
+  local page = {reveals = 0, readingSteps = 0, embeds = 0, markers = {}, tabsets = 0}
 
   local function html() return quarto.doc.is_format("html") end
   local function fail(message) assert(false, message) end
@@ -169,7 +171,7 @@ return function(ctm)
   end
 
   -- Pass 1: reveals, embeds and markers (bottom-up, inside tabs and callouts
-  -- too).
+  -- too); it counts the page's tabsets.
   function M.Div(div)
     local kind = kindOf(div)
     if kind then
@@ -202,6 +204,11 @@ return function(ctm)
     return reveal("solution", attr, title, div.content)
   end
 
+  function M.Tabset()
+    page.tabsets = page.tabsets + 1
+    return nil
+  end
+
   -- The switch: hidden until ui/ctm-reveal.js shows it (no dead buttons
   -- without JavaScript). The status line gets its role when the script has
   -- written the first text, so loading the page announces nothing.
@@ -221,6 +228,7 @@ return function(ctm)
     if doc.meta["ctm-ui-prepared"] then return doc end
     doc.meta["ctm-ui-prepared"] = true
     local modes = ctm.settings.bool("ctm-assessment", "modes", {default = true})
+    local links = ctm.settings.bool("ctm-assessment", "tab-links", {default = true})
     if #page.markers > 1 then
       fail("A page has one ::: {.modes} marker at most (" .. places("modes") .. ").")
     end
@@ -239,10 +247,14 @@ return function(ctm)
     end})
     if block and not placed then doc.blocks:insert(1, block) end
     if quarto.doc.is_format("html") then
-      if page.reveals > 0 or page.embeds > 0 then ctm.deps.html({name = "ctm-ui", stylesheets = {"ui/ctm-ui.css"}}) end
-      if quarto.doc.is_format("html:js") and page.reveals > 0 then
-        ctm.deps.html({name = "ctm-reveal", scripts = {"ui/ctm-reveal.js"}})
+      local scripts = quarto.doc.is_format("html:js")
+      local nav = scripts and links and (page.tabsets > 0 or page.reveals > 0)
+        and not quarto.format.isRevealJsOutput() and not quarto.format.isDashboardOutput()
+      if page.reveals > 0 or page.embeds > 0 or nav then
+        ctm.deps.html({name = "ctm-ui", stylesheets = {"ui/ctm-ui.css"}})
       end
+      if scripts and page.reveals > 0 then ctm.deps.html({name = "ctm-reveal", scripts = {"ui/ctm-reveal.js"}}) end
+      if nav then ctm.deps.html({name = "ctm-nav", scripts = {"ui/ctm-nav.js"}}) end
     end
     return doc
   end
@@ -250,7 +262,7 @@ return function(ctm)
   -- The two passes of ctm.filters().
   function M.passes()
     return {
-      {Div = M.Div, Proof = M.Proof},
+      {Div = M.Div, Proof = M.Proof, Tabset = M.Tabset},
       {Pandoc = M.page},
     }
   end
