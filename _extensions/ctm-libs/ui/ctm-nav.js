@@ -179,9 +179,14 @@
     };
     if (element.matches(FOCUSABLE) && focusIt()) return;
     if (element.hasAttribute('tabindex')) return;
-    // Not focusable (or not in this browser, such as a summary): only while focused.
+    // Not focusable (or not in this browser, such as a summary): only while
+    // focused, marked for ctm-ui.css (no ring for mouse users).
     element.setAttribute('tabindex', '-1');
-    element.addEventListener('blur', function () { element.removeAttribute('tabindex'); }, {once: true});
+    element.setAttribute('data-ctm-nav-focus', '');
+    element.addEventListener('blur', function () {
+      element.removeAttribute('tabindex');
+      element.removeAttribute('data-ctm-nav-focus');
+    }, {once: true});
     focusIt();
   }
 

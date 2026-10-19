@@ -2,16 +2,20 @@
  * link targets (ctm-libs) — AGPL-3.0-or-later. Colours are custom properties;
  * a site overrides them on :root (light) or .quarto-dark (dark). The values
  * are the courses' own: ingmat3a's "Gå i dybden" box and switch, ctm-demo's
- * green solution box. */
+ * green solution box. Text keeps the theme's colour, and the backgrounds are
+ * faint tints over the page: on white they give exactly the courses' #f6f8fa,
+ * #f4f8f4 and #f4f8fa; under a dark theme (also one without a light twin,
+ * where Quarto sets no .quarto-dark) they stay dark, and the theme's text
+ * reads as on the page itself. */
 :root {
   --ctm-reveal-border: #7899ac;
-  --ctm-reveal-background: #f6f8fa;
+  --ctm-reveal-background: rgba(75, 115, 155, 0.05);
   --ctm-reveal-solution-border: #4f7d57;
-  --ctm-reveal-solution-background: #f4f8f4;
+  --ctm-reveal-solution-background: rgba(35, 115, 35, 0.05);
   --ctm-reveal-details-border: #9aaebc;
   --ctm-reveal-focus: #ad6600;
   --ctm-modes-border: #9aaebc;
-  --ctm-modes-background: #f4f8fa;
+  --ctm-modes-background: rgba(35, 115, 155, 0.05);
   --ctm-modes-button-border: #245b79;
   --ctm-modes-button-background: #fff;
   --ctm-modes-button-color: #183e53;
@@ -21,13 +25,10 @@
 }
 .quarto-dark {
   --ctm-reveal-border: #7899ac;
-  --ctm-reveal-background: rgba(120, 153, 172, 0.12);
   --ctm-reveal-solution-border: #6f9f77;
-  --ctm-reveal-solution-background: rgba(111, 159, 119, 0.12);
   --ctm-reveal-details-border: #7d93a3;
   --ctm-reveal-focus: #f0a43a;
   --ctm-modes-border: #5d7383;
-  --ctm-modes-background: rgba(120, 153, 172, 0.1);
   --ctm-modes-button-border: #7fb2cf;
   --ctm-modes-button-background: transparent;
   --ctm-modes-button-color: #d6e6ef;
@@ -65,14 +66,19 @@ details.ctm-reveal.details > summary {
   list-style: none;
 }
 details.ctm-reveal.details > summary::-webkit-details-marker { display: none; }
+/* The "›" is drawn, not written: no text for screen readers to read out. */
 details.ctm-reveal.details > summary::before {
-  content: "›";
+  content: "";
   display: inline-block;
-  width: 1em;
-  font-weight: 600;
+  width: 0.42em;
+  height: 0.42em;
+  margin: 0 0.6em 0.12em 0.15em;
+  border-right: 0.12em solid currentColor;
+  border-bottom: 0.12em solid currentColor;
+  transform: rotate(-45deg);
   transition: transform 0.15s ease-in-out;
 }
-details.ctm-reveal.details[open] > summary::before { transform: rotate(90deg); }
+details.ctm-reveal.details[open] > summary::before { transform: rotate(45deg); }
 .ctm-reveal-body > :last-child { margin-bottom: 0; }
 
 /* The lecture/reading switch (hidden until ui/ctm-reveal.js runs). */
@@ -109,9 +115,10 @@ details.ctm-reveal.details[open] > summary::before { transform: rotate(90deg); }
   border-radius: 6px;
 }
 
-/* Link targets that ui/ctm-nav.js focuses (tabindex -1 while focused): no
- * ring for mouse users, as Bootstrap does. */
-[tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
+/* A link target that ui/ctm-nav.js focuses (tabindex -1 while focused): no
+ * ring for mouse users. Only its own targets: the rest of the page keeps the
+ * theme's rules. */
+[data-ctm-nav-focus]:focus:not(:focus-visible) { outline: none; }
 
 @media print {
   .ctm-modes { display: none !important; }

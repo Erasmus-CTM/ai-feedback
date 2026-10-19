@@ -25,7 +25,7 @@ const browsers = process.argv.slice(2).length ? process.argv.slice(2) : ['chromi
 // --- the site ---------------------------------------------------------------
 const filler = n => Array.from({length: n}, (_, i) => `Avsnitt ${i + 1} med litt tekst, slik at siden blir lang nok til å rulle.`).join('\n\n');
 const SITE = {
-  '_quarto.yml': 'project:\n  type: website\nwebsite:\n  title: UI\n  navbar:\n    left: [index.qmd, other.qmd, group.qmd, plain.qmd, slow.qmd]\n'
+  '_quarto.yml': 'project:\n  type: website\nwebsite:\n  title: UI\n  navbar:\n    left: [index.qmd, other.qmd, group.qmd, plain.qmd, slow.qmd, dark.qmd]\n'
     + 'format:\n  html:\n    theme: cosmo\nfilters: [ctm-libs]\nlang: nb\n',
   'index.qmd': `---
 title: Faner og lenker
@@ -177,6 +177,30 @@ Mer.
 
 ${filler(12)}
 `,
+  // A theme that is dark only (Quarto marks the page quarto-light).
+  'dark.qmd': `---
+title: Mørk
+format:
+  html:
+    theme: darkly
+---
+
+::: {.reading-step title="Gå i dybden: mørk"}
+Tekst i et steg.
+:::
+
+::: {.hint}
+Tekst i et hint.
+:::
+
+::: {.solution}
+Tekst i en løsning.
+:::
+
+::: {.details title="Oppslag"}
+Tekst i et oppslag.
+:::
+`,
   'group.qmd': `---
 title: Grupperte faner
 ---
@@ -281,6 +305,7 @@ async function state(page, id) {
       focusInView: !!rect && rect.height > 0 && rect.top >= headerBottom - 1 && rect.top < innerHeight,
       // An empty anchor has no height: its top must be in view.
       focusTopInView: !!rect && rect.top >= headerBottom - 1 && rect.top < innerHeight,
+      focusMark: focused ? focused.hasAttribute('data-ctm-nav-focus') : false,
       focusInTarget: !!focused && (target.contains(focused) || focused.contains(target)),
       trace: (window.__trace || []).join(' | '),
     };
@@ -358,6 +383,7 @@ async function loads(browser, base, name) {
   assert.equal(s.visible, true, name + ' ' + JSON.stringify(s));
   assert.ok(s.top >= s.headerBottom && s.top < s.headerBottom + 60, name + ' #eks-3 below the header: ' + JSON.stringify(s));
   assert.equal(s.focus, 'H4', name + ' #eks-3: its heading has focus' + ' ' + JSON.stringify(s));
+  assert.equal(s.focusMark, true, name + ' #eks-3: marked for the focus style ' + JSON.stringify(s));
   assert.ok(s.focusInView && s.focusInTarget, name + ' #eks-3 focus in view');
   assert.equal(s.mark, 'load', name + ': handled by the script' + ' ' + JSON.stringify(s));
 
@@ -551,6 +577,9 @@ async function reveals(browser, base, name) {
   await page.emulateMedia({media: 'screen'});
   await page.evaluate(() => dispatchEvent(new Event('afterprint')));
   assert.deepEqual(await steps(), [false, false], name + ': restored after printing');
+  // The .details marker is drawn: no text for screen readers (S2).
+  const marker = await page.evaluate(() => getComputedStyle(document.querySelector('details.details > summary'), '::before').content);
+  assert.ok(!/›/.test(marker) && /^(""|none|normal)$/.test(marker), name + ': the .details marker has no text: ' + marker);
   // A heading inside a reveal stays inside it; the next content stays in main.
   const shape = await page.evaluate(() => {
     const heading = document.getElementById('deep-head');
@@ -597,6 +626,66 @@ async function slowLoads(browser, base, name) {
   await done(session, name);
 }
 
+// Colours: the courses' light boxes stay as they were; under a dark-only
+// theme every text in reveals and the switch stays readable (WCAG AA).
+async function colours(browser, base, name) {
+  const session = await newPage(browser, base), {page} = session;
+  const measure = () => page.evaluate(() => {
+    const parse = text => {
+      const m = /rgba?\(([^)]+)\)/.exec(text || '');
+      if (!m) return null;
+      const p = m[1].split(/[\s,\/]+/).filter(Boolean).map(Number);
+      return [p[0], p[1], p[2], p.length > 3 ? p[3] : 1];
+    };
+    // The colour behind an element: its own and its ancestors' backgrounds over white.
+    const behind = element => {
+      const layers = [];
+      for (let node = element; node; node = node.parentElement) {
+        const colour = parse(getComputedStyle(node).backgroundColor);
+        if (colour && colour[3] > 0) { layers.push(colour); if (colour[3] >= 1) break; }
+      }
+      let rgb = [255, 255, 255];
+      for (const colour of layers.reverse()) rgb = rgb.map((v, i) => v * (1 - colour[3]) + colour[i] * colour[3]);
+      return rgb;
+    };
+    const luminance = rgb => {
+      const f = c => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+      return 0.2126 * f(rgb[0]) + 0.7152 * f(rgb[1]) + 0.0722 * f(rgb[2]);
+    };
+    const contrast = (element, back = behind(element)) => {
+      const text = parse(getComputedStyle(element).color);
+      const fore = text.slice(0, 3).map((v, i) => v * text[3] + back[i] * (1 - text[3]));
+      const [a, b] = [luminance(fore), luminance(back)].sort((x, y) => y - x);
+      return Math.round((a + 0.05) / (b + 0.05) * 100) / 100;
+    };
+    document.querySelectorAll('details.ctm-reveal').forEach(details => { details.open = true; });
+    const texts = [...document.querySelectorAll('.ctm-reveal-body p, .ctm-modes-status, .ctm-modes button')];
+    // Summaries keep the theme's colour (Quarto: details > summary in $text-muted):
+    // on a reveal it must read about as well as on the page itself.
+    const page = behind(document.body);
+    return {
+      contrasts: texts.map(element => [element.tagName + ':' + element.textContent.trim().slice(0, 18), contrast(element)]),
+      summaries: [...document.querySelectorAll('details.ctm-reveal > summary')].map(element =>
+        [element.textContent.trim().slice(0, 18), contrast(element), contrast(element, page)]),
+      boxes: Object.fromEntries([...document.querySelectorAll('details.ctm-reveal, .ctm-modes')].map(element =>
+        [element.className.replace('ctm-reveal ', ''), behind(element).map(Math.round)])),
+    };
+  });
+  await open(page, base + 'dark.html');
+  const dark = await measure();
+  for (const [what, ratio] of dark.contrasts) assert.ok(ratio >= 4.5, name + ' dark-only theme: ' + what + ' contrast ' + ratio + ' ' + JSON.stringify(dark));
+  for (const [what, ratio, onPage] of dark.summaries) assert.ok(ratio >= 0.85 * onPage, name + ' dark-only theme: summary ' + what + ' ' + ratio + ' against ' + onPage + ' on the page');
+  await open(page, base + 'index.html');
+  const light = await measure();
+  const near = (rgb, expected) => rgb.every((v, i) => Math.abs(v - expected[i]) <= 1);
+  assert.ok(near(light.boxes['reading-step'], [246, 248, 250]), name + ' light reading step ' + JSON.stringify(light.boxes));
+  assert.ok(near(light.boxes.solution, [244, 248, 244]), name + ' light solution ' + JSON.stringify(light.boxes));
+  assert.ok(near(light.boxes['ctm-modes'], [244, 248, 250]), name + ' light switch ' + JSON.stringify(light.boxes));
+  for (const [what, ratio] of light.contrasts) assert.ok(ratio >= 4.5, name + ' light theme: ' + what + ' contrast ' + ratio);
+  for (const [what, ratio, onPage] of light.summaries) assert.ok(ratio >= 0.85 * onPage, name + ' light theme: summary ' + what + ' ' + ratio + ' against ' + onPage);
+  await done(session, name);
+}
+
 // --- run --------------------------------------------------------------------
 const dir = build();
 const server = await serve(path.join(dir, '_site'));
@@ -608,7 +697,7 @@ try {
     const browser = await playwright[name].launch(options);
     try {
       // Each check on its own, so that one run reports every failure.
-      for (const check of [loads, inPage, otherPage, withoutTabs, pinned, slowLoads, groups, reveals]) {
+      for (const check of [loads, inPage, otherPage, withoutTabs, pinned, slowLoads, groups, reveals, colours]) {
         try {
           await check(browser, base, name);
           console.log('ok', name, check.name);
