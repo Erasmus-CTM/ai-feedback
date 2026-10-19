@@ -101,6 +101,38 @@ test('package order without AI feedback: pyodide-interaktiv 1.8 is switched off 
   assert.deepEqual(messages, ['1 AI feedback activity, pyodide-interaktiv feedback']);
 }));
 
+// Without AI feedback (P22) outside the package order, the old components do
+// not know the switch: they keep their Feedback buttons, which their own
+// scripts disable with a note, because nothing of AI feedback is loaded.
+test('without AI feedback, pyodide-interaktiv 1.8 listed before ai-feedback keeps its (then disabled) Feedback', {skip}, () => withProject({
+  'page.qmd': page('pyodide-interaktiv, ai-feedback', '', pyodide),
+}, dir => {
+  const r = C.render(dir, ['page.qmd'], {CTM_FEEDBACK: 'off'});
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stderr.match(DEPRECATED)?.length, 1);
+  const html = C.html(dir, 'page.qmd');
+  assert.match(html, /qpyodideFeedbackOptions = \{\s*enabled: true/);
+  assert.doesNotMatch(html, /feedback-core\.js|window\.__aiFeedbackConfig =|window\.__aiFeedbackPolicies =/);
+}));
+
+test('without AI feedback, math-exercise 0.9 and py-exercise 0.3 alone keep Feedback buttons that their scripts disable', {skip}, () => withProject({
+  'math.qmd': page('math-exercise', '', math),
+  'py.qmd': page('py-exercise', 'py-exercise:\n  feedback: true\n', py),
+}, dir => {
+  let r = C.render(dir, ['math.qmd'], {CTM_FEEDBACK: 'off'});
+  assert.equal(r.status, 0, r.stderr);
+  let html = C.html(dir, 'math.qmd');
+  assert.match(html, /math-feedback-btn/);
+  assert.match(html, /Math feedback requires ai-feedback 0\.5\.0 or later/);
+  assert.doesNotMatch(html, /feedback-core\.js|window\.__aiFeedbackConfig =/);
+  r = C.render(dir, ['py.qmd'], {CTM_FEEDBACK: 'off'});
+  assert.equal(r.status, 0, r.stderr);
+  html = C.html(dir, 'py.qmd');
+  assert.match(html, /window\.__pyExerciseConfig = \{[^}]*"feedback":true/);
+  assert.match(html, /Python feedback requires ai-feedback 0\.5\.0 or later/);
+  assert.doesNotMatch(html, /feedback-core\.js|window\.__aiFeedbackConfig =/);
+}));
+
 test('an old standalone ai-feedback 0.8.1 next to ctm-libs stops the page, in either order', {skip}, () => withProject({
   'before.qmd': page('ai-feedback, ctm-libs', '', activity),
   'after.qmd': page('ctm-libs, ai-feedback', '', activity),

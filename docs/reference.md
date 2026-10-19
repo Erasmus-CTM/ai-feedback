@@ -38,8 +38,10 @@ Checks at render time:
 
 - A key that looks like a credential (`api-key`, `apikey`, `key`, `token`,
   `secret`, `password`, `authorization`, in any CTM section and at any level)
-  **stops the render**: Quarto metadata is published with the site. The
-  value is never shown. Learners enter their own key in the Feedback settings.
+  **stops the render**: Quarto metadata is published with the site. Remove
+  the key; learners enter their own key in the Feedback settings. ctm-libs'
+  messages never repeat the value, but Quarto itself may print the page's
+  metadata, key included, when a single-file render fails.
 - Unknown `ai-feedback` and `ctm-assessment` options warn and are ignored;
   they become errors in CTM Assessment 1.0. `version` is not an option.
 - `mode`, `storage` and `base-url` values that cannot be used warn and fall
@@ -80,12 +82,20 @@ Any level can turn AI feedback off; no page can turn it back on. Then:
 - criteria, starters, teaching policies and learning context are not written
   into the HTML; policy files are still checked, so both builds fail alike;
 - a page that asked for feedback gets one build message naming what was left
-  out; it is never an error.
+  out (its activities, the exercises and cells whose feedback a component
+  left out, or its own `ai-feedback: enabled: true`); a project-wide
+  `enabled: true` is not repeated on every page, and pages without AI content
+  stay quiet. It is never an error.
 
 pyodide-interaktiv 1.8 reads its own `pyodide: feedback`; ctm-libs sets it to
 false when its filter runs before pyodide-interaktiv's (the package order, or
-`filters: [ai-feedback, pyodide-interaktiv]`). In other orders its Feedback
-buttons stay, disabled with a note that ai-feedback is missing.
+`filters: [ai-feedback, pyodide-interaktiv]`). Components released before
+CTM Assessment 0.9 do not know the switch when they run outside the package:
+pyodide-interaktiv 1.8 listed before ctm-libs (`filters: [pyodide-interaktiv,
+ai-feedback]`), math-exercise 0.9 and py-exercise 0.3 (whose
+`__pyExerciseConfig.feedback` stays true) keep their Feedback buttons, which
+their scripts disable with a note that ai-feedback is missing; nothing of AI
+feedback is loaded or written into the page.
 
 ## Author text, translation and image tasks
 
