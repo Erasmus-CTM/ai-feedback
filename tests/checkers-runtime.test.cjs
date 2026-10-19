@@ -131,6 +131,24 @@ test('callCheckers does not repeat a call that the learner stopped', async () =>
   assert.equal(checkers.installs.length, 1);
 });
 
+test('callCheckers does not repeat a call on a runtime the page replaced meanwhile (the caller moves to the new one)', async () => {
+  const context = runtime();
+  const R = context.MathExerciseRuntime;
+  const checkers = payload();
+  context.CTMCheckers = checkers;
+  const old = fakePy((code) => { if (code.includes('.call(')) { context.mainPyodide = fakePy(); return true; } return false; });
+  context.mainPyodide = old;
+  await assert.rejects(R.callCheckers(old, 'math_exercise.check', {}), /the call failed/);
+  assert.equal(old.runs.filter((code) => code.includes('.call(')).length, 1);
+  assert.equal(checkers.installs.length, 1);
+  // The runtime the page uses now: a failed call is repeated there.
+  let calls = 0;
+  const current = fakePy((code) => code.includes('.call(') && ++calls === 1);
+  context.mainPyodide = current;
+  assert.ok(JSON.parse(await R.callCheckers(current, 'math_exercise.check', {})).request);
+  assert.equal(calls, 2);
+});
+
 test('the calls of one runtime run one after another (one _ctm_request at a time)', async () => {
   const context = runtime();
   const R = context.MathExerciseRuntime;

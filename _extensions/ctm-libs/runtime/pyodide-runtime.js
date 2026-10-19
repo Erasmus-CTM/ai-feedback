@@ -234,9 +234,11 @@
   // request travels in one global (_ctm_request). When the call text fails
   // before it reaches ctm-checkers' call (learner code removed ctm-checkers
   // or rebound what the import uses), ctm-checkers is installed again and the
-  // call is repeated once, unless the learner stopped the runtime meanwhile;
-  // the second failure, and any error the call itself raised, reaches the
-  // caller. The request is removed from the namespace in every case.
+  // call is repeated once, unless the learner stopped the runtime or the
+  // page replaced it meanwhile (pyodide-interaktiv's restart: the caller moves
+  // to the new runtime); the second failure, and any error the call itself
+  // raised, reaches the caller. The request is removed from the namespace in
+  // every case.
   function callCheckers(py, name, request, payload) {
     var text = typeof request === 'string' ? request : JSON.stringify(request);
     var epoch = stops;
@@ -247,7 +249,8 @@
           await py.globals.set('_ctm_request', text);
           return await py.runPythonAsync(checkersCall(name));
         } catch (error) {
-          if (tries > 0 || stops !== epoch || RAISED_BY_CALL.test(String(error && error.message || error))) throw error;
+          var replaced = root.mainPyodide !== undefined && root.mainPyodide !== py;
+          if (tries > 0 || stops !== epoch || replaced || RAISED_BY_CALL.test(String(error && error.message || error))) throw error;
           var done = installed && installed.get(py);
           if (done) delete done['ctm-checkers'];
         } finally {
