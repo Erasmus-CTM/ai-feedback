@@ -353,18 +353,23 @@ MathExerciseRuntime.forgetModules(py);                 // the next ensure* insta
   used. The calls of one runtime run one after another: pass the runtime
   object that `ensurePyodide` returned, so that every caller queues on the
   same one. A runtime that hangs holds up only its own calls.
-- When the call text fails with a Python exception before it reaches
-  ctm-checkers' `call` (learner code removed ctm-checkers or rebound what
-  the import uses), ctm-checkers is installed again and the call repeated
-  once, unless the learner stopped the runtime meanwhile. The second failure
-  reaches the caller, as does an error that `call` raised itself (the
-  answer to the request, such as the admission rule's `ValueError`).
-- A failure of the runtime rather than of Python (stopped, restarted; no
-  Python traceback) reaches the caller at once, and the caller moves to the
-  new runtime. That runtime gets nothing more, since pyodide-interaktiv's
-  terminated worker never answers: no cleanup, and every later call or
-  install for it, including one waiting behind the failed call, fails at
-  once with the same error.
+- When the call text failed before it reached ctm-checkers' `call`
+  (learner code removed ctm-checkers or rebound what the import uses),
+  ctm-checkers is installed again and the call repeated once. The cleanup
+  tells: `call` takes `_ctm_request` out of the namespace before anything
+  else, so a request still there after a failure means the call text
+  failed. This needs no traceback, which learner code may turn off
+  (`sys.tracebacklimit = 0`). The second failure reaches the caller, as
+  does an error that `call` raised itself (the answer to the request, such
+  as the admission rule's `ValueError`).
+- A runtime that was stopped or restarted gets nothing more, since
+  pyodide-interaktiv's terminated worker never answers. The evidence is a
+  stop on the page (`stop()`) or pyodide-interaktiv's
+  `qpyodide-runtime-restart` event, which `restart()` sends before it
+  rejects the pending calls; an error never counts, whatever its text. The
+  failed call reaches the caller at once with no cleanup or repeat, and the
+  caller moves to the new runtime. Every later call or install for that
+  runtime, including one waiting behind the failed call, fails at once.
 - `_ctm_guard`'s snapshot keeps the modules named `_ctm_…` and
   `ctm_checkers…`: a checker that removes them is undone after its call.
 - `scriptURL` is the runtime script's own URL on a page (for a worker that

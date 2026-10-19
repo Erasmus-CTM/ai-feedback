@@ -104,10 +104,12 @@
   `callCheckers(py, name, request)` runs a call with a call text that looks
   up no name in the shared namespace (rebinding a name there does not affect
   it), installs again and repeats a call that failed before reaching
-  ctm-checkers once, and leaves no `_ctm_` name behind. A runtime that was
-  stopped or restarted during a call gets no further call (pyodide-interaktiv's
-  terminated worker never answers): that call and those waiting behind it fail
-  at once, and other runtimes are not held up. `_ctm_guard` keeps
+  ctm-checkers once (the request still in the namespace tells, no traceback
+  needed), and leaves no `_ctm_` name behind. A runtime that was stopped or
+  restarted (a stop on the page, or pyodide-interaktiv's restart event) gets
+  no further call, since its terminated worker never answers: the call and
+  those waiting behind it fail at once, and other runtimes are not held up.
+  `_ctm_guard` keeps
   `ctm_checkers` modules; `scriptURL` is the runtime script's URL;
   `ctm.deps.folder(name)`; `ctm.deps.html` takes absolute paths of another
   installation's files. Check that `ctm.checkers` exists (older ctm-libs have

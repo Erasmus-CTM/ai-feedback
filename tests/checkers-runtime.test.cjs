@@ -3,10 +3,11 @@
 // with the install code of its page script (CTMCheckers.install) and loads the
 // whole library, and callCheckers runs a call with a call text that looks up
 // no name in the namespace learner code shares, installs again and repeats
-// the call once when it fails, and removes the request and its names; a
-// runtime that failed (stopped, restarted) gets no further call. The first
-// tests use fake runtimes; the others run Pyodide 0.28.3 with the ctm-checkers
-// commit in tests/pins.json (CTM_CHECKERS_SOURCE, default _ctm-checkers-source).
+// the call once when the call text failed before ctm-checkers' call took the
+// request, and removes the request and its names; a runtime that was stopped
+// or restarted gets no further call. The first tests use fake runtimes; the
+// others run Pyodide 0.28.3 with the ctm-checkers commit in tests/pins.json
+// (CTM_CHECKERS_SOURCE, default _ctm-checkers-source).
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -16,8 +17,11 @@ const ctmLibs = require('./helpers/ctm-libs.cjs');
 
 const source = fs.readFileSync(path.join(ctmLibs.library, 'runtime', 'pyodide-runtime.js'), 'utf8');
 
+// The runtime script on a page: `context.dispatchEvent` sends the page's events.
 function runtime(globals = {}) {
-  const context = vm.createContext({ setTimeout, clearTimeout, WeakMap, Promise, ...globals });
+  const page = new EventTarget();
+  const context = vm.createContext({ setTimeout, clearTimeout, WeakMap, Promise,
+    addEventListener: page.addEventListener.bind(page), dispatchEvent: page.dispatchEvent.bind(page), ...globals });
   vm.runInContext(source, context);
   return context;
 }
@@ -25,19 +29,26 @@ function runtime(globals = {}) {
 // A fake runtime that records what the runtime asks of it; `fail(code)` decides which runs fail.
 // A Python exception of the call text, as Pyodide reports it.
 const MISSING = 'Traceback (most recent call last):\n  File "<exec>", line 2, in <module>\nModuleNotFoundError: No module named \'ctm_checkers\'';
-// What a call leaves behind: nothing (the request, the call text's name, the install code's names).
-const CLEANUP = '_ctm_request = None\ndel _ctm_request\n_ctm_builtins = None\ndel _ctm_builtins\n'
-  + '_ctm_import = None\ndel _ctm_import\n_ctm_globals = None\ndel _ctm_globals';
+// The cleanup after a call: it removes the request and the call's names and returns whether the request was still there.
+const CLEANUP = 'import builtins as _ctm_builtins\n_ctm_namespace = _ctm_builtins.globals()\ndel _ctm_builtins\n'
+  + '_ctm_namespace.pop("_ctm_import", None)\n_ctm_namespace.pop("_ctm_globals", None)\n'
+  + '_ctm_namespace.pop("_ctm_namespace").pop("_ctm_request", None) is not None';
+// As ctm-checkers' call does first: it takes the request out of the namespace.
+const TAKE = { request: true };
 function fakePy(fail = () => false) {
   const globals = new Map(), runs = [];
   return {
     globals: { set: async (name, value) => { globals.set(name, value); } },
     runPythonAsync: async (code) => {
       runs.push(code);
+      if (code === CLEANUP) { const left = globals.has('_ctm_request'); globals.delete('_ctm_request'); return left; }
       const failure = fail(code, runs);
-      if (failure) throw new Error(typeof failure === 'string' ? failure : 'PythonError: ' + MISSING);
+      if (failure) {
+        // A failure of the call itself (TAKE): the request was taken; of the call text: it is still there.
+        if (failure.take) { globals.delete('_ctm_request'); throw new Error(failure.message); }
+        throw new Error(typeof failure === 'string' ? failure : 'PythonError: ' + MISSING);
+      }
       if (code.includes('.call(')) { const request = globals.get('_ctm_request'); globals.delete('_ctm_request'); return JSON.stringify({ request }); }
-      if (code.includes('del _ctm_request')) globals.delete('_ctm_request');
       return undefined;
     },
     values: globals, runs,
@@ -118,19 +129,38 @@ test('callCheckers does not repeat a call whose error ctm-checkers\' call raised
   const R = context.MathExerciseRuntime;
   const checkers = payload();
   context.CTMCheckers = checkers;
-  const py = fakePy();
-  py.runPythonAsync = async (code) => {
-    py.runs.push(code);
-    if (code.includes('.call(')) {
-      throw new Error('Traceback (most recent call last):\n  File "<exec>", line 2, in <module>\n'
-        + '  File "/tmp/ctm-checkers/be41199f84e499ac/ctm_checkers-0.1.1.dev0-py3-none-any.whl/ctm_checkers/browser.py", line 52, in call\n'
-        + '    admission(request)\nValueError: SyntaxError: unsupported input');
-    }
-  };
-  await assert.rejects(R.callCheckers(py, 'math_exercise.check', { student: '__x' }), /SyntaxError: unsupported input/);
-  assert.equal(py.runs.filter((code) => code.includes('.call(')).length, 1);
-  assert.equal(checkers.installs.length, 1);
-  assert.equal(py.runs[py.runs.length - 1], CLEANUP);
+  // With a traceback, and without one (learner code set sys.tracebacklimit = 0): ctm-checkers' call took the request.
+  const errors = ['Traceback (most recent call last):\n  File "<exec>", line 2, in <module>\n'
+    + '  File "/tmp/ctm-checkers/be41199f84e499ac/ctm_checkers-0.1.1.dev0-py3-none-any.whl/ctm_checkers/browser.py", line 52, in call\n'
+    + '    admission(request)\nValueError: SyntaxError: unsupported input', 'ValueError: SyntaxError: unsupported input'];
+  for (const message of errors) {
+    const py = fakePy((code) => code.includes('.call(') && { take: true, message });
+    await assert.rejects(R.callCheckers(py, 'math_exercise.check', { student: '__x' }), /SyntaxError: unsupported input/);
+    assert.equal(py.runs.filter((code) => code.includes('.call(')).length, 1);
+    assert.equal(py.runs[py.runs.length - 1], CLEANUP);
+  }
+  assert.equal(checkers.installs.length, 2);
+});
+
+test('an error without a traceback is not a stop: the runtime gets the next call (sys.tracebacklimit = 0, a JS rejection)', async () => {
+  const context = runtime();
+  const R = context.MathExerciseRuntime;
+  context.CTMCheckers = payload();
+  let answerErrors = 1;
+  const py = fakePy((code) => code.includes('.call(') && answerErrors-- > 0 && { take: true, message: 'ValueError: SyntaxError: unsupported input' });
+  await assert.rejects(R.callCheckers(py, 'math_exercise.check', { n: 1 }), /^Error: ValueError: SyntaxError: unsupported input$/);
+  // A JS rejection of a live runtime (the request could not be sent).
+  const set = py.globals.set;
+  py.globals.set = async () => { py.globals.set = set; throw new Error('DataCloneError: could not be cloned'); };
+  await assert.rejects(R.callCheckers(py, 'math_exercise.check', { n: 2 }), /^Error: DataCloneError/);
+  assert.equal(JSON.parse(JSON.parse(await R.callCheckers(py, 'math_exercise.check', { n: 3 })).request).n, 3);
+  assert.equal(py.runs.filter((code) => code === CLEANUP).length, 3);
+  assert.equal(py.runs.filter((code) => code.includes('.call(')).length, 2);
+  // A call text that failed before the call, without a traceback: installed again and repeated once.
+  let missing = 1;
+  const removed = fakePy((code) => code.includes('.call(') && missing-- > 0 && 'ModuleNotFoundError: No module named \'ctm_checkers\'');
+  assert.equal(JSON.parse(JSON.parse(await R.callCheckers(removed, 'math_exercise.check', { n: 4 })).request).n, 4);
+  assert.equal(removed.runs.filter((code) => code.includes('.call(')).length, 2);
 });
 
 test('callCheckers does not repeat a call that the learner stopped', async () => {
@@ -145,16 +175,39 @@ test('callCheckers does not repeat a call that the learner stopped', async () =>
   assert.equal(checkers.installs.length, 1);
 });
 
-test('callCheckers does not repeat a call that failed in the runtime, not in Python (a restart: the caller moves on)', async () => {
+test('a call rejected with exactly the error of restart() without a reason: that runtime gets nothing more, also without the event', async () => {
+  const context = runtime();
+  const R = context.MathExerciseRuntime;
+  context.CTMCheckers = payload();
+  const py = fakePy((code) => code.includes('.call(') && 'Python was restarted.');
+  await assert.rejects(R.callCheckers(py, 'math_exercise.check', {}), /^Error: Python was restarted\.$/);
+  assert.ok(!py.runs.includes(CLEANUP));
+  const sent = py.runs.length;
+  await assert.rejects(R.callCheckers(py, 'math_exercise.check', {}), /^Error: Python was restarted\.$/);
+  assert.equal(py.runs.length, sent);
+  // A Python error that only mentions it is not a restart.
+  const other = fakePy((code, runs) => code.includes('.call(') && runs.filter((c) => c.includes('.call(')).length === 1
+    && { take: true, message: 'Exception: Python was restarted.' });
+  await assert.rejects(R.callCheckers(other, 'math_exercise.check', {}), /^Error: Exception: Python was restarted\.$/);
+  assert.ok(JSON.parse(await R.callCheckers(other, 'math_exercise.check', { n: 2 })).request);
+});
+
+test('callCheckers sends nothing more to a runtime that pyodide-interaktiv restarted (its qpyodide-runtime-restart event)', async () => {
   const context = runtime();
   const R = context.MathExerciseRuntime;
   const checkers = payload();
   context.CTMCheckers = checkers;
-  const py = fakePy((code) => code.includes('.call(') && 'Python was restarted.');
+  // As pyodide-interaktiv's restart(): the event first (mainPyodide is still this runtime), then the pending call is rejected.
+  const py = fakePy((code) => {
+    if (!code.includes('.call(')) return false;
+    context.dispatchEvent(new Event('qpyodide-runtime-restart'));
+    return 'Python was restarted.';
+  });
+  context.mainPyodide = py;
   await assert.rejects(R.callCheckers(py, 'math_exercise.check', {}), /^Error: Python was restarted\.$/);
   assert.equal(py.runs.filter((code) => code.includes('.call(')).length, 1);
   assert.equal(checkers.installs.length, 1);
-  // That runtime gets nothing more: no cleanup, and a later call fails the same way without being sent.
+  // That runtime gets nothing more: no cleanup, and a later call fails at once without being sent.
   assert.ok(!py.runs.includes(CLEANUP));
   const sent = py.runs.length;
   await assert.rejects(R.callCheckers(py, 'math_exercise.check', {}), /^Error: Python was restarted\.$/);
@@ -163,11 +216,12 @@ test('callCheckers does not repeat a call that failed in the runtime, not in Pyt
 });
 
 // pyodide-interaktiv's worker proxy (qpyodide-document-engine-initialization.js,
-// 58543b9): every call is a message to the worker; restart() rejects the
-// pending calls with Error(reason) and terminates the worker, and a call made
-// on this proxy afterwards goes to the terminated worker and never settles.
-// `answer(code)` is the worker's answer to runPythonAsync.
-function workerProxy(answer) {
+// 58543b9): every call is a message to the worker; restart() sends the page's
+// qpyodide-runtime-restart event, terminates the worker and rejects the
+// pending calls with Error(reason), and a call made on this proxy afterwards
+// goes to the terminated worker and never settles. `answer(code)` is the
+// worker's answer to runPythonAsync.
+function workerProxy(page, answer) {
   let terminated = false;
   const pending = new Set(), sent = [];
   function rpc(what, work) {
@@ -185,6 +239,7 @@ function workerProxy(answer) {
     globals: { set: (name) => rpc('set ' + name, () => undefined) },
     runPythonAsync: (code) => rpc(code, () => answer(code)),
     restart(reason) {
+      page.dispatchEvent(new Event('qpyodide-runtime-restart'));
       terminated = true;
       const error = new Error(reason || 'Python was restarted.');
       for (const entry of pending) entry.reject(error);
@@ -209,7 +264,7 @@ test('a Stop or restart during a call on pyodide-interaktiv\'s worker: the call 
     const R = context.MathExerciseRuntime;
     context.CTMCheckers = payload();
     // A check that runs until it is stopped (an answer such as 9**9**9**9).
-    const worker = workerProxy((code) => (code.includes('.call(') ? new Promise(() => {}) : undefined));
+    const worker = workerProxy(context, (code) => (code.includes('.call(') ? new Promise(() => {}) : undefined));
     context.mainPyodide = worker;
     const running = R.callCheckers(worker, 'math_exercise.check', { n: 1 });
     const waiting = R.callCheckers(worker, 'math_exercise.check', { n: 2 });
@@ -231,7 +286,8 @@ test('a restart during the install: the calls for that runtime fail at once', as
   const R = context.MathExerciseRuntime;
   let worker = null;
   context.CTMCheckers = { install: (py) => py.runPythonAsync('install') };
-  worker = workerProxy((code) => (code === 'install' ? new Promise(() => {}) : undefined));
+  worker = workerProxy(context, (code) => (code === 'install' ? new Promise(() => {}) : undefined));
+  context.mainPyodide = worker;
   const first = R.callCheckers(worker, 'math_exercise.check', { n: 1 });
   const second = R.callCheckers(worker, 'math_exercise.check', { n: 2 });
   await until(() => worker.sent.length > 0);
@@ -414,6 +470,39 @@ test('Pyodide: learner code that deletes or overwrites the installed wheel break
     /ValueError: SyntaxError: unsupported input/);
   assert.equal(installs.length, 1, 'no install after the first');
   assert.deepEqual(py.runPython('sorted(n for n in globals() if n.startswith("_ctm_"))').toJs(), []);
+});
+
+test('Pyodide: with sys.tracebacklimit = 0 (no traceback in errors) a rejected answer stops nothing, a removed library is installed again; and after the learner undoes it', { skip: skipPyodide, timeout: 600000 }, async () => {
+  assert.ok(haveCheckers, 'ctm-checkers is missing: check out the commit of tests/pins.json into ' + checkersSource);
+  const py = await realPyodide();
+  const { R, context } = pageWithCheckers();
+  const proxy = proxyOf(py);
+  const installs = [];
+  const counted = { install: (target) => { installs.push(target); return context.CTMCheckers.install(target); } };
+  await R.ensureGuard(proxy);
+  const remove = 'import sys as _learner\nfor _name in [n for n in _learner.modules if n == "ctm_checkers" or n.startswith("ctm_checkers.")]: del _learner.modules[_name]\n'
+    + '_learner.path[:] = [p for p in _learner.path if not p.startswith("/tmp/ctm-checkers/")]\ndel _learner, _name';
+  const dunder = { ...REQUEST, student: '__import__("os")' };
+  try {
+    py.runPython('import sys as _learner\n_learner.tracebacklimit = 0\ndel _learner');
+    for (const round of ['without tracebacks', 'after the learner undid it']) {
+      const before = installs.length;
+      await assert.rejects(R.callCheckers(proxy, 'math_exercise.check', dunder, counted), (error) => {
+        assert.match(String(error.message), /ValueError: SyntaxError: unsupported input/, round);
+        assert.equal(/Traceback \(most recent call last\)/.test(String(error.message)), round !== 'without tracebacks', round);
+        return true;
+      });
+      assert.deepEqual(JSON.parse(await R.callCheckers(proxy, 'math_exercise.check', REQUEST, counted)), { status: 'correct', score: 1.0 }, round);
+      assert.equal(installs.length, before + (round === 'without tracebacks' ? 1 : 0), round);   // the first round's call installs
+      py.runPython(remove);
+      assert.deepEqual(JSON.parse(await R.callCheckers(proxy, 'math_exercise.check', REQUEST, counted)), { status: 'correct', score: 1.0 }, round);
+      assert.equal(installs.length, before + (round === 'without tracebacks' ? 2 : 1), round + ': installed again once');
+      assert.deepEqual(py.runPython('sorted(n for n in globals() if n.startswith("_ctm_"))').toJs(), [], round);
+      if (round === 'without tracebacks') py.runPython('import sys as _learner\ndel _learner.tracebacklimit\ndel _learner');
+    }
+  } finally {
+    py.runPython('import sys as _learner\n_learner.__dict__.pop("tracebacklimit", None)\ndel _learner');
+  }
 });
 
 test('Pyodide: in a worker (importScripts), the same install and call', { skip: skipPyodide, timeout: 600000 }, async () => {

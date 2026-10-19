@@ -203,7 +203,9 @@
   // call reads the wheel file again: learner code may delete or overwrite
   // /tmp/ctm-checkers (math-exercise 0.10 kept its checker module in memory
   // too). A module that cannot be imported yet (a package not loaded) is
-  // imported on its first use instead.
+  // imported on its first use instead. ctm-checkers 0.1 holds math-exercise's
+  // modules only; when the STACK engine joins the wheel (0.2.0), this load
+  // must be limited to the modules a page's calls use.
   var CHECKERS_LOAD = [
     'def _ctm_checkers_load():',
     '    import builtins, importlib, pkgutil',
@@ -221,19 +223,27 @@
     CHECKERS_LEFTOVERS,
   ].join('\n');
 
-  // A Python exception, as Pyodide and pyodide-interaktiv's worker report it:
-  // with its traceback. Any other failure of a runtime's call is one of the
-  // runtime itself (stopped, restarted, a worker gone). Such a runtime is
-  // `gone`: pyodide-interaktiv's terminated worker never answers a later
-  // call, so ensureCheckers and callCheckers send it none and fail at once
-  // with the runtime's error (the caller moves to the new runtime).
-  function pythonException(error) {
-    return /Traceback \(most recent call last\)/.test(String(error && error.message || error));
-  }
+  // Runtimes that were stopped or restarted. A runtime is `gone` only on
+  // evidence of that: this runtime's stop() restarted it;
+  // pyodide-interaktiv's restart() announced it with its
+  // `qpyodide-runtime-restart` event, which it sends before it terminates
+  // the worker and rejects the pending calls (`mainPyodide` is still that
+  // runtime then); or a call was rejected with exactly the error that
+  // restart() gives without a reason (RESTARTED). No other error marks a
+  // runtime gone, whatever its text (a Python error may come without a
+  // traceback: sys.tracebacklimit = 0). pyodide-interaktiv's terminated
+  // worker never answers a later call, so ensureCheckers and callCheckers
+  // send a gone runtime nothing and fail at once (the caller moves to the
+  // new runtime).
   var gone = typeof WeakMap === 'function' ? new WeakMap() : null;
-  function failedRuntime(py, error) {
-    if (gone && !pythonException(error)) gone.set(py, error);
-    throw error;
+  var RESTARTED = 'Python was restarted.';
+  function markGone(py, reason) {
+    if (gone && py && (typeof py === 'object' || typeof py === 'function') && !gone.has(py)) {
+      gone.set(py, new Error(reason || RESTARTED));
+    }
+  }
+  if (typeof root.addEventListener === 'function') {
+    root.addEventListener('qpyodide-runtime-restart', function () { markGone(root.mainPyodide); });
   }
 
   // Installs ctm-checkers, the Python checker library, into the runtime `py`,
@@ -251,9 +261,7 @@
     var failure = gone && gone.get(py);
     if (failure) return Promise.reject(failure);
     return once(py, 'ctm-checkers', function () {
-      return Promise.resolve(checkers.install(py))
-        .then(function () { return py.runPythonAsync(CHECKERS_LOAD); })
-        .catch(function (error) { return failedRuntime(py, error); });
+      return Promise.resolve(checkers.install(py)).then(function () { return py.runPythonAsync(CHECKERS_LOAD); });
     });
   }
 
@@ -266,21 +274,26 @@
       + '_ctm_builtins.__import__("ctm_checkers.browser", fromlist=["call"]).call(' + JSON.stringify(name)
       + ', _ctm_builtins.globals())';
   }
-  // Removes the request whatever happened to it, the call text's own name
-  // and the install code's leftovers: nothing of a call stays in the
-  // namespace learner code shares (no name lookups either).
-  var CHECKERS_CLEANUP = '_ctm_request = None\ndel _ctm_request\n_ctm_builtins = None\ndel _ctm_builtins\n' + CHECKERS_LEFTOVERS;
-  // A Python exception of the call text itself: learner code removed
+  // After a call: removes the request, the call text's own name and the
+  // install code's leftovers, so that nothing of a call stays in the
+  // namespace learner code shares, and tells whether the request was still
+  // there (True). ctm-checkers' call takes the request out of the namespace
+  // before anything else (browser.py), so a request still there means that
+  // the call text failed before it reached the call: learner code removed
   // ctm-checkers or rebound what the import uses, and installing again
-  // repairs it. Not one: an error that ctm-checkers' call raised (its
-  // traceback passes through ctm_checkers/browser.py's call), which is the
-  // answer to the request (for example a learner string the admission rule
-  // rejects), and a failure of the runtime rather than of Python (the caller
-  // moves on).
-  var RAISED_BY_CALL = /ctm_checkers[\\/]browser\.py", line \d+, in call\b/;
-  function callTextFailed(error) {
-    return pythonException(error) && !RAISED_BY_CALL.test(String(error && error.message || error));
-  }
+  // repairs it. Without it, an error is the call's own (the answer to the
+  // request, for example a learner string the admission rule rejects).
+  // This needs no traceback, which learner code may turn off
+  // (sys.tracebacklimit = 0). Its only lookup is the import statement, as in
+  // the call text.
+  var CHECKERS_CLEANUP = [
+    'import builtins as _ctm_builtins',
+    '_ctm_namespace = _ctm_builtins.globals()',
+    'del _ctm_builtins',
+    '_ctm_namespace.pop("_ctm_import", None)',
+    '_ctm_namespace.pop("_ctm_globals", None)',
+    '_ctm_namespace.pop("_ctm_namespace").pop("_ctm_request", None) is not None',
+  ].join('\n');
   var checkerCalls = typeof WeakMap === 'function' ? new WeakMap() : null;
 
   // Runs ctm-checkers' call `name` (for example "math_exercise.check") on
@@ -289,36 +302,39 @@
   // runtime). The calls of one runtime run one after another, since the
   // request travels in one global (_ctm_request); pass the runtime object
   // that ensurePyodide returned, so that every caller queues on the same
-  // one. A runtime that hangs holds up only its own calls. When the call
-  // text fails with a Python exception before it reaches ctm-checkers' call
-  // (learner code removed ctm-checkers or rebound what the import uses),
-  // ctm-checkers is installed again and the call is repeated once, unless
-  // the learner stopped the runtime meanwhile; the second failure and an
-  // error the call itself raised reach the caller. The request and the call
-  // text's names are removed from the namespace afterwards. A failure of the
-  // runtime rather than of Python (stopped, restarted) reaches the caller at
-  // once, with no cleanup sent to that runtime, and so do the later calls
-  // for it, also those waiting behind this one (`gone`).
+  // one. A runtime that hangs holds up only its own calls. After the call,
+  // the cleanup removes the request and the call text's names. When the call
+  // text failed before it reached ctm-checkers' call (the request was still
+  // there), ctm-checkers is installed again and the call is repeated once;
+  // the second failure and an error the call itself raised reach the
+  // caller. When the runtime was stopped or restarted meanwhile (a stop on
+  // the page, or the runtime is gone), nothing more is sent to it: no
+  // cleanup and no repeat, and the later calls for a gone runtime, also
+  // those waiting behind this one, fail at once.
   function callCheckers(py, name, request, payload) {
     var text = typeof request === 'string' ? request : JSON.stringify(request);
     var epoch = stops;
     async function run() {
       for (var tries = 0; ; tries++) {
         await ensureCheckers(py, payload);
-        var answers = true;
+        var result, failure = null;
         try {
           await py.globals.set('_ctm_request', text);
-          return await py.runPythonAsync(checkersCall(name));
+          result = await py.runPythonAsync(checkersCall(name));
         } catch (error) {
-          if (!pythonException(error)) { answers = false; failedRuntime(py, error); }
-          if (tries > 0 || stops !== epoch || !callTextFailed(error)) throw error;
-          var done = installed && installed.get(py);
-          if (done) delete done['ctm-checkers'];
-        } finally {
-          if (answers) {
-            try { await py.runPythonAsync(CHECKERS_CLEANUP); } catch (ignored) { /* removed by the next call's cleanup */ }
-          }
+          failure = error || new Error('ctm-checkers call failed');
+          if (failure.message === RESTARTED) markGone(py, RESTARTED);
         }
+        if (stops !== epoch || (gone && gone.has(py))) {
+          if (failure) throw failure;
+          return result;
+        }
+        var requestLeft = null;
+        try { requestLeft = await py.runPythonAsync(CHECKERS_CLEANUP); } catch (ignored) { /* removed by the next call's cleanup */ }
+        if (!failure) return result;
+        if (requestLeft !== true || tries > 0) throw failure;
+        var done = installed && installed.get(py);
+        if (done) delete done['ctm-checkers'];
       }
     }
     var previous = (checkerCalls && checkerCalls.get(py)) || Promise.resolve();
@@ -340,6 +356,7 @@
   function stop(reason) {
     if (!canStop()) return;
     stops++;
+    markGone(root.mainPyodide, reason || 'Stopped by the learner');
     root.mainPyodide.restart(reason || 'Stopped by the learner');
   }
   function stopCount() { return stops; }
