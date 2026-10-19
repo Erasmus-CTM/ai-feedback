@@ -292,46 +292,6 @@ local function task(block)
   return pandoc.Div(visible, pandoc.Attr(block.identifier ~= "" and block.identifier or "ai-feedback-" .. counter, {"ai-feedback-task"}))
 end
 
--- Quarto's data of a custom node of type `kind` (the table a filter callback
--- for that type gets; tabs[i].title and tabs[i].content of a Tabset): nil for
--- any other block, false when it cannot be read. In this pass a custom node is
--- a Div that holds Quarto's slots.
-local function custom(b, kind)
-  if b.t ~= "Div" or b.attributes["__quarto_custom"] ~= "true" or b.attributes["__quarto_custom_type"] ~= kind then return nil end
-  local ok, data = pcall(function() return quarto._quarto.ast.resolve_custom_data(b) end)
-  return ok and data or false
-end
--- A tabset's data (its tabs, attr), or nil. Should a Quarto version keep its
--- tabs from this filter, the tabset is walked as one block, with a warning:
--- its exercises' context could then cross tabs.
-local unreadable = false
-local function tabset(b)
-  local data = custom(b, "Tabset")
-  if data == nil then return nil end
-  if data and data.tabs then return data end
-  if not unreadable then
-    unreadable = true
-    quarto.log.warning("ctm-libs cannot read the tabs of a tabset with this Quarto version: the AI context "
-      .. "of an exercise in a tab may include other tabs' prose.")
-  end
-  return nil
-end
--- Raw HTML <details> (solutions, hints, reading steps) and collapsed callouts
--- stay closed until the learner opens them: their prose is context only for
--- the exercises inside them (a scope). The <details> tags of a raw block, in
--- order (true opens one).
-local function detailsTags(b)
-  local tags = {}
-  if b.format:match("^html") then
-    for slash in b.text:lower():gmatch("<(/?)details[%s>]") do tags[#tags + 1] = slash == "" end
-  end
-  return tags
-end
-local function collapsed(b)
-  local data = custom(b, "Callout")
-  local value = data and data.collapse
-  return value == true or (type(value) == "string" and value == "true")
-end
 local function copy(list)
   local result = {}
   for i, value in ipairs(list) do result[i] = value end
@@ -340,76 +300,59 @@ end
 local function prose(state, text)
   if text ~= "" then table.insert(state.context, {text = text, from = state.from}) end
 end
--- One source-order pass for every integration, before consumers transform cells.
--- The section of an exercise is its innermost heading or tab: its prose is
--- what precedes the exercise there, without other tabs, closed material it is
--- not in, code and activities. With state.off (P22) activities become tasks
--- and no context is written.
-local function walk(blocks, state)
-  local out = pandoc.Blocks({})
-  -- The context at each <details> still open in this list.
-  local scopes = {}
-  for _, b in ipairs(blocks) do
-    local tabbed = tabset(b)
-    if excluded(b, true) or (tabbed and excluded(pandoc.Div({}, tabbed.attr), true)) then
-      -- Hidden, generated and author-only content does not change section state.
-    elseif b.t == "RawBlock" then
-      for _, open in ipairs(detailsTags(b)) do
-        if open then
-          table.insert(scopes, state.context); state.context = copy(state.context)
-        elseif #scopes > 0 then
-          state.context = table.remove(scopes)
-        end
-      end
-    elseif b.t == "Header" then
-      state.context = {{text = sourceText(b), from = {}}}
-    elseif tabbed then
-      -- Each tab is a section, as under a heading; after the tabset the
-      -- enclosing section goes on without the tabs' prose.
-      local outer = state.context
-      for i = 1, #tabbed.tabs do
-        local tab = tabbed.tabs[i]
-        local title = tab.title and sourceText(pandoc.Div(quarto.utils.as_blocks(tab.title))) or ""
-        state.context = title ~= "" and {{text = title, from = {}}} or {}
-        if tab.content then tab.content = walk(quarto.utils.as_blocks(tab.content), state) end
-      end
-      state.context = outer
-    elseif collapsed(b) then
-      local outer = state.context
-      state.context = copy(outer)
-      b.content = walk(b.content, state)
-      state.context = outer
-    elseif b.t == "Div" and b.classes:includes("ai-feedback") then
-      if state.off then b = task(b) else b = activity(b, state.context) end
+-- One source-order pass for every integration, before consumers transform
+-- cells, along the page's sections (lua/sections.lua). The section of an
+-- exercise is its innermost heading or tab: its prose is what precedes the
+-- exercise there, without other tabs, closed material it is not in (raw
+-- <details>, reveals, collapsed callouts: scopes), code and activities. With
+-- state.off (P22) activities become tasks and no context is written.
+local hooks = {
+  -- Hidden, generated and author-only content does not change section state.
+  skip = function(b, tabbed)
+    return excluded(b, true) or (tabbed and excluded(pandoc.Div({}, tabbed.attr), true)) or false
+  end,
+  header = function(b, state) state.context = {{text = sourceText(b), from = {}}} end,
+  -- A scope's prose is context only for the exercises inside it.
+  open = function(state)
+    local outer = state.context
+    state.context = copy(outer)
+    return outer
+  end,
+  close = function(state, outer) state.context = outer end,
+  -- Each tab is a section, as under a heading; after the tabset the
+  -- enclosing section goes on without the tabs' prose.
+  tab = function(tab, state)
+    local title = tab.title and sourceText(pandoc.Div(quarto.utils.as_blocks(tab.title))) or ""
+    state.context = title ~= "" and {{text = title, from = {}}} or {}
+  end,
+  block = function(b, state, walk)
+    if b.t == "Div" and b.classes:includes("ai-feedback") then
+      if state.off then return true, task(b) end
+      return true, activity(b, state.context)
     elseif b.t == "CodeBlock" then
       if not state.off then b.attributes["data-ai-feedback-context"] = bounded(state.context, explicitCell(b)) end
+      return true, b
     elseif isContext(b) then
       if not state.off then b = preserveMath(b) end
       local outer = state.from
       state.from = copy(outer)
       table.insert(state.from, b.identifier)
-      b.content = walk(b.content, state)
+      b.content = walk(b.content)
       state.from = outer
-    elseif b.t == "Div" or b.t == "BlockQuote" then
-      b.content = walk(b.content, state)
-    elseif b.t == "BulletList" or b.t == "OrderedList" then
-      for i, item in ipairs(b.content) do b.content[i] = walk(item, state) end
-    elseif b.t == "DefinitionList" then
-      for _, item in ipairs(b.content) do
-        prose(state, pandoc.utils.stringify(item[1]))
-        for i, definition in ipairs(item[2]) do item[2][i] = walk(definition, state) end
-      end
-    else
-      if not state.off then
-        b = b:walk({CodeBlock = function(code) code.attributes["data-ai-feedback-context"] = bounded(state.context, explicitCell(code)); return code end})
-      end
-      prose(state, sourceText(b))
+      return true, b
     end
-    if b then out:insert(b) end
-  end
-  -- A <details> left open ends with its list: nothing after it sees its prose.
-  if #scopes > 0 then state.context = scopes[1] end
-  return out
+  end,
+  term = function(inlines, state) prose(state, pandoc.utils.stringify(inlines)) end,
+  leaf = function(b, state)
+    if not state.off then
+      b = b:walk({CodeBlock = function(code) code.attributes["data-ai-feedback-context"] = bounded(state.context, explicitCell(code)); return code end})
+    end
+    prose(state, sourceText(b))
+    return b
+  end,
+}
+local function walk(blocks, state)
+  return ctm.sections.walk(blocks, hooks, state)
 end
 -- This callback is a Quarto filter pass, not a Pandoc-only walk.
 function M.markCallout(c)
