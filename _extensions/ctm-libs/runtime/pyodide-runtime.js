@@ -7,7 +7,12 @@
 
   // An older copy (another component's release) may have loaded first; a
   // copy with the current interface replaces it (shared state lives on root).
-  if (root.MathExerciseRuntime && typeof root.MathExerciseRuntime.whenSlow === 'function') return;
+  if (root.MathExerciseRuntime && typeof root.MathExerciseRuntime.ensureCheckers === 'function') return;
+
+  // This script's own URL (on a page), for workers that load the runtime
+  // themselves with importScripts.
+  var scriptURL = typeof document !== 'undefined' && document && document.currentScript && document.currentScript.src
+    ? document.currentScript.src : undefined;
 
   var indexURL = 'https://cdn.jsdelivr.net/pyodide/v0.28.3/full/';
   var LOAD_TIMEOUT = root.__qExercisePyodideTimeout || 180000; // override for tests
@@ -125,7 +130,7 @@
     '        "path": list(_sys.path),',
     '        "path_list": _sys.path,',
     '        "cwd": _os.getcwd(),',
-    '        "modules": {k: v for k, v in _sys.modules.items() if k.startswith("_ctm_")},',
+    '        "modules": {k: v for k, v in _sys.modules.items() if k.startswith(("_ctm_", "ctm_checkers"))},',
     '    }',
     '',
     'def restore(state):',
@@ -151,16 +156,30 @@
     '            pass',
   ].join('\n');
 
-  // Installs a Python source as a private module (not in the interpreter's
-  // global namespace, which learner code shares), once per runtime. Calls for
-  // the same module share one install; each module passes its source under
-  // its own name, so concurrent installs of different modules cannot mix.
+  // What a runtime has installed: once per runtime and name, calls for the
+  // same name share one install, and a failed install is forgotten so that a
+  // later call tries again.
   var installed = typeof WeakMap === 'function' ? new WeakMap() : null;
-  function installModule(py, name, source) {
+  function once(py, name, start) {
     var done = installed && installed.get(py);
     if (done && done[name]) return done[name];
+    var install;
+    try { install = Promise.resolve(start()); } catch (error) { install = Promise.reject(error); }
+    if (installed) {
+      if (!done) { done = {}; installed.set(py, done); }
+      done[name] = install;
+      install.catch(function () { if (done[name] === install) delete done[name]; });
+    }
+    return install;
+  }
+
+  // Installs a Python source as a private module (not in the interpreter's
+  // global namespace, which learner code shares), once per runtime. Each
+  // module passes its source under its own name, so concurrent installs of
+  // different modules cannot mix.
+  function installModule(py, name, source) {
     var variable = '_ctm_source_' + name.replace(/[^A-Za-z0-9_]/g, '_');
-    var install = (async function () {
+    return once(py, name, async function () {
       await py.globals.set(variable, source);
       await py.runPythonAsync([
         'import sys as _ctm_sys, types as _ctm_types',
@@ -169,18 +188,72 @@
         '_ctm_sys.modules["' + name + '"] = _ctm_module',
         'del _ctm_sys, _ctm_types, _ctm_module, ' + variable,
       ].join('\n'));
-    })();
-    if (installed) {
-      if (!done) { done = {}; installed.set(py, done); }
-      done[name] = install;
-      install.catch(function () { if (done[name] === install) delete done[name]; });
-    }
-    return install;
+    });
   }
-  // Forget installed modules of a runtime (for example after learner code in
-  // another cell removed them); the next install runs again.
+  // Forget what a runtime has installed (for example after learner code in
+  // another cell removed it); the next install runs again.
   function forgetModules(py) { if (installed) installed.delete(py); }
   function ensureGuard(py) { return installModule(py, '_ctm_guard', GUARD_PY); }
+
+  // Installs ctm-checkers, the Python checker library, into the runtime `py`,
+  // once per runtime like the modules above (forgetModules forgets it too).
+  // `payload` defaults to the page's ctm-checkers.js (globalThis.CTMCheckers,
+  // HTML dependency "ctm-checkers"); its own install code does the work with
+  // py.globals.set and py.runPythonAsync only (ctm-checkers docs/api.md):
+  // it checks the wheel's SHA-256 and imports ctm_checkers from the wheel.
+  function ensureCheckers(py, payload) {
+    var checkers = payload || root.CTMCheckers;
+    if (!checkers || typeof checkers.install !== 'function') {
+      return Promise.reject(new Error('ctm-checkers is not loaded on this page: its script ctm-checkers.js is missing'));
+    }
+    return once(py, 'ctm-checkers', function () { return checkers.install(py); });
+  }
+
+  // The call text: it looks up no name in the runtime's namespace, which
+  // learner code shares (it may rebind __import__, globals or any _ctm_ name
+  // there); an import statement finds the builtins without a lookup. The
+  // request and the call use the same namespace (the runtime's globals).
+  function checkersCall(name) {
+    return 'import builtins as _ctm_builtins\n'
+      + '_ctm_builtins.__import__("ctm_checkers.browser", fromlist=["call"]).call(' + JSON.stringify(name)
+      + ', _ctm_builtins.globals())';
+  }
+  // Removes the request whatever happened to it (no name lookups either).
+  var CHECKERS_CLEANUP = '_ctm_request = None\ndel _ctm_request';
+  var checkerCalls = typeof WeakMap === 'function' ? new WeakMap() : null;
+
+  // Runs ctm-checkers' call `name` (for example "math_exercise.check") on
+  // `request` (an object; ctm-checkers docs/api.md) in the runtime `py` and
+  // returns the JSON text it returns. Installs ctm-checkers first (once per
+  // runtime). The calls of one runtime run one after another, since the
+  // request travels in one global (_ctm_request). When the call fails, for
+  // example because learner code removed or rebound what it uses, ctm-checkers
+  // is installed again and the call is repeated once, unless the learner
+  // stopped the runtime meanwhile; the second failure reaches the caller. The
+  // request is removed from the namespace in every case.
+  function callCheckers(py, name, request, payload) {
+    var text = typeof request === 'string' ? request : JSON.stringify(request);
+    var epoch = stops;
+    async function run() {
+      for (var tries = 0; ; tries++) {
+        await ensureCheckers(py, payload);
+        try {
+          await py.globals.set('_ctm_request', text);
+          return await py.runPythonAsync(checkersCall(name));
+        } catch (error) {
+          if (tries > 0 || stops !== epoch) throw error;
+          var done = installed && installed.get(py);
+          if (done) delete done['ctm-checkers'];
+        } finally {
+          try { await py.runPythonAsync(CHECKERS_CLEANUP); } catch (ignored) { /* a stopped runtime */ }
+        }
+      }
+    }
+    var previous = (checkerCalls && checkerCalls.get(py)) || Promise.resolve();
+    var result = previous.then(run);
+    if (checkerCalls) checkerCalls.set(py, result.catch(function () {}));
+    return result;
+  }
 
   // A runtime that can be stopped while it runs (pyodide-interaktiv's worker):
   // Python on the page itself cannot be interrupted, only reloaded.
@@ -217,9 +290,12 @@
     loadTimeout: LOAD_TIMEOUT,
     loadScript: loadScript,
     ensurePyodide: ensurePyodide,
+    scriptURL: scriptURL,
     installModule: installModule,
     forgetModules: forgetModules,
     ensureGuard: ensureGuard,
+    ensureCheckers: ensureCheckers,
+    callCheckers: callCheckers,
     canStop: canStop,
     stop: stop,
     stopCount: stopCount,

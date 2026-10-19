@@ -9,6 +9,7 @@
   },
   "devDependencies": {
     "jsdom": "^26.1.0",
-    "katex": "^0.16.11"
+    "katex": "^0.16.11",
+    "pyodide": "0.28.3"
   }
 }
