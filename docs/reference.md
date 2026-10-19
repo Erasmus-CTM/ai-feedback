@@ -1,6 +1,91 @@
-# Detailed functionality reference
+# Reference
 
-[Start here](../README.md) · [Authoring guide](authoring.md)
+[Start here](../README.md) · [API](api.md) · [Installation](installation.md)
+
+Course authors read the same settings in the CTM Assessment guide; this page
+is the library's own reference.
+
+## Settings
+
+CTM settings live in four sections of the Quarto metadata:
+
+| Section | Keys |
+|---|---|
+| `ctm-assessment` | `stop-after` (seconds before a running check offers Stop, default 20), `lang` (the language of every component) |
+| `ai-feedback` | `mode` (`copy`, `api`), `storage` (`local`, `session`), `base-url`, `model`, `ui-language`, `feedback-language`, `enabled`, `policy-files`, `policy` |
+| `math-exercise` | `lang`, `feedback` (`auto`, `true`, `false`), `stop-after` |
+| `py-exercise` | `lang`, `feedback`, `stop-after`, `forbidden-imports`, `forbidden-keywords`, `submission`, `submission-key`, `show-test-hints` |
+
+Settings combine **key by key** across `_quarto.yml`, the active profiles'
+`_quarto-<profile>.yml` (with several profiles the first listed wins, as in
+Quarto), `_quarto.yml.local`, the `_metadata.yml` files from the project root
+to the page's folder, and the page's front matter. A page that sets one key
+of a section keeps the project's other keys of that section. For a key:
+
+| Step | Source |
+|---|---|
+| 1 | the page's front matter |
+| 2 | Quarto's merged metadata: `metadata-files`, `format: html:` scoped settings, notebooks, `-M`; it holds the key unless the page's own map of the section dropped it |
+| 3 | `_quarto.yml`, profiles, `_quarto.yml.local`, `_metadata.yml` (the nearest wins) |
+| 4 | `stop-after` and `lang` only: steps 1–3 for `ctm-assessment` (a component's own spelling wins at any level) |
+| 5 | `lang` only: Quarto's `lang` |
+| 6 | the default |
+
+Two exceptions: `ai-feedback: enabled` is off when any level turns it off
+(below), and the policy keys follow their own rules ([policies](feedback-policies.md#load-definitions-then-select)).
+
+Checks at render time:
+
+- A key that looks like a credential (`api-key`, `apikey`, `key`, `token`,
+  `secret`, `password`, `authorization`, in any CTM section and at any level)
+  **stops the render**: Quarto metadata is published with the site. The
+  value is never shown. Learners enter their own key in the Feedback settings.
+- Unknown `ai-feedback` and `ctm-assessment` options warn and are ignored;
+  they become errors in CTM Assessment 1.0. `version` is not an option.
+- `mode`, `storage` and `base-url` values that cannot be used warn and fall
+  back to the default (a rejected URL is never repeated).
+- Values that were accepted loosely before 0.9 (`py-exercise: submission`,
+  `show-test-hints`, `feedback` other than true/false; a component section
+  that is not a mapping) warn; other wrong values stop the render, naming the
+  key and the file.
+
+## Languages
+
+A component's interface language is its own option (`math-exercise: lang`,
+`py-exercise: lang`, `ai-feedback: ui-language`), then `ctm-assessment: lang`,
+then Quarto's `lang`, then English; then the first language of the tag's
+chain that the component has: `nb-NO` → nb; `no` → nb; `nn` → nn, nb;
+`de-CH` → de; anything else → en. Every component speaks English, German and
+Norwegian Bokmål; the feedback interface also Spanish. The feedback's own
+language (`feedback-language`) is passed to the AI as written, from the
+activity, `ai-feedback: feedback-language`, `ctm-assessment: lang` or `lang`.
+
+## A site without AI feedback
+
+One source can build a site without AI feedback, for exams or institutions
+that do not allow it:
+
+```yaml
+# _quarto-no-ai.yml, then: quarto render --profile no-ai
+ai-feedback:
+  enabled: false
+```
+
+or `CTM_FEEDBACK=off quarto render` (other values than `off` and `on` warn).
+Any level can turn AI feedback off; no page can turn it back on. Then:
+
+- no Feedback buttons, no settings gear, no ai-feedback scripts or styles;
+- `.ai-feedback` activities keep their visible task (and source text) as an
+  `.ai-feedback-task` block, without answer box or button;
+- criteria, starters, teaching policies and learning context are not written
+  into the HTML; policy files are still checked, so both builds fail alike;
+- a page that asked for feedback gets one build message naming what was left
+  out; it is never an error.
+
+pyodide-interaktiv 1.8 reads its own `pyodide: feedback`; ctm-libs sets it to
+false when its filter runs before pyodide-interaktiv's (the package order, or
+`filters: [ai-feedback, pyodide-interaktiv]`). In other orders its Feedback
+buttons stay, disabled with a note that ai-feedback is missing.
 
 ## Author text, translation and image tasks
 
@@ -63,17 +148,20 @@ containers too; a single oversized latest block is omitted rather than sliced.
 
 Explicit context uses a combined 6,000-character budget and preserves math
 through MathJax or KaTeX rendering. Missing, duplicate, untagged, empty or
-over-budget references are skipped with a browser-console warning. Explicit
-selection replaces automatic prose; it does not append to it.
+over-budget references are skipped with a browser-console warning. Since 0.9.0
+the listed blocks are followed by the prose of the exercise's own section
+(since its heading), without the listed blocks, so the task's data in the
+prose reaches the feedback too; the 1,500-character cap counts that prose
+only.
 
 Reusable tagged blocks can be referenced by any integration. See the
 [combined authoring examples](https://github.com/Erasmus-CTM/ctm-assessment/blob/main/docs/reference.md#reuse-one-block-across-different-integrations).
 
 ## Prompts, hints and local YAML
 
-Shipped defaults are always available. Loading `policy-files` or
-`page-policy-files` only registers named definitions; activate a baseline with
-`project-policy` or `page-policy`, or select `feedback-policy` on an exercise.
+Shipped defaults are always available. Loading `policy-files` only registers
+named definitions; select a baseline with `policy`, or select
+`feedback-policy` on an exercise.
 
 ```yaml
 # feedback.yml
@@ -93,8 +181,8 @@ ai-feedback:
 ```yaml
 # Page front matter
 ai-feedback:
-  page-policy-files: feedback.yml
-  page-policy: brief-feedback
+  policy-files: feedback.yml
+  policy: brief-feedback
 ```
 
 A child inherits omitted fields. A supplied `steps` list replaces the complete
@@ -105,7 +193,7 @@ instructions. Step limits and permissions override the policy for that step.
 Successful feedback advances one step; the last repeats. Failed, cancelled or
 stale requests consume no step. Run/Check resets by default; select a policy
 with `reset-on-run: false` to preserve progression. Changing the effective policy
-resets saved progress. See the [complete policy guide](https://github.com/Erasmus-CTM/ai-feedback/blob/main/docs/feedback-policies.md)
+resets saved progress. See the [complete policy guide](feedback-policies.md)
 for inheritance, explicit scopes and targeted exercise overrides.
 
 ## Provider settings and data sent
@@ -123,11 +211,10 @@ ai-feedback:
   model: your-model-id
 ```
 
-Options combine key by key across `_quarto.yml`, the active profile file,
-`_metadata.yml` and page front matter (details in the
-[installation guide](installation.md#provider-settings-and-data-sent)); unknown
-options, unsupported values and credential-like keys produce a render warning
-and are ignored.
+Options combine key by key across `_quarto.yml`, the active profiles,
+`_quarto.yml.local`, `_metadata.yml` and page front matter ([settings](#settings)).
+Unknown options and unsupported values warn and are ignored; a
+credential-like key stops the render.
 
 Local storage shares settings across pages on the same origin. Session storage
 limits them to a browser tab. Without `storage:` the default is `local`, unless
@@ -151,16 +238,16 @@ progression, settings, requests and rendering. `getRequest` should collect data
 without executing code. Use `AIFeedback.contextMaterials({mode, refs, text})` for
 context and `handle.reset('run')` on Run/Check. Call `handle.cancel({clearOutput:
 true})` on edits and `handle.reset()` on explicit Reset. The consumer owns its
-editor, checker and evidence boundary. [API reference](../docs/api.md).
+editor, checker and evidence boundary. [API reference](api.md).
 
-The Quarto side exposes `feedback-quarto.lua`: a `markCallout` filter prepass,
-`prepare(doc)` and `context(block, options, isPyodide)`. Consumers contain only
-small dependency-discovery glue. All policy, context and feedback implementation
-belongs here.
-
+The Quarto side is `ctm.feedback` ([API](api.md#ctmfeedback)): `markCallout`
+(a Callout pass), `prepare(doc)`, `selection(block, options)` and
+`context(block, options, isPyodide)`. Components load ctm-libs through their
+`ctm-bootstrap.lua`; all policy, context and feedback implementation is here.
 
 ### Standalone example
 
-`example.qmd` demonstrates this package with shared feedback. No additional Quarto extension is required. The example builds automatically on pushes and pull requests; download the `standalone-example` Actions artifact. Feedback defaults to copy mode, which needs no API key.
-
-See [AI Feedback 0.8 policies](feedback-policies.md) for current policy syntax.
+`example.qmd` demonstrates the library with AI feedback activities
+(`filters: [ctm-libs]`). The example builds on pushes and pull requests;
+download the `standalone-example` Actions artifact. Feedback defaults to copy
+mode, which needs no API key.
