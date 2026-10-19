@@ -3,9 +3,10 @@
 // with the install code of its page script (CTMCheckers.install), and
 // callCheckers runs a call with a call text that looks up no name in the
 // namespace learner code shares, installs again and repeats the call once when
-// it fails, and removes the request in every case. The first tests use fake
-// runtimes; the others run Pyodide 0.28.3 with the ctm-checkers commit in
-// tests/pins.json (CTM_CHECKERS_SOURCE, default _ctm-checkers-source).
+// it fails, and removes the request; a runtime that failed (stopped,
+// restarted) gets no further call. The first tests use fake runtimes; the
+// others run Pyodide 0.28.3 with the ctm-checkers commit in tests/pins.json
+// (CTM_CHECKERS_SOURCE, default _ctm-checkers-source).
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -24,6 +25,8 @@ function runtime(globals = {}) {
 // A fake runtime that records what the runtime asks of it; `fail(code)` decides which runs fail.
 // A Python exception of the call text, as Pyodide reports it.
 const MISSING = 'Traceback (most recent call last):\n  File "<exec>", line 2, in <module>\nModuleNotFoundError: No module named \'ctm_checkers\'';
+// The cleanup after a call: the request goes.
+const CLEANUP = '_ctm_request = None\ndel _ctm_request';
 function fakePy(fail = () => false) {
   const globals = new Map(), runs = [];
   return {
@@ -59,7 +62,10 @@ test('ensureCheckers installs once per runtime; a failed install, or forgetModul
   await R.ensureCheckers(a);
   assert.equal(checkers.installs.length, 3);
   let attempts = 0;
-  const failing = { install: async () => { attempts++; if (attempts === 1) throw new Error('payload is damaged'); } };
+  const failing = { install: async () => {
+    attempts++;
+    if (attempts === 1) throw new Error('Traceback (most recent call last):\n  File "<exec>", line 22, in <module>\nRuntimeError: ctm-checkers: the payload is damaged (sha256 mismatch)');
+  } };
   const c = fakePy();
   await assert.rejects(R.ensureCheckers(c, failing), /payload is damaged/);
   await R.ensureCheckers(c, failing);
@@ -82,7 +88,7 @@ test('callCheckers: the request in _ctm_request, a call text without name lookup
   assert.equal(call, 'import builtins as _ctm_builtins\n'
     + '_ctm_builtins.__import__("ctm_checkers.browser", fromlist=["call"]).call("math_exercise.check", _ctm_builtins.globals())');
   assert.ok(!py.values.has('_ctm_request'));
-  assert.equal(py.runs[py.runs.length - 1], '_ctm_request = None\ndel _ctm_request');
+  assert.equal(py.runs[py.runs.length - 1], CLEANUP);
 });
 
 test('callCheckers installs again and repeats a failed call once; a second failure reaches the caller', async () => {
@@ -119,7 +125,7 @@ test('callCheckers does not repeat a call whose error ctm-checkers\' call raised
   await assert.rejects(R.callCheckers(py, 'math_exercise.check', { student: '__x' }), /SyntaxError: unsupported input/);
   assert.equal(py.runs.filter((code) => code.includes('.call(')).length, 1);
   assert.equal(checkers.installs.length, 1);
-  assert.equal(py.runs[py.runs.length - 1], '_ctm_request = None\ndel _ctm_request');
+  assert.equal(py.runs[py.runs.length - 1], CLEANUP);
 });
 
 test('callCheckers does not repeat a call that the learner stopped', async () => {
@@ -143,6 +149,91 @@ test('callCheckers does not repeat a call that failed in the runtime, not in Pyt
   await assert.rejects(R.callCheckers(py, 'math_exercise.check', {}), /^Error: Python was restarted\.$/);
   assert.equal(py.runs.filter((code) => code.includes('.call(')).length, 1);
   assert.equal(checkers.installs.length, 1);
+  // That runtime gets nothing more: no cleanup, and a later call fails the same way without being sent.
+  assert.ok(!py.runs.includes(CLEANUP));
+  const sent = py.runs.length;
+  await assert.rejects(R.callCheckers(py, 'math_exercise.check', {}), /^Error: Python was restarted\.$/);
+  await assert.rejects(R.ensureCheckers(py), /^Error: Python was restarted\.$/);
+  assert.equal(py.runs.length, sent);
+});
+
+// pyodide-interaktiv's worker proxy (qpyodide-document-engine-initialization.js,
+// 58543b9): every call is a message to the worker; restart() rejects the
+// pending calls with Error(reason) and terminates the worker, and a call made
+// on this proxy afterwards goes to the terminated worker and never settles.
+// `answer(code)` is the worker's answer to runPythonAsync.
+function workerProxy(answer) {
+  let terminated = false;
+  const pending = new Set(), sent = [];
+  function rpc(what, work) {
+    sent.push({ what, terminated });
+    if (terminated) return new Promise(() => {});
+    return new Promise((resolve, reject) => {
+      const entry = { resolve, reject };
+      pending.add(entry);
+      Promise.resolve().then(work).then((value) => { if (pending.delete(entry)) resolve(value); },
+        (error) => { if (pending.delete(entry)) reject(error); });
+    });
+  }
+  return {
+    sent,
+    globals: { set: (name) => rpc('set ' + name, () => undefined) },
+    runPythonAsync: (code) => rpc(code, () => answer(code)),
+    restart(reason) {
+      terminated = true;
+      const error = new Error(reason || 'Python was restarted.');
+      for (const entry of pending) entry.reject(error);
+      pending.clear();
+    },
+  };
+}
+// How a promise ends within `ms`: {value}, {error} or {hang: true}.
+function settles(promise, ms = 1000) {
+  return Promise.race([promise.then((value) => ({ value }), (error) => ({ error: String(error) })),
+    new Promise((resolve) => setTimeout(() => resolve({ hang: true }), ms))]);
+}
+async function until(condition) {
+  for (let i = 0; i < 500 && !condition(); i++) await new Promise((resolve) => setTimeout(resolve, 1));
+  assert.ok(condition());
+}
+
+test('a Stop or restart during a call on pyodide-interaktiv\'s worker: the call and those waiting behind it fail at once, the stopped worker gets nothing more, other runtimes go on', async () => {
+  // pyodide-interaktiv's own Stop restarts its proxy; MathExerciseRuntime.stop() (math-exercise's Stop) does the same for mainPyodide.
+  for (const [how, reason] of [['restart', 'Python was restarted.'], ['stop', 'Stopped by the learner']]) {
+    const context = runtime();
+    const R = context.MathExerciseRuntime;
+    context.CTMCheckers = payload();
+    // A check that runs until it is stopped (an answer such as 9**9**9**9).
+    const worker = workerProxy((code) => (code.includes('.call(') ? new Promise(() => {}) : undefined));
+    context.mainPyodide = worker;
+    const running = R.callCheckers(worker, 'math_exercise.check', { n: 1 });
+    const waiting = R.callCheckers(worker, 'math_exercise.check', { n: 2 });
+    await until(() => worker.sent.some((message) => message.what.includes('.call(')));
+    // Another runtime is not held up by this one.
+    const other = fakePy();
+    assert.ok(JSON.parse(await R.callCheckers(other, 'math_exercise.check', { n: 3 })).request, how);
+    if (how === 'restart') worker.restart(); else R.stop(reason);
+    assert.deepEqual(await settles(running), { error: 'Error: ' + reason }, how);
+    assert.deepEqual(await settles(waiting), { error: 'Error: ' + reason }, how);
+    assert.deepEqual(await settles(R.callCheckers(worker, 'math_exercise.check', { n: 4 })), { error: 'Error: ' + reason }, how);
+    assert.deepEqual(worker.sent.filter((message) => message.terminated), [], how + ': nothing is sent to the terminated worker');
+    assert.equal(worker.sent.filter((message) => message.what.includes('.call(')).length, 1, how);
+  }
+});
+
+test('a restart during the install: the calls for that runtime fail at once', async () => {
+  const context = runtime();
+  const R = context.MathExerciseRuntime;
+  let worker = null;
+  context.CTMCheckers = { install: (py) => py.runPythonAsync('install') };
+  worker = workerProxy((code) => (code === 'install' ? new Promise(() => {}) : undefined));
+  const first = R.callCheckers(worker, 'math_exercise.check', { n: 1 });
+  const second = R.callCheckers(worker, 'math_exercise.check', { n: 2 });
+  await until(() => worker.sent.length > 0);
+  worker.restart();
+  assert.deepEqual(await settles(first), { error: 'Error: Python was restarted.' });
+  assert.deepEqual(await settles(second), { error: 'Error: Python was restarted.' });
+  assert.deepEqual(worker.sent.map((message) => message.what), ['install']);
 });
 
 test('the calls of one runtime run one after another (one _ctm_request at a time)', async () => {

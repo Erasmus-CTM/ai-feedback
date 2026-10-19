@@ -195,6 +195,21 @@
   function forgetModules(py) { if (installed) installed.delete(py); }
   function ensureGuard(py) { return installModule(py, '_ctm_guard', GUARD_PY); }
 
+  // A Python exception, as Pyodide and pyodide-interaktiv's worker report it:
+  // with its traceback. Any other failure of a runtime's call is one of the
+  // runtime itself (stopped, restarted, a worker gone). Such a runtime is
+  // `gone`: pyodide-interaktiv's terminated worker never answers a later
+  // call, so ensureCheckers and callCheckers send it none and fail at once
+  // with the runtime's error (the caller moves to the new runtime).
+  function pythonException(error) {
+    return /Traceback \(most recent call last\)/.test(String(error && error.message || error));
+  }
+  var gone = typeof WeakMap === 'function' ? new WeakMap() : null;
+  function failedRuntime(py, error) {
+    if (gone && !pythonException(error)) gone.set(py, error);
+    throw error;
+  }
+
   // Installs ctm-checkers, the Python checker library, into the runtime `py`,
   // once per runtime like the modules above (forgetModules forgets it too).
   // `payload` defaults to the page's ctm-checkers.js (globalThis.CTMCheckers,
@@ -206,7 +221,11 @@
     if (!checkers || typeof checkers.install !== 'function') {
       return Promise.reject(new Error('ctm-checkers is not loaded on this page: its script ctm-checkers.js is missing'));
     }
-    return once(py, 'ctm-checkers', function () { return checkers.install(py); });
+    var failure = gone && gone.get(py);
+    if (failure) return Promise.reject(failure);
+    return once(py, 'ctm-checkers', function () {
+      return Promise.resolve(checkers.install(py)).catch(function (error) { return failedRuntime(py, error); });
+    });
   }
 
   // The call text: it looks up no name in the runtime's namespace, which
@@ -225,12 +244,11 @@
   // repairs it. Not one: an error that ctm-checkers' call raised (its
   // traceback passes through ctm_checkers/browser.py's call), which is the
   // answer to the request (for example a learner string the admission rule
-  // rejects), and a failure of the runtime rather than of Python (stopped,
-  // restarted, a worker gone: the caller moves on).
+  // rejects), and a failure of the runtime rather than of Python (the caller
+  // moves on).
   var RAISED_BY_CALL = /ctm_checkers[\\/]browser\.py", line \d+, in call\b/;
   function callTextFailed(error) {
-    var text = String(error && error.message || error);
-    return /Traceback \(most recent call last\)/.test(text) && !RAISED_BY_CALL.test(text);
+    return pythonException(error) && !RAISED_BY_CALL.test(String(error && error.message || error));
   }
   var checkerCalls = typeof WeakMap === 'function' ? new WeakMap() : null;
 
@@ -238,29 +256,37 @@
   // `request` (an object; ctm-checkers docs/api.md) in the runtime `py` and
   // returns the JSON text it returns. Installs ctm-checkers first (once per
   // runtime). The calls of one runtime run one after another, since the
-  // request travels in one global (_ctm_request). When the call text fails
-  // with a Python exception before it reaches ctm-checkers' call (learner
-  // code removed ctm-checkers or rebound what the import uses), ctm-checkers
-  // is installed again and the call is repeated once, unless the learner
-  // stopped the runtime meanwhile; the second failure, an error the call
-  // itself raised and a failure of the runtime (a restart: the caller moves
-  // to the new runtime) reach the caller. The request is removed from the
-  // namespace in every case.
+  // request travels in one global (_ctm_request); pass the runtime object
+  // that ensurePyodide returned, so that every caller queues on the same
+  // one. A runtime that hangs holds up only its own calls. When the call
+  // text fails with a Python exception before it reaches ctm-checkers' call
+  // (learner code removed ctm-checkers or rebound what the import uses),
+  // ctm-checkers is installed again and the call is repeated once, unless
+  // the learner stopped the runtime meanwhile; the second failure and an
+  // error the call itself raised reach the caller. The request is removed
+  // from the namespace afterwards. A failure of the runtime rather than of
+  // Python (stopped, restarted) reaches the caller at once, with no cleanup
+  // sent to that runtime, and so do the later calls for it, also those
+  // waiting behind this one (`gone`).
   function callCheckers(py, name, request, payload) {
     var text = typeof request === 'string' ? request : JSON.stringify(request);
     var epoch = stops;
     async function run() {
       for (var tries = 0; ; tries++) {
         await ensureCheckers(py, payload);
+        var answers = true;
         try {
           await py.globals.set('_ctm_request', text);
           return await py.runPythonAsync(checkersCall(name));
         } catch (error) {
+          if (!pythonException(error)) { answers = false; failedRuntime(py, error); }
           if (tries > 0 || stops !== epoch || !callTextFailed(error)) throw error;
           var done = installed && installed.get(py);
           if (done) delete done['ctm-checkers'];
         } finally {
-          try { await py.runPythonAsync(CHECKERS_CLEANUP); } catch (ignored) { /* a stopped runtime */ }
+          if (answers) {
+            try { await py.runPythonAsync(CHECKERS_CLEANUP); } catch (ignored) { /* removed by the next call's cleanup */ }
+          }
         }
       }
     }
