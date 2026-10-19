@@ -174,6 +174,9 @@ function unknown(section: string, key: string, origin: string, known: string[]) 
 // --- ai-feedback ------------------------------------------------------------
 const RUNTIME_KEYS = ['mode', 'storage', 'base-url', 'model', 'ui-language', 'feedback-language'];
 const SWITCH_KEYS = ['enabled'];
+// What a build without AI feedback does with exercises only AI feedback can
+// assess (lua/policy.lua validates the value).
+const BUILD_KEYS = ['without-ai'];
 // A2: policy-files adds up over the levels, policy selects (the nearest wins).
 const POLICY_KEYS = ['policy-files', 'policy'];
 const DEPRECATED: Record<string, string> = {
@@ -181,7 +184,7 @@ const DEPRECATED: Record<string, string> = {
   'page-policy': "use policy, extending the project's policy where needed",
   'page-policy-files': 'use policy-files, which now adds up across project, _metadata and page',
 };
-const KNOWN = [...RUNTIME_KEYS, ...SWITCH_KEYS, ...POLICY_KEYS];
+const KNOWN = [...RUNTIME_KEYS, ...SWITCH_KEYS, ...BUILD_KEYS, ...POLICY_KEYS];
 function scalar(value: unknown): string | undefined {
   if (value === null || value === undefined || typeof value === 'object') return undefined;
   return String(value);
@@ -197,7 +200,7 @@ function feedbackSettings() {
     }
   }
   feedbackSwitch(out);
-  for (const key of RUNTIME_KEYS) {
+  for (const key of [...RUNTIME_KEYS, ...BUILD_KEYS]) {
     // Only a single value of the merged metadata counts (as before).
     const entry = resolveKey('ai-feedback', key, value => scalar(value) !== undefined);
     if (!entry || entry.value === null) continue;

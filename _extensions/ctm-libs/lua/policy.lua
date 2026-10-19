@@ -23,5 +23,28 @@ return function(ctm)
     return {exercise = id, name = name}
   end
 
+  -- A build without AI feedback and the exercises that only AI feedback can
+  -- assess: ai-feedback: without-ai, read key by key like every setting.
+  --   unset       the build stops; one error names every such exercise of the page
+  --   text        the question stays, without answer box and Check button
+  --   self-check  the question and its model answer to compare with; no
+  --               exercise has a model answer yet, so for now it is text
+  --   drop        the exercise is removed (only where the author writes it)
+  -- Returns the choice (nil when unset) and where it is set.
+  local WITHOUT_AI = {'text', 'self-check', 'drop'}
+  function M.withoutAI()
+    return ctm.settings.choice('ai-feedback', 'without-ai', WITHOUT_AI)
+  end
+
+  -- What a build without AI feedback does with such an exercise: "stop",
+  -- "text" or "drop". Under self-check an exercise without a model answer
+  -- is text, and none has one yet.
+  function M.withoutAIAction()
+    local choice = M.withoutAI()
+    if choice == nil then return 'stop' end
+    if choice == 'self-check' then return 'text' end
+    return choice
+  end
+
   return M
 end
