@@ -221,3 +221,46 @@ test('ctm-nav: a reload or Back/Forward restores the position the entry had', as
   assert.equal(w.document.getElementById('closed').open, false);
   w.close();
 });
+
+// While an entry still shows its link's target, a reload handles the link
+// again: coi-serviceworker reloads a first visit (cross-origin isolation where
+// the host sends no COOP/COEP headers). Once the reader has moved, a reload
+// restores the position.
+test('ctm-nav: a reload of an entry that still shows its link\'s target handles the link again', async () => {
+  // jsdom lays nothing out: here every element has a box. (Its frames come
+  // late: a navigation takes some 300 ms.)
+  const boxes = w => { w.Element.prototype.getClientRects = function () { return [this.getBoundingClientRect()]; }; };
+  let w = loadNav('#deep', boxes);
+  await shown(w);
+  await wait(600);
+  assert.deepEqual(active(w), ['t2', 'i2']);
+  assert.equal(w.document.getElementById('deep').getAttribute('data-ctm-nav'), 'load');
+  w.dispatchEvent(new w.KeyboardEvent('keydown', {key: 'F5'}));
+  w.dispatchEvent(new w.KeyboardEvent('keydown', {key: 'r', ctrlKey: true}));
+  w.dispatchEvent(new w.Event('pagehide'));
+  const saved = w.history.state.__quartoTabPosition;
+  assert.equal(saved.at, '#deep', 'the entry shows its target (reload keys aside)');
+  assert.deepEqual([...saved.panes], ['t2', 'i2']);
+  w.dispatchEvent(new w.Event('wheel'));
+  w.dispatchEvent(new w.Event('pagehide'));
+  assert.equal(w.history.state.__quartoTabPosition.at, undefined, 'not once the reader has moved');
+  w.close();
+  // The reload: the link's target again, not the saved tabs.
+  const at = (panes, hash) => ({__quartoTabPosition: {x: 0, y: 0, panes, at: hash}});
+  w = loadNav('#deep', w => { boxes(w); w.history.replaceState(at(['t2', 'i1'], '#deep'), '', w.location.href); });
+  await shown(w);
+  await wait(600);
+  assert.deepEqual(active(w), ['t2', 'i2'], 'the link\'s target');
+  assert.equal(w.document.getElementById('closed').open, true);
+  assert.equal(w.document.getElementById('deep').getAttribute('data-ctm-nav'), 'load');
+  w.close();
+  // Another hash's target, or none: the position.
+  for (const hash of ['#other', undefined]) {
+    w = loadNav('#deep', w => { boxes(w); w.history.replaceState(at(['t2', 'i1'], hash), '', w.location.href); });
+    await shown(w);
+    await wait(600);
+    assert.deepEqual(active(w), ['t2', 'i1'], 'the saved tabs (' + hash + ')');
+    assert.equal(w.document.getElementById('deep').hasAttribute('data-ctm-nav'), false);
+    w.close();
+  }
+});
