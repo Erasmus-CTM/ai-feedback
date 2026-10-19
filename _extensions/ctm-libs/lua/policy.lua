@@ -45,12 +45,19 @@ return function(ctm)
   -- The last filter of the package (ctm-libs-end.lua) reports them; it
   -- announces itself when Quarto loads it (_G.__ctmLibsEnd) and when it runs
   -- (_G.__ctmLibsEndRan). Anything that would add to its report after it ran
-  -- stops the render: the order is wrong.
+  -- is in the wrong order: that stops a build without AI feedback, whose
+  -- report would be lost, and is a build warning with AI feedback, where the
+  -- end filter has nothing to report (such builds stay as they were).
+  local orderWarned = false
   function M.checkOrder(what)
-    if rawget(_G, '__ctmLibsEndRan') then
-      fail('ctm-libs-end.lua ran before ' .. what .. ' on this page. List it last, after every CTM filter, '
-        .. 'as the package does (filters: [ctm-assessment] runs ctm-libs, jsxgraph, math-exercise, py-exercise, '
-        .. 'pyodide-interaktiv, then ctm-libs-end.lua).')
+    if not rawget(_G, '__ctmLibsEndRan') then return end
+    local message = 'ctm-libs-end.lua ran before ' .. what .. ' on this page. List it last, after every CTM filter, '
+      .. 'as the package does (filters: [ctm-assessment] runs ctm-libs, jsxgraph, math-exercise, py-exercise, '
+      .. 'pyodide-interaktiv, then ctm-libs-end.lua).'
+    if not ctm.feedback.enabled() then fail(message) end
+    if not orderWarned then
+      orderWarned = true
+      quarto.log.warning(message)
     end
   end
 

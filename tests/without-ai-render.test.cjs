@@ -150,18 +150,27 @@ test('a project stops at its first page with such exercises; the error names an 
     'shown as text, without automatic feedback (without-ai: text in _quarto.yml): included-essay']);
 }));
 
-test('the end filter listed before a CTM filter stops the render, naming the order', {skip}, () => {
+test('the end filter listed before a CTM filter stops a build without AI feedback and warns in one with it, naming the order', {skip}, () => {
+  const ORDER = /ctm-libs-end\.lua ran before ctm-libs' preparation on this page\. List it last, after every CTM filter, as the package does \(filters: \[ctm-assessment\] runs ctm-libs, jsxgraph, math-exercise, py-exercise, pyodide-interaktiv, then ctm-libs-end\.lua\)\./g;
   withProject({'page.qmd': page(setting('text'))}, dir => {
-    for (const env of [OFF, {}]) {
-      const r = C.render(dir, ['page.qmd'], env);
-      assert.notEqual(r.status, 0);
-      assert.match(r.stderr, /ctm-libs-end\.lua ran before ctm-libs' preparation on this page\. List it last, after every CTM filter, as the package does \(filters: \[ctm-assessment\] runs ctm-libs, jsxgraph, math-exercise, py-exercise, pyodide-interaktiv, then ctm-libs-end\.lua\)\./);
-    }
+    let r = C.render(dir, ['page.qmd'], OFF);
+    assert.notEqual(r.status, 0);
+    assert.equal(r.stderr.match(ORDER)?.length, 1, r.stderr);
+    // With AI feedback the build goes on as it did, with one warning.
+    r = C.render(dir, ['page.qmd']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stderr, /\(W\) ctm-libs-end\.lua ran before ctm-libs' preparation on this page/);
+    assert.equal(r.stderr.match(ORDER)?.length, 1, r.stderr);
+    assert.equal(new JSDOM(C.html(dir, 'page.qmd')).window.document.querySelectorAll('.ai-feedback-activity').length, 4);
   }, {filters: END + ', ctm-libs, probe'});
   withProject({'page.qmd': page(setting('text'))}, dir => {
-    const r = C.render(dir, ['page.qmd'], OFF);
+    let r = C.render(dir, ['page.qmd'], OFF);
     assert.notEqual(r.status, 0);
     assert.match(r.stderr, /ctm-libs-end\.lua ran before probe on this page\. List it last/);
+    r = C.render(dir, ['page.qmd']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stderr.match(/ctm-libs-end\.lua ran before probe on this page\. List it last/g)?.length, 1, r.stderr);
+    assert.equal(C.probes(C.html(dir, 'page.qmd')).component, 'ai');
   }, {filters: 'ctm-libs, ' + END + ', probe'});
 });
 

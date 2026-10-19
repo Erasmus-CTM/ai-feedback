@@ -164,8 +164,9 @@ then `text`). The error and the message come from `flush()` in
 announces itself when Quarto loads it (`_G.__ctmLibsEnd`) and when it runs
 (`_G.__ctmLibsEndRan`). Without it on the page the error comes at once (at
 the end of `prepare` for activities, at the first such exercise of a
-component); a CTM filter that runs after it stops the render with the
-expected order. Under `self-check` an exercise is `text` until it has a model
+component). A CTM filter that runs after it stops a build without AI
+feedback with the expected order; with AI feedback, a build warning names
+it and the build goes on. Under `self-check` an exercise is `text` until it has a model
 answer to compare with; none has one yet.
 
 ### ctm.runtime

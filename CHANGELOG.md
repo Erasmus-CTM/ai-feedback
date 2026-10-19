@@ -27,7 +27,8 @@
 
   Builds with AI feedback do not use the setting; another value stops both
   builds, naming the allowed ones. A CTM filter listed after
-  `ctm-libs-end.lua` now stops the render and names the expected order.
+  `ctm-libs-end.lua` now stops a build without AI feedback, naming the
+  expected order; with AI feedback a build warning names it.
 
 ### For component developers
 

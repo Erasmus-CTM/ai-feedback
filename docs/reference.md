@@ -151,8 +151,9 @@ The package lists `ctm-libs-end.lua` after every component: it prints the
 page's build message, or raises the error, once every exercise of the page is
 known. Where it is not listed (component development builds,
 `filters: [ai-feedback]`), the error comes as soon as ctm-libs meets such an
-exercise; where it runs before another CTM filter, the render stops and names
-the order.
+exercise. Where it runs before another CTM filter, a build without AI
+feedback stops and names the expected order; a build with AI feedback goes
+on as before, with a build warning that names it.
 
 pyodide-interaktiv 1.8 reads its own `pyodide: feedback`; ctm-libs sets it to
 false when its filter runs before pyodide-interaktiv's (the package order, or
