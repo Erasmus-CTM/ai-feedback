@@ -53,7 +53,6 @@ return function(ctm)
     end
     return pandoc.utils.stringify(value)
   end
-  M.plain = plain
 
   function M.load(meta)
     if pageMeta == nil then pageMeta = meta end

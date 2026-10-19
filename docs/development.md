@@ -8,6 +8,7 @@
 _extensions/ctm-libs/            the library (authors never list it; the package does)
   _extension.yml                 version of everything below
   ctm-libs.lua                   filter entry: ctm.filters() (Meta, Callout, Pandoc)
+  ctm-libs-end.lua               the package's last filter: prints the page's P22 build message
   read-settings.ts, deno.json    settings reader (quarto run), with its isolated Deno configuration
   lua/ctm.lua                    the page's instance; lazily loaded modules:
   lua/settings.lua               ctm.settings
@@ -94,9 +95,17 @@ py-exercise 0.3, recorded once by `scripts/capture-legacy-locales.mjs`;
 `bootstrap/ctm-bootstrap.lua` is copied byte for byte into every component
 (the CTM Assessment build compares the copies). It holds only the location
 logic: the package requirement (`CTM_COMPONENT_DEV=1` for component
-development), the search for ctm-libs, and the interface level `API`. Raise
-`ctm.api` in `lua/ctm.lua` (and `API` in the bootstrap) only for changes that
-older components cannot use.
+development), the search for ctm-libs, and the interface level `API`.
+
+`ctm.api >= API` only catches a ctm-libs that is too old for the component
+(for example a separately installed copy next to a newer component); it
+cannot catch a component that is too old for ctm-libs. Breaking changes are
+handled by the package: CTM Assessment builds ctm-libs and the components
+from pinned commits, tests them together and ships them in one version, so a
+change to ctm-libs' interface lands together with the components that use
+it. When a component starts to need something new from ctm-libs, raise
+`ctm.api` in `lua/ctm.lua` and the `API` of the bootstrap together, so that
+the component stops with the update message next to an older ctm-libs.
 
 ## What older consumers rely on (until the alias goes)
 
