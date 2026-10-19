@@ -179,10 +179,11 @@ local function isContext(b)
   return b.t == "Div" and (b.classes:includes("ai-feedback-context") or b.classes:includes("ai-context") or b.classes:includes("math-exercise-context"))
 end
 -- The prose of an exercise's section (its innermost heading or tab, see
--- walk): entries {text, from}, where `from` lists the ids of the context
--- blocks the text sits in. With an explicit context (A5) the context blocks
--- are left out: the listed ones are sent on their own, the others belong to
--- other exercises. The last 1500 characters are kept, whole entries only.
+-- walk): entries {text, from}, where `from` lists the context blocks the text
+-- sits in (their ids, "" for one without). With an explicit context (A5)
+-- every context block is left out: the listed ones are sent on their own, the
+-- others belong to other exercises. The last 1500 characters are kept, whole
+-- entries only.
 local function bounded(entries, explicit)
   local texts = {}
   for _, entry in ipairs(entries) do
@@ -279,10 +280,20 @@ local function custom(b, kind)
   local ok, data = pcall(function() return quarto._quarto.ast.resolve_custom_data(b) end)
   return ok and data or false
 end
--- A tabset's data (its tabs), or nil.
+-- A tabset's data (its tabs, attr), or nil. Should a Quarto version keep its
+-- tabs from this filter, the tabset is walked as one block, with a warning:
+-- its exercises' context could then cross tabs.
+local unreadable = false
 local function tabset(b)
   local data = custom(b, "Tabset")
-  return data and data.tabs and data or nil
+  if data == nil then return nil end
+  if data and data.tabs then return data end
+  if not unreadable then
+    unreadable = true
+    quarto.log.warning("ctm-libs cannot read the tabs of a tabset with this Quarto version: the AI context "
+      .. "of an exercise in a tab may include other tabs' prose.")
+  end
+  return nil
 end
 -- Raw HTML <details> (solutions, hints, reading steps) and collapsed callouts
 -- stay closed until the learner opens them: their prose is context only for
@@ -319,7 +330,7 @@ local function walk(blocks, state)
   local scopes = {}
   for _, b in ipairs(blocks) do
     local tabbed = tabset(b)
-    if excluded(b, true) then
+    if excluded(b, true) or (tabbed and excluded(pandoc.Div({}, tabbed.attr), true)) then
       -- Hidden, generated and author-only content does not change section state.
     elseif b.t == "RawBlock" then
       for _, open in ipairs(detailsTags(b)) do
@@ -354,10 +365,8 @@ local function walk(blocks, state)
     elseif isContext(b) then
       if not state.off then b = preserveMath(b) end
       local outer = state.from
-      if b.identifier ~= "" then
-        state.from = {table.unpack(outer)}
-        table.insert(state.from, b.identifier)
-      end
+      state.from = copy(outer)
+      table.insert(state.from, b.identifier)
       b.content = walk(b.content, state)
       state.from = outer
     elseif b.t == "Div" or b.t == "BlockQuote" then

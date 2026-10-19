@@ -121,7 +121,9 @@ test('a tab is a section of its own, nested too; <details> content is no prose (
 
 // Closed material (<details>, collapsed callouts) is a scope: an exercise in
 // it gets the section's prose and its block's prose; nothing after the block
-// sees it, also when a <details> is left open.
+// sees it, also when a <details> is left open. Explicit context leaves out
+// context blocks without an id too; a tabset marked .ai-feedback-ignore is
+// passed over like any ignored block.
 const closed = [
   '## Closed', '', 'Outer prose.', '',
   '<details class="reading-step">', '<summary>Go deeper</summary>', '', 'Inner instructions.', '',
@@ -133,10 +135,13 @@ const closed = [
   '::: {.callout-tip collapse="true"}', '## Worked solution', '', 'CALLOUT_SOLUTION_MARKER.', '',
   '::: {.ai-feedback #inside-callout}', 'Task in the callout.', ':::', ':::', '',
   '::: {.callout-note}', '## Open note', '', 'Open note prose.', ':::', '',
+  '::: {.ai-feedback-context}', 'Context block without an id.', ':::', '',
   '::: {.ai-feedback #after-callout}', 'Task after the callout.', ':::', '',
   '::: {.ai-feedback #explicit-after context="elsewhere"}', 'Task with an explicit context.', ':::', '',
   '::: {.wrapper}', '```{=html}', '<details>', '```', '', 'UNCLOSED_MARKER.', ':::', '',
   '::: {.ai-feedback #after-unclosed}', 'Task after the unclosed block.', ':::', '',
+  '::: {.panel-tabset .ai-feedback-ignore}', '### Ignored tab', '', 'Ignored tab prose.', '',
+  '::: {.ai-feedback #in-ignored-tabset}', 'Task in an ignored tabset.', ':::', ':::', '',
   '## Elsewhere', '', '::: {#elsewhere .ai-feedback-context}', 'Far.', ':::', ''].join('\n');
 
 test('closed material is a scope: exercises in it get its prose, nothing after it does', {skip}, () => {
@@ -152,16 +157,34 @@ test('closed material is a scope: exercises in it get its prose, nothing after i
       'inside-details': inside,
       'after-details': outer,
       'inside-callout': outer + '\nWorked solution\nCALLOUT_SOLUTION_MARKER.',
-      'after-callout': open,
+      'after-callout': open + '\nContext block without an id.',
       'explicit-after': open,
-      'after-unclosed': open,
+      'after-unclosed': open + '\nContext block without an id.',
     });
     assert.deepEqual(C.probes(html).cells, {'cell-inside': inside});
+    assert.doesNotMatch(r.stderr, /cannot read the tabs/);
     // Without AI feedback (P22) the activities in closed material become tasks as well.
     r = C.render(dir, ['page.qmd'], {CTM_FEEDBACK: 'off'});
     assert.equal(r.status, 0, r.stderr);
     html = C.html(dir, 'page.qmd');
     for (const id of ['inside-details', 'inside-callout', 'after-unclosed']) assert.match(html, new RegExp('<div id="' + id + '" class="ai-feedback-task">'), id);
+  } finally { fs.rmSync(dir, {recursive: true, force: true}); }
+});
+
+test('a tabset whose tabs cannot be read is walked whole, with one warning', {skip}, () => {
+  const dir = C.tempdir('ctm-context-unreadable-');
+  try {
+    C.installPackage(dir); C.install(dir); C.installProbe(dir);
+    // Two Tabset nodes whose data Quarto does not hold (as if a Quarto version kept them from filters).
+    const fake = ['local attrs = {__quarto_custom = "true", __quarto_custom_type = "Tabset", __quarto_custom_context = "Block", __quarto_custom_id = "unreadable"}',
+      'local function node() return pandoc.Div({pandoc.Div({pandoc.Para({pandoc.Str("Tab prose.")})}), pandoc.Div({pandoc.Plain({pandoc.Str("Tab")})})}, pandoc.Attr("", {}, attrs)) end',
+      'local page = ctm.feedback.prepare(pandoc.Pandoc({node(), node(), pandoc.CodeBlock("print(1)", pandoc.Attr("after"))}, pandoc.Meta({})))',
+      'return page.blocks[3].attributes["data-ai-feedback-context"]'].join('\n');
+    C.write(dir, {'page.qmd': '---\ntitle: t\nfilters: [ctm-libs, probe]\n---\n\nText.\n' + C.probe('unreadable', fake)});
+    const r = C.render(dir, ['page.qmd']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stderr.match(/ctm-libs cannot read the tabs of a tabset with this Quarto version/g)?.length, 1, r.stderr);
+    assert.equal(C.probes(C.html(dir, 'page.qmd')).unreadable, 'Tab prose.\nTab\nTab prose.\nTab');
   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
 });
 
