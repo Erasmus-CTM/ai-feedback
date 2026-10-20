@@ -15,7 +15,9 @@
   one runtime, in any order: ctm-checkers installed after the STACK engine
   (or again, for a repeated call) replaces the package, so the runtime
   forgets the STACK engine and installs it again on its next call; the
-  installs of one runtime run one after another. The load after the install
+  installs and the calls of one runtime run one after another, in one
+  queue, so that no call runs while an install replaces the package (also
+  with a component's direct `ensureCheckers`). The load after the install
   walks what the page's scripts installed, so a math page loads no STACK
   module.
 

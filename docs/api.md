@@ -351,8 +351,12 @@ MathExerciseRuntime.forgetModules(py);                 // the next ensure* insta
   time (its install includes it); and since ctm-checkers' own install
   replaces the whole package, `CTMCheckers` installed after the STACK
   engine (or again, for a repeated call) makes the runtime forget the STACK
-  engine, which the next STACK call installs again. The installs of one
-  runtime run one after another. Then it imports every
+  engine, which the next STACK call installs again. The installs and the
+  calls of one runtime run one after another, in one queue, so no call runs
+  while an install replaces the package: any order of `ensureCheckers` and
+  `callCheckers` works, also a component's direct `ensureCheckers` (as
+  stack-sympy's worker and math-exercise make when they start) while
+  another component's call waits. Then it imports every
   module of the library, so that no call reads the wheel file again (learner
   code that deletes or overwrites `/tmp/ctm-checkers` breaks no later call),
   and removes the names that the install code of ctm-checkers 0.1 (as in
@@ -372,9 +376,10 @@ MathExerciseRuntime.forgetModules(py);                 // the next ensure* insta
   `builtins`, a `_ctm_` name) does not affect it. Afterwards
   `_ctm_request`, `_ctm_builtins` and the install code's names are removed
   from the namespace. This is the call text that ctm-checkers' `docs/api.md`
-  documents (from 0.2.0; it works with 0.1 pages too). The calls of one runtime run one after another: pass the runtime
-  object that `ensurePyodide` returned, so that every caller queues on the
-  same one. A runtime that hangs holds up only its own calls.
+  documents (from 0.2.0; it works with 0.1 pages too). The calls of one runtime run one after another, in the
+  same queue as its installs: pass the runtime object that `ensurePyodide`
+  returned, so that every caller queues on the same one. A runtime that
+  hangs holds up only its own calls and installs.
 - When the call text failed before it reached ctm-checkers' `call`
   (learner code removed ctm-checkers or rebound what the import uses),
   ctm-checkers is installed again and the call repeated once. The cleanup

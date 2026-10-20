@@ -192,7 +192,10 @@
   }
   // Forget what a runtime has installed (for example after learner code in
   // another cell removed it); the next install runs again.
-  function forgetModules(py) { if (installed) installed.delete(py); }
+  function forgetModules(py) {
+    if (installed) installed.delete(py);
+    if (checkerHeld) checkerHeld.delete(py);
+  }
   function ensureGuard(py) { return installModule(py, '_ctm_guard', GUARD_PY); }
 
   // The names the install code of ctm-checkers 0.1 (CTM Assessment 0.10.0)
@@ -264,40 +267,60 @@
   // way round, ctm-checkers' own install replaces the whole package
   // (ctm_checkers.* and its wheels' paths), the parts installed before
   // included: so it makes the runtime forget them, and the next call that
-  // needs a part installs it again. The installs of one runtime run one
-  // after another, so that what a runtime holds is what it last installed.
+  // needs a part installs it again. The installs and the calls of one
+  // runtime run one after another, in one queue (checkersQueue), so that what
+  // a runtime holds is what it last installed and no call runs while an
+  // install replaces the package: ensureCheckers and callCheckers work in
+  // any order, also when a component installs directly (ensureCheckers
+  // outside callCheckers) while another's call waits.
   function checkersKey(checkers) {
     return (checkers && typeof checkers.name === 'string' && checkers.name) || 'ctm-checkers';
   }
-  // The parts each runtime holds (installed, not only requested).
-  var checkerParts = typeof WeakMap === 'function' ? new WeakMap() : null;
-  var checkerInstalls = typeof WeakMap === 'function' ? new WeakMap() : null;
-  function ensureCheckers(py, payload) {
+  function checkersPayload(payload) {
     var checkers = payload || root.CTMCheckers;
     if (!checkers || typeof checkers.install !== 'function') {
-      return Promise.reject(new Error('ctm-checkers is not loaded on this page: its script ctm-checkers.js is missing'));
+      throw new Error('ctm-checkers is not loaded on this page: its script ctm-checkers.js is missing');
     }
+    return checkers;
+  }
+  // The runtime's queue: each task starts when the one before it has ended.
+  var checkerQueues = typeof WeakMap === 'function' ? new WeakMap() : null;
+  function checkersQueue(py, task) {
+    var previous = (checkerQueues && checkerQueues.get(py)) || Promise.resolve();
+    var result = previous.then(task);
+    if (checkerQueues) checkerQueues.set(py, result.catch(function () {}));
+    return result;
+  }
+  // The payloads each runtime holds: installed, and not replaced since.
+  var checkerHeld = typeof WeakMap === 'function' ? new WeakMap() : null;
+  function heldBy(py) {
+    var held = checkerHeld && checkerHeld.get(py);
+    if (!held) { held = {}; if (checkerHeld) checkerHeld.set(py, held); }
+    return held;
+  }
+  // Installs a payload unless the runtime holds it; runs in the queue only.
+  function installCheckers(py, checkers) {
     var failure = gone && gone.get(py);
     if (failure) return Promise.reject(failure);
-    var key = checkersKey(checkers);
-    return once(py, key, function () {
-      var previous = (checkerInstalls && checkerInstalls.get(py)) || Promise.resolve();
-      var install = previous.then(function () {
-        return Promise.resolve(checkers.install(py)).then(function () {
-          var parts = checkerParts && checkerParts.get(py);
-          if (!parts && checkerParts) { parts = {}; checkerParts.set(py, parts); }
-          if (checkers.part) {
-            if (parts) parts[key] = true;
-          } else if (parts) {
-            // ctm-checkers replaced the package: the parts installed before are gone.
-            var done = installed && installed.get(py);
-            Object.keys(parts).forEach(function (part) { if (done) delete done[part]; delete parts[part]; });
-          }
-          return py.runPythonAsync(CHECKERS_LOAD);
-        });
-      });
-      if (checkerInstalls) checkerInstalls.set(py, install.catch(function () {}));
-      return install;
+    var key = checkersKey(checkers), held = heldBy(py);
+    if (held[key]) return Promise.resolve();
+    if (!checkers.part) {
+      // ctm-checkers replaces the package: the parts installed before go
+      // (also when the install fails half-way).
+      var done = installed && installed.get(py);
+      Object.keys(held).forEach(function (other) { delete held[other]; if (done) delete done[other]; });
+    }
+    return Promise.resolve(checkers.install(py)).then(function () {
+      return py.runPythonAsync(CHECKERS_LOAD);
+    }).then(function () { held[key] = true; });
+  }
+  function ensureCheckers(py, payload) {
+    var checkers;
+    try { checkers = checkersPayload(payload); } catch (error) { return Promise.reject(error); }
+    var failure = gone && gone.get(py);
+    if (failure) return Promise.reject(failure);
+    return once(py, checkersKey(checkers), function () {
+      return checkersQueue(py, function () { return installCheckers(py, checkers); });
     });
   }
 
@@ -330,29 +353,31 @@
     '_ctm_namespace.pop("_ctm_globals", None)',
     '_ctm_namespace.pop("_ctm_namespace").pop("_ctm_request", None) is not None',
   ].join('\n');
-  var checkerCalls = typeof WeakMap === 'function' ? new WeakMap() : null;
 
   // Runs ctm-checkers' call `name` (for example "math_exercise.check") on
   // `request` (an object; ctm-checkers docs/api.md) in the runtime `py` and
   // returns the JSON text it returns. Installs ctm-checkers first (once per
   // runtime). The calls of one runtime run one after another, since the
-  // request travels in one global (_ctm_request); pass the runtime object
-  // that ensurePyodide returned, so that every caller queues on the same
-  // one. A runtime that hangs holds up only its own calls. After the call,
-  // the cleanup removes the request and the call text's names. When the call
-  // text failed before it reached ctm-checkers' call (the request was still
-  // there), ctm-checkers is installed again and the call is repeated once;
-  // the second failure and an error the call itself raised reach the
-  // caller. When the runtime was stopped or restarted meanwhile (a stop on
-  // the page, or the runtime is gone), nothing more is sent to it: no
-  // cleanup and no repeat, and the later calls for a gone runtime, also
-  // those waiting behind this one, fail at once.
+  // request travels in one global (_ctm_request), and in the same queue as
+  // the installs, so that no install replaces the package during a call;
+  // pass the runtime object that ensurePyodide returned, so that every caller
+  // queues on the same one. A runtime that hangs holds up only its own calls
+  // and installs. After the call, the cleanup removes the request and the
+  // call text's names. When the call text failed before it reached
+  // ctm-checkers' call (the request was still there), ctm-checkers is
+  // installed again and the call is repeated once; the second failure and an
+  // error the call itself raised reach the caller. When the runtime was
+  // stopped or restarted meanwhile (a stop on the page, or the runtime is
+  // gone), nothing more is sent to it: no cleanup and no repeat, and the
+  // later calls and installs for a gone runtime, also those waiting behind
+  // this one, fail at once.
   function callCheckers(py, name, request, payload) {
     var text = typeof request === 'string' ? request : JSON.stringify(request);
     var epoch = stops;
     async function run() {
+      var checkers = checkersPayload(payload);
       for (var tries = 0; ; tries++) {
-        await ensureCheckers(py, payload);
+        await installCheckers(py, checkers);
         var result, failure = null;
         try {
           await py.globals.set('_ctm_request', text);
@@ -369,14 +394,13 @@
         try { requestLeft = await py.runPythonAsync(CHECKERS_CLEANUP); } catch (ignored) { /* removed by the next call's cleanup */ }
         if (!failure) return result;
         if (requestLeft !== true || tries > 0) throw failure;
-        var done = installed && installed.get(py);
-        if (done) delete done[checkersKey(payload || root.CTMCheckers)];
+        // Install that payload again: the runtime no longer holds it.
+        var key = checkersKey(checkers), done = installed && installed.get(py);
+        delete heldBy(py)[key];
+        if (done) delete done[key];
       }
     }
-    var previous = (checkerCalls && checkerCalls.get(py)) || Promise.resolve();
-    var result = previous.then(run);
-    if (checkerCalls) checkerCalls.set(py, result.catch(function () {}));
-    return result;
+    return checkersQueue(py, run);
   }
 
   // A runtime that can be stopped while it runs (pyodide-interaktiv's worker):

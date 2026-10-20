@@ -125,6 +125,44 @@ test('ctm-checkers installed after its STACK engine replaced it: the runtime ins
   assert.deepEqual([base.installs.length, stack.installs.length], [2, 3]);
 });
 
+// Every order of a direct install of the STACK engine, of ctm-checkers, a
+// STACK call and a math call, started together: a fake package where
+// ctm-checkers' install replaces the STACK engine and a STACK call without it
+// fails in ctm-checkers' call (the request taken), as in Pyodide. Nothing
+// overlaps, and a call never meets an install half-way.
+test('installs and calls of one runtime run in one queue, in every order of direct installs and calls', async () => {
+  const tick = () => new Promise((resolve) => setTimeout(resolve, 1));
+  const steps = ['install STACK', 'install ctm-checkers', 'STACK call', 'math call'];
+  const orders = [];
+  (function permute(done, rest) {
+    if (!rest.length) { orders.push(done); return; }
+    rest.forEach((step, i) => permute([...done, step], [...rest.slice(0, i), ...rest.slice(i + 1)]));
+  })([], steps);
+  for (const order of [['install STACK', 'install ctm-checkers', 'STACK call'], ...orders]) {
+    const context = runtime();
+    const R = context.MathExerciseRuntime;
+    let modules = new Set(), busy = 0, overlaps = 0;
+    async function work(change) { if (busy++) overlaps++; await tick(); change(); await tick(); busy--; }
+    const base = { name: 'ctm-checkers', install: () => work(() => { modules = new Set(['base']); }) };
+    const stack = { name: 'ctm-checkers-stack', part: 'stack', install: () => work(() => { modules = new Set(['base', 'stack']); }) };
+    context.CTMCheckers = base;
+    const py = fakePy((code) => code.includes('"stack.grade"') && !modules.has('stack')
+      && { take: true, message: 'ModuleNotFoundError: No module named \'ctm_checkers.stack\'' });
+    const call = py.runPythonAsync;
+    py.runPythonAsync = async (code) => { if (code.includes('.call(')) await work(() => {}); return call(code); };
+    const run = {
+      'install STACK': () => R.ensureCheckers(py, stack).then(() => 'installed'),
+      'install ctm-checkers': () => R.ensureCheckers(py).then(() => 'installed'),
+      'STACK call': () => R.callCheckers(py, 'stack.grade', { answers: {} }, stack).then(() => 'graded'),
+      'math call': () => R.callCheckers(py, 'math_exercise.check', { n: 1 }).then(() => 'checked'),
+    };
+    const results = await Promise.all(order.map((step) => run[step]().catch((error) => error.message)));
+    assert.deepEqual(results, order.map((step) => ({ 'STACK call': 'graded', 'math call': 'checked' })[step] || 'installed'), order.join(', '));
+    assert.equal(overlaps, 0, order.join(', '));
+    assert.equal(await run['STACK call'](), 'graded', order.join(', '));
+  }
+});
+
 test('ensureCheckers without ctm-checkers.js on the page fails with a message', async () => {
   const R = runtime().MathExerciseRuntime;
   await assert.rejects(R.ensureCheckers(fakePy()), /ctm-checkers is not loaded on this page: its script ctm-checkers\.js is missing/);
@@ -582,36 +620,45 @@ test('Pyodide: stack-sympy\'s worker: both page scripts, the STACK engine instal
   assert.deepEqual(py.runPython('sorted(n for n in globals() if n.startswith("_ctm_"))').toJs(), []);
 });
 
-// Both page scripts in one runtime, in every order (step 6 shares the runtime):
+// Both page scripts in one runtime (step 6 shares the runtime): a fresh page
+// (the runtime's bookkeeping starts empty) and stack-sympy's grading request
+// (the question and variant as the card holds them).
+function pageWithStack() {
+  const manifest = JSON.parse(fs.readFileSync(path.join(checkersFolder, 'checkers.json'), 'utf8'));
+  assert.ok(manifest.parts && manifest.parts.stack, 'ctm-checkers 0.2 or later (tests/pins.json) has parts.stack');
+  const context = vm.createContext({ setTimeout, clearTimeout, WeakMap, Promise });
+  for (const file of [path.join(ctmLibs.library, 'runtime', 'pyodide-runtime.js'), path.join(checkersFolder, manifest.script),
+    path.join(checkersFolder, manifest.parts.stack.script)]) vm.runInContext(fs.readFileSync(file, 'utf8'), context);
+  return { R: context.MathExerciseRuntime, stack: context.CTMCheckersStack };
+}
+let gradeRequest;
+async function stackRequest(py) {
+  if (!gradeRequest) {
+    const scope = py.toPy({ xml: fs.readFileSync(path.join(checkersSource, 'examples', 'stack', 'polynomial-expansion.xml'), 'utf8') });
+    try {
+      const page = pageWithStack();
+      await page.R.ensureCheckers(proxyOf(py), page.stack);
+      const prepared = JSON.parse(py.runPython('import json\nfrom ctm_checkers.stack.importer import import_xml\nfrom ctm_checkers.stack.engine import instantiate\n'
+        + 'q = import_xml(xml)[0]\njson.dumps({"question": q, "variant": instantiate(q, 1)})', { globals: scope }));
+      gradeRequest = { ...prepared, answers: { ans: 'x^2+7*x+12' } };
+    } finally { scope.destroy(); }
+  }
+  return gradeRequest;
+}
+
 // ctm-checkers' own install replaces the package, the STACK engine installed
 // before included, and the runtime must install that again.
 test('Pyodide: ctm-checkers and its STACK engine in one runtime, in every order, and a repeated failed math call', { skip: skipPyodide, timeout: 900000 }, async () => {
   assert.ok(haveCheckers, 'ctm-checkers is missing: check out the commit of tests/pins.json into ' + checkersSource);
-  const manifest = JSON.parse(fs.readFileSync(path.join(checkersFolder, 'checkers.json'), 'utf8'));
-  assert.ok(manifest.parts && manifest.parts.stack, 'ctm-checkers 0.2 or later (tests/pins.json) has parts.stack');
   const py = await realPyodide();
-  const scope = py.toPy({ xml: fs.readFileSync(path.join(checkersSource, 'examples', 'stack', 'polynomial-expansion.xml'), 'utf8') });
-  let prepared;
-  try {
-    const page = pageWithStack();
-    await page.R.ensureCheckers(proxyOf(py), page.stack);
-    prepared = JSON.parse(py.runPython('import json\nfrom ctm_checkers.stack.importer import import_xml\nfrom ctm_checkers.stack.engine import instantiate\n'
-      + 'q = import_xml(xml)[0]\njson.dumps({"question": q, "variant": instantiate(q, 1)})', { globals: scope }));
-  } finally { scope.destroy(); }
-  function pageWithStack() {
-    const context = vm.createContext({ setTimeout, clearTimeout, WeakMap, Promise });
-    for (const file of [path.join(ctmLibs.library, 'runtime', 'pyodide-runtime.js'), path.join(checkersFolder, manifest.script),
-      path.join(checkersFolder, manifest.parts.stack.script)]) vm.runInContext(fs.readFileSync(file, 'utf8'), context);
-    return { R: context.MathExerciseRuntime, stack: context.CTMCheckersStack };
-  }
+  const request = await stackRequest(py);
   const REMOVE = 'import sys\nfor name in [n for n in sys.modules if n == "ctm_checkers" or n.startswith("ctm_checkers.")]:\n    del sys.modules[name]\n'
     + 'sys.path[:] = [p for p in sys.path if not p.startswith("/tmp/ctm-checkers/")]';
   for (const order of ['math first', 'stack first', 'concurrent', 'repeated math call']) {
-    // A fresh page and runtime object: the runtime's bookkeeping starts empty.
     const { R, stack } = pageWithStack();
     const proxy = proxyOf(py);
     const math = async () => JSON.parse(await R.callCheckers(proxy, 'math_exercise.check', REQUEST)).status;
-    const grade = async () => JSON.parse(await R.callCheckers(proxy, 'stack.grade', { ...prepared, answers: { ans: 'x^2+7*x+12' } }, stack)).result.score;
+    const grade = async () => JSON.parse(await R.callCheckers(proxy, 'stack.grade', request, stack)).result.score;
     let results;
     if (order === 'math first') results = [await math(), await grade(), await math(), await grade()];
     else if (order === 'stack first') results = [await grade(), await math(), await grade(), await math()];
@@ -626,4 +673,45 @@ test('Pyodide: ctm-checkers and its STACK engine in one runtime, in every order,
     assert.equal(py.runPython('import sys\n"ctm_checkers.stack.engine" in sys.modules'), true, order);
     assert.deepEqual(py.runPython('sorted(n for n in globals() if n.startswith("_ctm_"))').toJs(), [], order);
   }
+});
+
+// Direct installs too, as components make them: stack-sympy's worker installs
+// the STACK engine when it starts, math-exercise installs ctm-checkers when it
+// loads SymPy (ensureCheckers outside callCheckers). Every order of the four,
+// started together (each before the others end) and one after another, and
+// the review's case (the STACK engine, then ctm-checkers, then a STACK call,
+// together): no call may run while an install replaces the package.
+test('Pyodide: direct installs and calls of ctm-checkers and its STACK engine in one runtime, in every order', { skip: skipPyodide, timeout: 1800000 }, async () => {
+  assert.ok(haveCheckers, 'ctm-checkers is missing: check out the commit of tests/pins.json into ' + checkersSource);
+  const py = await realPyodide();
+  const request = await stackRequest(py);
+  const expected = { 'install STACK': 'installed', 'install ctm-checkers': 'installed', 'STACK call': '1', 'math call': 'correct' };
+  const orders = [];
+  (function permute(done, rest) {
+    if (!rest.length) { orders.push(done); return; }
+    rest.forEach((step, i) => permute([...done, step], [...rest.slice(0, i), ...rest.slice(i + 1)]));
+  })([], Object.keys(expected));
+  const runs = [['together', ['install STACK', 'install ctm-checkers', 'STACK call']]];
+  for (const how of ['together', 'one after another']) for (const order of orders) runs.push([how, order]);
+  const failures = [];
+  for (const [how, order] of runs) {
+    const { R, stack } = pageWithStack();
+    const proxy = proxyOf(py);
+    const outcome = (promise) => promise.then(String, (error) => 'error: ' + String(error && error.message).trim().split('\n').pop());
+    const steps = {
+      'install STACK': () => outcome(R.ensureCheckers(proxy, stack).then(() => 'installed')),
+      'install ctm-checkers': () => outcome(R.ensureCheckers(proxy).then(() => 'installed')),
+      'STACK call': () => outcome(R.callCheckers(proxy, 'stack.grade', request, stack).then((text) => JSON.parse(text).result.score)),
+      'math call': () => outcome(R.callCheckers(proxy, 'math_exercise.check', REQUEST).then((text) => JSON.parse(text).status)),
+    };
+    let results;
+    if (how === 'together') results = await Promise.all(order.map((step) => steps[step]()));
+    else { results = []; for (const step of order) results.push(await steps[step]()); }
+    // Afterwards both calls still work.
+    results.push(await steps['STACK call'](), await steps['math call']());
+    const want = [...order.map((step) => expected[step]), '1', 'correct'];
+    const leftovers = py.runPython('sorted(n for n in globals() if n.startswith("_ctm_"))').toJs();
+    if (JSON.stringify(results) !== JSON.stringify(want) || leftovers.length) failures.push({ how, order: order.join(', '), results, leftovers });
+  }
+  assert.deepEqual(failures, [], 'of ' + runs.length + ' runs');
 });
