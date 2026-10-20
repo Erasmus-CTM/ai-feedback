@@ -108,12 +108,14 @@ function fakeNet({base = 'https://cdn.example/pyodide/', packages = {}, hold = f
     let sent = false;
     return {status, ok: status >= 200 && status < 300, headers: {get: key => headers[key] || null},
       json: async () => JSON.parse(body),
+      arrayBuffer: async () => new Uint8Array(body.length).buffer,
       body: {getReader: () => ({read: async () => { if (sent) return {done: true}; sent = true; return {done: false, value: new Uint8Array(body.length)}; }})}};
   }
   async function fetch(url, init = {}) {
+    url = String(url);
     const file = url.slice(base.length);
     const range = init.headers && init.headers.Range;
-    const entry = {url, file, range, at: performance.now(), done: false};
+    const entry = {url, file, range, cache: init.cache, at: performance.now(), done: false};
     log.push(entry);
     if (file === 'pyodide-lock.json') {
       if (!lock) return response(404, '');
@@ -126,6 +128,7 @@ function fakeNet({base = 'https://cdn.example/pyodide/', packages = {}, hold = f
     if (failing) { entry.done = true; return response(status[failing], ''); }
     if (hold) await new Promise(resolve => held.push(resolve));
     const size = sizes[file];
+    if (!range) { entry.done = true; return response(200, 'x'.repeat(size)); }
     const [, from, to] = /bytes=(\d+)-(\d+)/.exec(range);
     if (Number(from) >= size) { entry.done = true; return response(416, ''); }
     const end = Math.min(Number(to), size - 1);

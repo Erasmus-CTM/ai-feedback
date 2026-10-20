@@ -177,7 +177,13 @@
   once, and restarting it again returns the same new start. A stage-2
   install waits for a 300 ms pause in the commands, for 5 s at most, so a
   page that calls Python without pause cannot postpone the installs for
-  ever, and a check shorter than 5 s meets at most one install.
+  ever, and a check shorter than 5 s meets at most one install. Installs
+  take the prefetched bytes once their SHA-256 is the lock file's (the
+  worker answers loadPackage's request itself), and the Cache Storage
+  `ctm-pyodide-wheels` keeps them for the next page: the browser's HTTP
+  cache is not involved (with jsDelivr's compressed ranges it held entries
+  that failed the integrity check). An install that Pyodide reports as
+  failed ends stage 2 with its reason.
   `ctm.runtime.worker()` also writes
   `coi-serviceworker.js` (1.8's file, byte for byte) to the output root and
   adds its tag. `ctm.runtime.indexURL()` reads the one Pyodide constant of

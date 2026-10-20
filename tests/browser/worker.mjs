@@ -11,10 +11,11 @@
 // the wheels>, or the files are fetched from jsDelivr once and kept in
 // PYODIDE_CACHE (default .pyodide-cache/). PYODIDE_OLD=0.27.2 also checks a
 // project that pins an older Pyodide (base-url, build-variant; N5).
-// Scenarios (all by default): cache, check, starvation, stall, restart, isolation.
+// Scenarios (all by default): cache, cdn, check, starvation, stall, restart, isolation.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import http from 'node:http';
+import zlib from 'node:zlib';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {chromium} from 'playwright';
@@ -24,12 +25,16 @@ const LIB = path.join(ROOT, '_extensions', 'ctm-libs', 'runtime');
 const VERSION = fs.readFileSync(path.join(LIB, 'pyodide-runtime.js'), 'utf8').match(/var indexURL = 'https:\/\/cdn\.jsdelivr\.net\/pyodide\/v([\d.]+)\/full\/';/)[1];
 const CACHE = process.env.PYODIDE_CACHE || path.join(ROOT, '.pyodide-cache');
 const BACKGROUND = {packages: ['pyodide_http', 'micropip', 'matplotlib'], run: 'import pyodide_http\npyodide_http.patch_all()'};
-const all = ['cache', 'check', 'starvation', 'stall', 'restart', 'isolation'];
+const all = ['cache', 'cdn', 'check', 'starvation', 'stall', 'restart', 'isolation'];
 const scenarios = process.argv.slice(2).length ? process.argv.slice(2) : all;
 
 // --- The CDN: /<version>/<file> ---------------------------------------------
 function cdnServer() {
-  const state = {rate: 0, latency: 0, log: [], stall: null};
+  // encoding: as jsDelivr serves the wheels (measured in CI, 21 Oct): gzip
+  // when the request accepts it, byte ranges of the encoded bytes, a weak
+  // ETag, Vary: Accept-Encoding and no Accept-Ranges.
+  const state = {rate: 0, latency: 0, log: [], stall: null, encoding: false};
+  const encoded = new Map();
   const active = new Set();
   setInterval(() => {
     if (!active.size) return;
@@ -54,11 +59,18 @@ function cdnServer() {
     const cors = {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Expose-Headers': '*'};
     if (req.method === 'OPTIONS') { res.writeHead(204, cors); res.end(); return; }
     if (!where || !fs.existsSync(where)) { res.writeHead(404, cors); res.end(); return; }
-    const body = fs.readFileSync(where), stat = fs.statSync(where);
+    let body = fs.readFileSync(where);
+    const stat = fs.statSync(where);
     const types = {'.mjs': 'text/javascript', '.js': 'text/javascript', '.wasm': 'application/wasm', '.json': 'application/json'};
     const headers = {...cors, 'Content-Type': types[path.extname(where)] || 'application/octet-stream', 'Cross-Origin-Resource-Policy': 'cross-origin',
       'Cache-Control': 'public, max-age=31536000, immutable', 'ETag': `"${stat.size}-${Math.floor(stat.mtimeMs)}"`,
       'Last-Modified': stat.mtime.toUTCString(), 'Accept-Ranges': 'bytes'};
+    if (state.encoding && name.endsWith('.whl') && new RegExp(process.env.CDN_ENCODING === 'br' ? 'br' : 'gzip').test(req.headers['accept-encoding'] || '')) {
+      if (!encoded.has(where)) encoded.set(where, process.env.CDN_ENCODING === 'br' ? zlib.brotliCompressSync(body) : zlib.gzipSync(body));
+      body = encoded.get(where);
+      delete headers['Accept-Ranges'];
+      Object.assign(headers, {'Content-Encoding': process.env.CDN_ENCODING === 'br' ? 'br' : 'gzip', 'Vary': 'Accept-Encoding', 'ETag': `W/"${stat.size}-${Math.floor(stat.mtimeMs)}"`});
+    }
     let start = 0, end = body.length - 1, status = 200;
     const range = /^bytes=(\d+)-(\d*)$/.exec(req.headers.range || '');
     if (range) {
@@ -172,7 +184,7 @@ async function cacheScenario(mode, version, variant = 'full/') {
     assert.equal(done.error, undefined, done.error);
     const requests = wheels(mark);
     assert.deepEqual([...new Set(requests.map(entry => entry.file))].sort(), [...files].sort(), 'the closure, nothing else');
-    assert.deepEqual(requests.filter(entry => !entry.range).map(entry => entry.file), [], 'every install came from the cache');
+    assert.deepEqual(requests.filter(entry => !entry.range).map(entry => entry.file), [], 'every install took the verified prefetched bytes');
     const installed = await page.evaluate(() => window.__w.proxy.runPythonAsync('import importlib.util, json\njson.dumps([importlib.util.find_spec(m) is not None for m in ("matplotlib", "pyodide_http", "micropip")])'));
     assert.deepEqual(JSON.parse(installed), [true, true, true]);
     // pyodide_http.patch_all() ran: requests' adapter is pyodide_http's.
@@ -180,6 +192,40 @@ async function cacheScenario(mode, version, variant = 'full/') {
     assert.match(patched, /pyodide_http/);
     report.push(`cache ${mode} ${version}: ready ${Math.round(ready.ready)} ms, stage 2 ${Math.round(done.setup)} ms, ${requests.length} range requests over ${files.length} files, 0 full requests`);
   });
+}
+
+async function cdnScenario(mode) {
+  // jsDelivr's encoding (state.encoding): stage 2 completes, and afterwards
+  // the browser's HTTP cache serves a full request with integrity, as a
+  // check's loadPackage makes it (the cache is not left with a broken entry);
+  // a second visit takes the wheels from the worker's own cache.
+  cdn.state.encoding = true;
+  const packages = await lock(VERSION);
+  try {
+    await withPage(mode, async page => {
+      const mark = cdn.state.log.length;
+      await start(page, {indexURL: index(VERSION), background: BACKGROUND});
+      const done = await waitSetup(page);
+      assert.equal(done.error, undefined, done.error);
+      const installed = await page.evaluate(() => window.__w.proxy.runPythonAsync('import importlib.util, json\njson.dumps([importlib.util.find_spec(m) is not None for m in ("matplotlib", "pyodide_http", "micropip", "packaging")])'));
+      assert.deepEqual(JSON.parse(installed), [true, true, true, true]);
+      const integrity = await page.evaluate(async ({url, hex}) => {
+        const sri = 'sha256-' + btoa(String.fromCharCode(...hex.match(/../g).map(h => parseInt(h, 16))));
+        try { const r = await fetch(url, {integrity: sri}); return r.status + ' ' + (await r.arrayBuffer()).byteLength; } catch (e) { return String(e); }
+      }, {url: index(VERSION) + packages.packaging.file_name, hex: packages.packaging.sha256});
+      assert.match(integrity, /^200 /, 'a full request with integrity after stage 2: ' + integrity);
+      const first = wheels(mark).length;
+      await page.reload();
+      if (mode === 's') await page.waitForFunction(() => globalThis.crossOriginIsolated === true, null, {timeout: 30000});
+      const again = cdn.state.log.length;
+      await start(page, {indexURL: index(VERSION), background: BACKGROUND});
+      const second = await waitSetup(page);
+      assert.equal(second.error, undefined, second.error);
+      report.push(`cdn ${mode} (gzip, ranges of encoded bytes, weak ETag): stage 2 ${Math.round(done.setup)} ms with ${first} wheel requests; a full request with integrity afterwards: ${integrity}; second visit ${Math.round(second.setup)} ms with ${wheels(again).length} wheel requests`);
+    });
+  } finally {
+    cdn.state.encoding = false;
+  }
 }
 
 async function checkScenario() {
@@ -311,6 +357,9 @@ try {
       await cacheScenario('h', VERSION);
       await cacheScenario('s', VERSION);
       if (process.env.PYODIDE_OLD) await cacheScenario('h', process.env.PYODIDE_OLD);
+    } else if (scenario === 'cdn') {
+      await cdnScenario('h');
+      await cdnScenario('s');
     } else if (scenario === 'check') await checkScenario();
     else if (scenario === 'starvation') await starvationScenario();
     else if (scenario === 'stall') await stallScenario();

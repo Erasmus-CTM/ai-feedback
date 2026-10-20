@@ -262,6 +262,58 @@ function mayDownload(msg) {
 
 // --- Stage 2 -----------------------------------------------------------------
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+// The wheels of stage 2 are installed from the bytes the prefetch received,
+// once their SHA-256 equals the lock file's: the worker answers loadPackage's
+// request for such a URL itself, so an install never downloads and never
+// depends on how the browser's HTTP cache keeps byte ranges (jsDelivr serves
+// small wheels compressed, with ranges of the compressed bytes, and Chromium
+// then kept entries that failed loadPackage's integrity check: "Failed to
+// fetch"). The prefetch therefore bypasses the HTTP cache, and the Cache
+// Storage "ctm-pyodide-wheels" keeps verified wheels for the next page.
+// A wheel that does not verify is fetched by loadPackage as usual.
+const WHEEL_CACHE = "ctm-pyodide-wheels";
+const verified = new Map();   // URL -> Uint8Array, until installed
+const networkFetch = globalThis.fetch;
+globalThis.fetch = function(input, init) {
+  const url = typeof input === "string" ? input : (input && input.href) || (input && input.url) || String(input);
+  const bytes = verified.get(url);
+  if (bytes) return Promise.resolve(new Response(bytes, { status: 200, headers: { "Content-Type": "application/octet-stream" } }));
+  return networkFetch(input, init);
+};
+async function sha256Hex(bytes) {
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, "0")).join("");
+}
+// Holds bytes for url when they are the lock file's wheel; true if so.
+async function holdVerified(url, bytes, sha256) {
+  try {
+    if (!sha256 || !globalThis.crypto || !crypto.subtle || (await sha256Hex(bytes)) !== String(sha256).toLowerCase()) return false;
+  } catch (err) {
+    return false;
+  }
+  verified.set(url, bytes);
+  return true;
+}
+async function cachedWheel(url) {
+  try {
+    if (!globalThis.caches) return null;
+    const response = await (await caches.open(WHEEL_CACHE)).match(url);
+    return response ? new Uint8Array(await response.arrayBuffer()) : null;
+  } catch (err) {
+    return null;
+  }
+}
+async function keepWheel(url, bytes) {
+  try {
+    if (globalThis.caches) await (await caches.open(WHEEL_CACHE)).put(url, new Response(bytes));
+  } catch (err) { /* only the next page's download is lost */ }
+}
+function joined(chunks, length) {
+  const bytes = new Uint8Array(length);
+  let at = 0;
+  for (const chunk of chunks) { bytes.set(chunk, at); at += chunk.byteLength; }
+  return bytes;
+}
 // One byte range; a request without a byte for STALL ms counts as failed.
 // Returns the bytes received and the file's size when the server names it.
 // Errors are short (the status line shows them); the URL goes to the console.
@@ -271,20 +323,22 @@ async function fetchRange(url, start) {
   const arm = () => { clearTimeout(timer); timer = setTimeout(() => { stalled = true; controller.abort(); }, STALL); };
   arm();
   try {
-    const response = await fetch(url, { headers: { Range: "bytes=" + start + "-" + (start + RANGE - 1) }, signal: controller.signal });
-    if (response.status === 416) return { received: 0, total: start };
+    const response = await networkFetch(url, { headers: { Range: "bytes=" + start + "-" + (start + RANGE - 1) }, cache: "no-store", signal: controller.signal });
+    if (response.status === 416) return { received: 0, total: start, chunks: [] };
     if (response.status !== 206 && response.status !== 200) throw new Error("HTTP " + response.status);
     const reader = response.body.getReader();
     let received = 0;
+    const chunks = [];
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
       received += value.byteLength;
+      chunks.push(value);
       arm();
     }
-    if (response.status === 200) return { received, total: received };
+    if (response.status === 200) return { received, total: received, chunks, whole: true };
     const range = /\/(\d+)\s*$/.exec(response.headers.get("Content-Range") || "");
-    return { received, total: range ? Number(range[1]) : (received < RANGE ? start + received : null) };
+    return { received, total: range ? Number(range[1]) : (received < RANGE ? start + received : null), chunks };
   } catch (err) {
     throw stalled ? new Error("no data for " + (STALL < 1000 ? STALL + " ms" : Math.round(STALL / 1000) + " s")) : err;
   } finally {
@@ -306,26 +360,41 @@ async function fetchRangeWithRetries(file, start) {
     }
   }
 }
-// Every file of the named packages into the browser's cache, from the URLs loadPackage
-// will request, one range at a time, smallest file first (sizes are learnt
-// from the first range of each).
+// Every file of the named packages, from the URLs loadPackage will request,
+// one range at a time, smallest file first (sizes are learnt from the first
+// range of each); a wheel the Cache Storage has (verified) is not fetched.
+// Each complete file is verified and held for its install (above).
 async function prefetch(names) {
   const files = names.map(name => lockPackages[name]).filter(entry => entry && entry.file_name)
-    .map(entry => ({ name: entry.name || entry.file_name, url: new URL(entry.file_name, config.indexURL).href, next: 0, total: null }));
+    .map(entry => ({ name: entry.name || entry.file_name, url: new URL(entry.file_name, config.indexURL).href, sha256: entry.sha256, next: 0, total: null, chunks: [] }));
+  const finish = async file => {
+    const bytes = joined(file.chunks, file.next);
+    file.chunks = [];
+    if (await holdVerified(file.url, bytes, file.sha256)) await keepWheel(file.url, bytes);
+  };
+  const open = [];
   for (const file of files) {
+    const kept = await cachedWheel(file.url);
+    if (kept && await holdVerified(file.url, kept, file.sha256)) continue;
     const got = await fetchRangeWithRetries(file, 0);
     file.next = got.received;
     file.total = got.total;
+    file.chunks.push(...got.chunks);
+    // A whole file (200), or the server's total reached: a compressed small
+    // wheel arrives decoded, longer than the encoded total it names.
+    if (got.whole || (file.total !== null && file.next >= file.total)) await finish(file);
+    else open.push(file);
   }
-  const open = files.filter(file => file.total === null || file.next < file.total);
   open.sort((a, b) => (a.total === null ? Infinity : a.total) - (b.total === null ? Infinity : b.total));
   for (const file of open) {
     while (file.total === null || file.next < file.total) {
       const got = await fetchRangeWithRetries(file, file.next);
       if (got.received === 0) break;
       file.next += got.received;
+      file.chunks.push(...got.chunks);
       if (got.total !== null) file.total = got.total;
     }
+    await finish(file);
   }
 }
 // A failed loadPackage does not reject: Pyodide reports the error through
@@ -349,6 +418,7 @@ async function install(name) {
   } finally {
     clearTimeout(slow);
   }
+  if (entry && entry.file_name) verified.delete(new URL(entry.file_name, config.indexURL).href);
   if (!isLoaded(name)) {
     console.warn("CTMWorker: stage 2 could not install " + label + ": " + (errors.join("\n") || "not loaded"));
     const reason = errors.find(text => !/^The following error occurred/.test(text)) || "not installed";

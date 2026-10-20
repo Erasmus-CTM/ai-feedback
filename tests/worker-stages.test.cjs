@@ -369,3 +369,31 @@ test('a failed install (Pyodide reports it and does not reject) ends stage 2 wit
   assert.ok(!s.events.includes('run PATCH'), 'the patch does not run after a failed install');
   assert.match(s.warnings.join('\n'), /could not install matplotlib: Failed to load 'https:\/\/cdn\.example\/pyodide\/matplotlib-1\.0-py3-none-any\.whl'/);
 });
+
+test('installs take the verified prefetched bytes (no request); a wheel that does not verify is fetched by loadPackage', async () => {
+  const crypto = require('node:crypto');
+  const s = stages({pyodide: (ctx, fake, events) => ({
+    // As Pyodide 0.28 in a browser: fetch(new URL(file), {integrity}).
+    loadPackage: async names => {
+      for (const name of [].concat(names)) {
+        const response = await ctx.fetch(new URL(name + '-1.0-py3-none-any.whl', 'https://cdn.example/pyodide/'), {integrity: 'sha256-x'});
+        events.push('install ' + name + ' ' + (await response.arrayBuffer()).byteLength);
+        fake.loadedPackages[name] = 'default channel';
+      }
+    },
+  })});
+  // The fake wheels are zeros of their size: give all but matplotlib their real SHA-256.
+  for (const [name, entry] of Object.entries(s.network.lockJSON.packages)) {
+    if (name !== 'matplotlib') entry.sha256 = crypto.createHash('sha256').update(Buffer.alloc({'pyodide-http': 1500, micropip: 900, packaging: 700, numpy: 2600, cycler: 300, sympy: 1800, mpmath: 400}[name] || 0)).digest('hex');
+  }
+  s.w.context.Response = Response;
+  s.w.context.crypto = globalThis.crypto;
+  s.w.ctx.fetch = (...args) => s.w.context.fetch(...args);
+  await s.init();
+  await W.waitFor(s.setupMessage, 5000, 'setup');
+  assert.deepEqual(s.setupMessage(), {type: 'setup', ok: true});
+  const full = s.network.log.filter(entry => entry.file.endsWith('.whl') && !entry.range).map(entry => entry.file);
+  assert.deepEqual(full, ['matplotlib-1.0-py3-none-any.whl'], 'only the wheel that did not verify was requested again');
+  assert.ok(s.events.includes('install numpy 2600'), s.events.join(', '));
+  assert.ok(s.network.log.filter(entry => entry.range).every(entry => entry.cache === 'no-store'), 'the prefetch bypasses the HTTP cache');
+});
