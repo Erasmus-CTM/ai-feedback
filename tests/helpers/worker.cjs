@@ -144,5 +144,37 @@ async function waitFor(predicate, ms = 5000, what = 'condition') {
   }
 }
 
+// A virtual clock for the worker's timers (pass its setTimeout, clearTimeout
+// and performance as workerContext globals): time moves only in advance(ms),
+// which runs the due timers in order and lets the promises they start settle
+// in between, so a test of timing has no wall-clock margins.
+function fakeClock() {
+  let now = 0, seq = 0;
+  const timers = new Map();
+  const settle = async () => { for (let i = 0; i < 3; i++) await new Promise(resolve => setImmediate(resolve)); };
+  return {
+    performance: {now: () => now},
+    setTimeout: (fn, ms = 0) => { const id = ++seq; timers.set(id, {at: now + Math.max(0, Number(ms) || 0), fn}); return id; },
+    clearTimeout: id => { timers.delete(id); },
+    now: () => now,
+    settle,
+    async advance(ms) {
+      const end = now + ms;
+      for (;;) {
+        await settle();
+        let next = null;
+        for (const [id, timer] of timers) if (timer.at <= end && (!next || timer.at < next.at)) next = {id, ...timer};
+        if (!next) break;
+        timers.delete(next.id);
+        now = Math.max(now, next.at);
+        next.fn();
+      }
+      now = end;
+      await settle();
+    },
+  };
+}
+
 module.exports.fakeNet = fakeNet;
 module.exports.waitFor = waitFor;
+module.exports.fakeClock = fakeClock;

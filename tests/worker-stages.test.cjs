@@ -23,11 +23,12 @@ const BACKGROUND = {packages: ['pyodide_http', 'micropip', 'matplotlib'], run: '
 const TIMING = {range: 1024, resumeAfter: 50, stall: 100, retryAfter: [20, 40], slowInstall: 10000, installQuiet: 40};
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-function stages({net = {}, pyodide = () => ({}), background = BACKGROUND, packages = [], timing = {}} = {}) {
+function stages({net = {}, pyodide = () => ({}), background = BACKGROUND, packages = [], timing = {}, clock = null} = {}) {
   const network = W.fakeNet({packages: PACKAGES, ...net});
   const events = [], warnings = [];
   const console = {...globalThis.console, warn: (...args) => warnings.push(args.join(' '))};
-  const w = W.workerContext({globals: {fetch: network.fetch, URL, AbortController, console}, pyodide: (ctx, fake) => {
+  const timers = clock ? {setTimeout: clock.setTimeout, clearTimeout: clock.clearTimeout, performance: clock.performance} : {};
+  const w = W.workerContext({globals: {fetch: network.fetch, URL, AbortController, console, ...timers}, pyodide: (ctx, fake) => {
     const own = pyodide(ctx, fake, events);
     return {
       ...own,
@@ -282,34 +283,68 @@ test('m2: an HTTP error ends stage 2 with the package and the status only; the U
   assert.match(s.warnings.join('\n'), /https:\/\/cdn\.example\/pyodide\/matplotlib-1\.0-py3-none-any\.whl.*HTTP 404/);
 });
 
-test('S-a: commands that never leave the quiet time postpone an install by the ceiling at most; installs stay a ceiling apart', async () => {
-  // Commands every ~10 ms against a 60 ms quiet time: without the ceiling no
-  // install would ever start while they go on (the review's probe).
-  const QUIET = 60, CEILING = 250;
+// S-a: on a virtual clock (W.fakeClock), so the times below are exact.
+test('S-a: commands that never leave the quiet time postpone an install by the ceiling, no more; installs stay a ceiling apart', async () => {
+  // A command every 10 ms against a 60 ms quiet time: without the ceiling no
+  // install would start while they go on (the review's probe).
+  const QUIET = 60, CEILING = 250, clock = W.fakeClock();
   const installs = [];
-  const s = stages({timing: {installQuiet: QUIET, installCeiling: CEILING}, pyodide: (ctx, fake, events) => ({
+  const s = stages({clock, timing: {installQuiet: QUIET, installCeiling: CEILING}, pyodide: (ctx, fake, events) => ({
     loadPackage: async names => {
-      for (const name of [].concat(names)) { installs.push(performance.now()); events.push('install ' + name); fake.loadedPackages[name] = 'default channel'; }
+      for (const name of [].concat(names)) { installs.push(clock.now()); events.push('install ' + name); fake.loadedPackages[name] = 'default channel'; }
     },
-    runPythonAsync: async code => { if (code === 'PATCH') installs.push(performance.now()); events.push('run ' + code); },
+    runPythonAsync: async code => { if (code === 'PATCH') installs.push(clock.now()); events.push('run ' + code); },
   })});
   await s.init();
-  const t0 = performance.now();
-  let id = 100, last = t0, widest = 0;
-  while (!s.setupMessage() && performance.now() - t0 < 8000) {
+  await clock.advance(0);                 // stage 2 starts; every range arrives at t = 0
+  assert.equal(wheels(s.network.log).filter(entry => entry.done).length, 14, 'every range (14) fetched at t = 0');
+  let id = 100;
+  while (!s.setupMessage() && clock.now() < 5000) {
     await s.w.send({id: id++, type: 'runPython', code: 'POLL'});
-    const now = performance.now();
-    widest = Math.max(widest, now - last);
-    last = now;
-    await sleep(10);
+    await clock.advance(10);
   }
-  assert.ok(s.setupMessage(), 'stage 2 finished while the commands went on');
-  assert.equal(s.setupMessage().ok, true);
-  assert.ok(widest < QUIET, 'the commands never left the quiet time (' + Math.round(widest) + ' ms)');
-  assert.equal(installs.length, 7, 'six installs and the patch');
-  // Each waited for the ceiling (the stream never went quiet), so no window
-  // shorter than the ceiling holds two: a check shorter than that meets one.
-  for (let i = 1; i < installs.length; i++) assert.ok(installs[i] - installs[i - 1] >= CEILING - 2, 'install ' + i + ' after ' + Math.round(installs[i] - installs[i - 1]) + ' ms');
-  assert.ok(installs.at(-1) - t0 < 7 * (CEILING + QUIET) + 1000, 'bounded: ' + Math.round(installs.at(-1) - t0) + ' ms');
+  assert.deepEqual(s.setupMessage(), {type: 'setup', ok: true}, 'stage 2 finished while the commands went on');
+  // Six installs and the patch, each when its wait reached the ceiling: the
+  // first 250 ms after the downloads, each next 250 ms after the one before.
+  // No window shorter than the ceiling holds two, so a check shorter than
+  // that meets at most one.
+  assert.deepEqual(installs, [1, 2, 3, 4, 5, 6, 7].map(k => k * CEILING));
+  assert.ok(s.events.indexOf('install pyodide-http') > 0 && s.events[0] === 'run POLL', 'the commands went first');
   assert.ok(s.w.results().every(m => m.type === 'result'), 'every command answered');
+});
+
+test('S-a: an install past its ceiling still waits until nothing is queued or running', async () => {
+  // Two long commands; the ceiling passes during the first. When it ends the
+  // second is still queued, so the install waits; a command arriving while
+  // the second runs goes before the install too.
+  const QUIET = 60, CEILING = 250, clock = W.fakeClock();
+  const release = {};
+  const s = stages({clock, timing: {installQuiet: QUIET, installCeiling: CEILING}, pyodide: (ctx, fake, events) => ({
+    runPythonAsync: async code => {
+      events.push('run ' + code);
+      if (code.startsWith('LONG')) await new Promise(resolve => { release[code] = resolve; });
+      events.push('ran ' + code);
+    },
+  })});
+  await s.init();
+  const first = s.w.send({id: 70, type: 'runPython', code: 'LONG1'});
+  const second = s.w.send({id: 71, type: 'runPython', code: 'LONG2'});
+  await clock.advance(0);                 // stage 2 starts; the ranges arrive (runPython does not pause them)
+  await clock.advance(2 * CEILING);       // the first install's ceiling has passed
+  assert.ok(!s.events.some(event => event.startsWith('install ')), 'no install while a command runs');
+  release.LONG1();
+  await first;
+  await clock.settle();
+  assert.ok(!s.events.some(event => event.startsWith('install ')), 'none while the second is queued');
+  assert.deepEqual(s.events.slice(-1), ['run LONG2']);
+  const third = s.w.send({id: 72, type: 'runPython', code: 'SHORT'});
+  await clock.settle();
+  release.LONG2();
+  await Promise.all([second, third]);
+  await clock.settle();
+  const order = s.events.filter(event => /^(ran |run SHORT|install )/.test(event));
+  assert.deepEqual(order.slice(0, 4), ['ran LONG1', 'ran LONG2', 'run SHORT', 'ran SHORT']);
+  assert.equal(order[4], 'install pyodide-http', 'the install right after the queue empties');
+  await clock.advance(10 * CEILING);
+  assert.deepEqual(s.setupMessage(), {type: 'setup', ok: true});
 });
