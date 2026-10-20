@@ -180,8 +180,9 @@
   // the viewport's top, a tab title's tab row above it, out of view. The
   // target's scroll-margin-top places the anchor below the header instead
   // (negative where a section's heading has a top margin). It follows the
-  // anchor and the header when they reflow later (a web font, a narrower
-  // window, a rotated phone): a jump then still lands there.
+  // target, the anchor and the header when they reflow later (a web font, a
+  // narrower window, a rotated phone, Quarto's late section:target offset):
+  // a jump then still lands there.
   var margined = null;
   function margin(target, anchor) {
     if (!target.getClientRects().length || !anchor.getClientRects().length) return;
@@ -199,6 +200,7 @@
     margined.observer = typeof ResizeObserver === 'function' ? new ResizeObserver(function () { margin(target, anchor); }) : null;
     if (!margined.observer) return;
     margined.observer.observe(anchor);
+    if (anchor !== target) margined.observer.observe(target);
     var header = document.getElementById('quarto-header');
     if (header) margined.observer.observe(header);
   }

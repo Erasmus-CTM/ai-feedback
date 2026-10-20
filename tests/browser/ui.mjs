@@ -535,6 +535,12 @@ async function loads(browser, base, name) {
   assert.ok(s.focusInView && s.focusInTarget, name + ' #eks-3 focus in view');
   assert.equal(s.mark, 'load', name + ': handled by the script' + ' ' + JSON.stringify(s));
   lands(await jump(page, 'eks-3'), name + ' #eks-3');
+  // Quarto's section:target offset changes after the link was handled (it
+  // comes late in WebKit): a later jump still lands below the header.
+  await page.evaluate(() => { document.getElementById('quarto-target-style').textContent = ''; });
+  await page.waitForTimeout(300);
+  const late = await jump(page, 'eks-3');
+  assert.ok(Math.abs(late.after - (s.headerBottom + 16)) <= 1, name + ' #eks-3 without the section:target offset: the jump lands below the header ' + JSON.stringify(late));
 
   await open(page, base + 'index.html#deep-head');
   s = await state(page, 'deep-head');
