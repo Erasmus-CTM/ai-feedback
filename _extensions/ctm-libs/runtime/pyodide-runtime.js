@@ -195,9 +195,10 @@
   function forgetModules(py) { if (installed) installed.delete(py); }
   function ensureGuard(py) { return installModule(py, '_ctm_guard', GUARD_PY); }
 
-  // The names ctm-checkers' install code leaves in the namespace for its own
-  // call text (_ctm_import, _ctm_globals): this runtime's call text, below,
-  // needs none of them, so they go (no lookups: assign, then delete).
+  // The names the install code of ctm-checkers 0.1 (CTM Assessment 0.10.0)
+  // leaves in the namespace for its own call text (_ctm_import,
+  // _ctm_globals; later versions leave none): this runtime's call text,
+  // below, needs none of them, so they go (no lookups: assign, then delete).
   var CHECKERS_LEFTOVERS = '_ctm_import = None\ndel _ctm_import\n_ctm_globals = None\ndel _ctm_globals';
   // After the install, every module of ctm_checkers is imported, so that no
   // call reads the wheel file again: learner code may delete or overwrite
@@ -256,9 +257,21 @@
   // work with py.globals.set and py.runPythonAsync only (ctm-checkers
   // docs/api.md): it checks the wheel's SHA-256 and imports ctm_checkers from
   // the wheel. Then the whole library is loaded (CHECKERS_LOAD).
+  //
+  // A part's payload (`part`, such as ctm-checkers-stack.js) installs
+  // ctm-checkers too, so after "ctm-checkers, then its STACK engine" the
+  // ctm-checkers wheel was installed twice; that is all it costs. The other
+  // way round, ctm-checkers' own install replaces the whole package
+  // (ctm_checkers.* and its wheels' paths), the parts installed before
+  // included: so it makes the runtime forget them, and the next call that
+  // needs a part installs it again. The installs of one runtime run one
+  // after another, so that what a runtime holds is what it last installed.
   function checkersKey(checkers) {
     return (checkers && typeof checkers.name === 'string' && checkers.name) || 'ctm-checkers';
   }
+  // The parts each runtime holds (installed, not only requested).
+  var checkerParts = typeof WeakMap === 'function' ? new WeakMap() : null;
+  var checkerInstalls = typeof WeakMap === 'function' ? new WeakMap() : null;
   function ensureCheckers(py, payload) {
     var checkers = payload || root.CTMCheckers;
     if (!checkers || typeof checkers.install !== 'function') {
@@ -266,8 +279,25 @@
     }
     var failure = gone && gone.get(py);
     if (failure) return Promise.reject(failure);
-    return once(py, checkersKey(checkers), function () {
-      return Promise.resolve(checkers.install(py)).then(function () { return py.runPythonAsync(CHECKERS_LOAD); });
+    var key = checkersKey(checkers);
+    return once(py, key, function () {
+      var previous = (checkerInstalls && checkerInstalls.get(py)) || Promise.resolve();
+      var install = previous.then(function () {
+        return Promise.resolve(checkers.install(py)).then(function () {
+          var parts = checkerParts && checkerParts.get(py);
+          if (!parts && checkerParts) { parts = {}; checkerParts.set(py, parts); }
+          if (checkers.part) {
+            if (parts) parts[key] = true;
+          } else if (parts) {
+            // ctm-checkers replaced the package: the parts installed before are gone.
+            var done = installed && installed.get(py);
+            Object.keys(parts).forEach(function (part) { if (done) delete done[part]; delete parts[part]; });
+          }
+          return py.runPythonAsync(CHECKERS_LOAD);
+        });
+      });
+      if (checkerInstalls) checkerInstalls.set(py, install.catch(function () {}));
+      return install;
     });
   }
 

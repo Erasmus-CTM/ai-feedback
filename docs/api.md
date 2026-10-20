@@ -346,11 +346,19 @@ MathExerciseRuntime.forgetModules(py);                 // the next ensure* insta
   `ctm_checkers` from the wheel); `payload` defaults to the page's
   `CTMCheckers`; `CTMCheckersStack` (stack-sympy's worker) installs
   ctm-checkers and its STACK engine. A page with math-exercise alone has no
-  STACK module to load. Then it imports every
+  STACK module to load. Both work in one runtime, in any order: after
+  `CTMCheckers`, `CTMCheckersStack` installs the ctm-checkers wheel a second
+  time (its install includes it); and since ctm-checkers' own install
+  replaces the whole package, `CTMCheckers` installed after the STACK
+  engine (or again, for a repeated call) makes the runtime forget the STACK
+  engine, which the next STACK call installs again. The installs of one
+  runtime run one after another. Then it imports every
   module of the library, so that no call reads the wheel file again (learner
   code that deletes or overwrites `/tmp/ctm-checkers` breaks no later call),
-  and removes the names the install code leaves in the namespace
-  (`_ctm_import`, `_ctm_globals`; the call text below needs neither).
+  and removes the names that the install code of ctm-checkers 0.1 (as in
+  CTM Assessment 0.10.0) leaves in the namespace (`_ctm_import`,
+  `_ctm_globals`; the call text below needs neither; later versions leave
+  none).
   Without ctm-checkers.js on the page it fails with a message.
 - `callCheckers(py, name, request[, payload])` runs ctm-checkers' call
   `name` (`math_exercise.check`, `math_exercise.check_custom`; with the
@@ -363,9 +371,8 @@ MathExerciseRuntime.forgetModules(py);                 // the next ensure* insta
   learner code that rebinds a name there (`__import__`, `globals`,
   `builtins`, a `_ctm_` name) does not affect it. Afterwards
   `_ctm_request`, `_ctm_builtins` and the install code's names are removed
-  from the namespace. This is the call text of ctm-checkers 0.1 pages; the
-  call text in ctm-checkers' own `docs/api.md` (with `_ctm_import`) is not
-  used. The calls of one runtime run one after another: pass the runtime
+  from the namespace. This is the call text that ctm-checkers' `docs/api.md`
+  documents (from 0.2.0; it works with 0.1 pages too). The calls of one runtime run one after another: pass the runtime
   object that `ensurePyodide` returned, so that every caller queues on the
   same one. A runtime that hangs holds up only its own calls.
 - When the call text failed before it reached ctm-checkers' `call`
