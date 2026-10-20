@@ -8,7 +8,7 @@ const FILE = path.join(C.library, 'runtime', 'pyodide-worker.js');
 // The proxy's documented keys (docs/api.md), without a plugin's commands.
 const PROXY_KEYS = ['isWorkerProxy', 'interruptBuffer', 'inputStatusBuf', 'inputDataBuf', 'onStream', 'onInputRequired',
   'runPythonAsync', 'loadPackagesFromImports', 'loadPackage', 'toPy', 'globals', 'interrupt', 'clearInterrupt',
-  'abortInput', 'provideInput', 'restart'];
+  'abortInput', 'provideInput', 'restart', 'whenSetup', 'retrySetup'];
 
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
@@ -90,3 +90,55 @@ function workerContext({plugin = '', pyodide = () => ({}), globals = {}} = {}) {
 }
 
 module.exports = {FILE, PROXY_KEYS, tick, pageContext, workerSource, workerContext};
+
+// A fake network for the stage-2 prefetch: a lock file and wheels of given
+// sizes at `base`. Every request is logged; `hold` keeps requests open until
+// release(); `stall` names files whose requests never send a byte (they end
+// when the worker aborts them).
+function fakeNet({base = 'https://cdn.example/pyodide/', packages = {}, hold = false, stall = [], exposeRange = true, lock = true} = {}) {
+  const log = [], held = [];
+  const lockJSON = {info: {}, packages: {}};
+  for (const [name, spec] of Object.entries(packages)) {
+    lockJSON.packages[name] = {name, file_name: name + '-1.0-py3-none-any.whl', depends: spec.depends || [], imports: spec.imports || [name.replace(/-/g, '_')], sha256: '00'};
+  }
+  const sizes = Object.fromEntries(Object.entries(packages).map(([name, spec]) => [name + '-1.0-py3-none-any.whl', spec.size || 1000]));
+  function response(status, body, headers = {}) {
+    let sent = false;
+    return {status, ok: status >= 200 && status < 300, headers: {get: key => headers[key] || null},
+      json: async () => JSON.parse(body),
+      body: {getReader: () => ({read: async () => { if (sent) return {done: true}; sent = true; return {done: false, value: new Uint8Array(body.length)}; }})}};
+  }
+  async function fetch(url, init = {}) {
+    const file = url.slice(base.length);
+    const range = init.headers && init.headers.Range;
+    const entry = {url, file, range, at: performance.now(), done: false};
+    log.push(entry);
+    if (file === 'pyodide-lock.json') {
+      if (!lock) return response(404, '');
+      return response(200, JSON.stringify(lockJSON));
+    }
+    if (stall.some(name => file.startsWith(name + '-'))) {
+      return new Promise((resolve, reject) => init.signal.addEventListener('abort', () => { entry.aborted = true; reject(Object.assign(new Error('aborted'), {name: 'AbortError'})); }));
+    }
+    if (hold) await new Promise(resolve => held.push(resolve));
+    const size = sizes[file];
+    const [, from, to] = /bytes=(\d+)-(\d+)/.exec(range);
+    if (Number(from) >= size) { entry.done = true; return response(416, ''); }
+    const end = Math.min(Number(to), size - 1);
+    entry.done = true;
+    return response(206, 'x'.repeat(end - Number(from) + 1), exposeRange ? {'Content-Range': 'bytes ' + from + '-' + end + '/' + size} : {});
+  }
+  return {fetch, log, release() { const list = held.splice(0); list.forEach(resolve => resolve()); return list.length; }, held, lockJSON};
+}
+
+// Waits until predicate() is true (polling), or fails after `ms`.
+async function waitFor(predicate, ms = 5000, what = 'condition') {
+  const start = Date.now();
+  while (!predicate()) {
+    if (Date.now() - start > ms) throw new Error('timed out waiting for ' + what);
+    await new Promise(resolve => setTimeout(resolve, 5));
+  }
+}
+
+module.exports.fakeNet = fakeNet;
+module.exports.waitFor = waitFor;

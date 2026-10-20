@@ -88,7 +88,24 @@ function registerPlugin(factory) {
   for (const name of Object.keys(plugin.commands || {})) pluginCommands[name] = plugin.commands[name];
 }
 
-async function init(config) {
+// Start-up in two stages (D2, step-3 design §18.5). Stage 1 (init): the
+// interpreter, the plugins' stage-1 Python and, when the page asks for them,
+// micropip and its packages; then the proxy is ready and other components'
+// checks run. Stage 2 (setup): the background packages (pyodide-interaktiv:
+// pyodide_http, micropip, matplotlib) without ever making a check wait for
+// their downloads: they are fetched in byte ranges outside Pyodide's package
+// lock, paused while a command downloads, and installed one at a time from
+// the browser's cache while nothing else runs.
+let config = null;
+async function init(cfg) {
+  config = cfg;
+  // Shorter limits for tests only (tests/worker.test.cjs, tests/browser/worker.mjs).
+  const timing = cfg.timing || {};
+  if (timing.range) RANGE = timing.range;
+  if (timing.resumeAfter !== undefined) RESUME_AFTER = timing.resumeAfter;
+  if (timing.stall) STALL = timing.stall;
+  if (timing.retryAfter) RETRY_AFTER = timing.retryAfter;
+  if (timing.slowInstall) SLOW_INSTALL = timing.slowInstall;
   // Translated status texts come along from the main thread
   const msg = config.messages || {};
   const mod = await import(config.indexURL + "pyodide.mjs");
@@ -110,11 +127,11 @@ async function init(config) {
     }
   });
 
-  postStatus(msg.initPackages || "Initialising Python packages ...");
-  await pyodide.loadPackage("micropip");
-
-  // Packages requested by the page (pyodide: packages: [...])
+  // Packages requested by the page (pyodide: packages: [...]): a check may
+  // import them, so they belong to stage 1.
   if (config.packages && config.packages.length > 0) {
+    postStatus(msg.initPackages || "Initialising Python packages ...");
+    await pyodide.loadPackage("micropip");
     postStatus(msg.extraPackages || "Installing additional packages ...");
     const micropip = pyodide.pyimport("micropip");
     await micropip.install(config.packages);
@@ -124,12 +141,206 @@ async function init(config) {
   for (const plugin of plugins) {
     if (plugin.stage1) await pyodide.runPythonAsync(plugin.stage1);
   }
+}
 
-  // Further packages, one at a time, with Python to run after each
-  for (const step of config.background || []) {
-    if (step.load && step.load.length) await pyodide.loadPackage(step.load);
-    if (step.run) await pyodide.runPythonAsync(step.run);
+// --- Commands that may download, and the queue's state ---------------------
+// busy: commands queued or running; downloads: those of them that may
+// download (loadPackage, loadPackagesFromImports of a package not yet
+// loaded); lastDownload: when the last such command ended.
+let RANGE = 512 * 1024;          // bytes per prefetch request
+let RESUME_AFTER = 2000;         // ms of quiet after a download command
+let STALL = 30000;               // ms without a byte: the range is requested again
+let RETRY_AFTER = [5000, 30000]; // then a third failure ends stage 2
+let SLOW_INSTALL = 60000;        // an install this long is named in the status line
+let busy = 0, downloads = 0, lastDownload = -Infinity;
+let wakers = [];
+function changed() {
+  const list = wakers;
+  wakers = [];
+  for (const wake of list) wake();
+}
+// Resolves once ready() returns true; ready() may return a delay in ms to be
+// asked again then, or false to be asked again when the queue changes.
+function until(ready) {
+  return new Promise(resolve => {
+    const check = () => {
+      const answer = ready();
+      if (answer === true) resolve();
+      else if (typeof answer === "number") setTimeout(check, answer);
+      else wakers.push(check);
+    };
+    check();
+  });
+}
+function quiet() {
+  return until(() => {
+    if (downloads > 0) return false;
+    const left = lastDownload + RESUME_AFTER - performance.now();
+    return left <= 0 ? true : left;
+  });
+}
+// Runs task in the command queue as soon as nothing is queued or running; it
+// is queued at that very moment, so a command arriving later waits for it.
+function whenIdle(task) {
+  return new Promise((resolve, reject) => {
+    const check = () => {
+      if (busy > 0) { wakers.push(check); return; }
+      const run = commandQueue.then(task);
+      commandQueue = run.catch(() => {});
+      run.then(resolve, reject);
+    };
+    check();
+  });
+}
+
+// --- Pyodide's lock file: packages, their files and imports ----------------
+const canonical = name => String(name).toLowerCase().replace(/[-_.]+/g, "-");
+let lockPackages = null, lockImports = null;
+async function readLock() {
+  if (lockPackages) return;
+  // The URL loadPyodide read it from (start-up put it in the browser's cache).
+  const response = await fetch(config.indexURL + "pyodide-lock.json");
+  if (!response.ok) throw new Error("HTTP " + response.status + " for pyodide-lock.json");
+  const lock = await response.json();
+  const packages = {}, imports = {};
+  for (const [key, entry] of Object.entries(lock.packages || {})) {
+    const name = canonical(entry.name || key);
+    packages[name] = entry;
+    for (const module of entry.imports || []) imports[module] = name;
   }
+  lockPackages = packages;
+  lockImports = imports;
+}
+function isLoaded(name) {
+  const wanted = canonical(name);
+  return Object.keys(pyodide.loadedPackages || {}).some(loaded => canonical(loaded) === wanted);
+}
+// The packages and their dependencies, dependencies first.
+function closure(names) {
+  const order = [], seen = new Set();
+  const visit = name => {
+    const key = canonical(name);
+    if (seen.has(key)) return;
+    seen.add(key);
+    const entry = lockPackages && lockPackages[key];
+    for (const dependency of (entry && entry.depends) || []) visit(dependency);
+    order.push(key);
+  };
+  names.forEach(visit);
+  return order;
+}
+function mayDownload(msg) {
+  if (msg.type === "loadPackage") return !pyodide || [].concat(msg.name).some(name => !isLoaded(name));
+  if (msg.type !== "loadPackagesFromImports") return false;
+  if (!pyodide || !lockImports) return true;
+  try {
+    const found = pyodide.code.find_imports(msg.code);
+    const modules = found.toJs();
+    found.destroy();
+    return modules.some(module => lockImports[module] && !isLoaded(lockImports[module]));
+  } catch (err) {
+    return true;
+  }
+}
+
+// --- Stage 2 -----------------------------------------------------------------
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+// One byte range; a request without a byte for STALL ms counts as failed.
+// Returns the bytes received and the file's size when the server names it.
+async function fetchRange(url, start) {
+  const controller = new AbortController();
+  let timer = null;
+  const arm = () => { clearTimeout(timer); timer = setTimeout(() => controller.abort(), STALL); };
+  arm();
+  try {
+    const response = await fetch(url, { headers: { Range: "bytes=" + start + "-" + (start + RANGE - 1) }, signal: controller.signal });
+    if (response.status === 416) return { received: 0, total: start };
+    if (response.status !== 206 && response.status !== 200) throw new Error("HTTP " + response.status + " for " + url);
+    const reader = response.body.getReader();
+    let received = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.byteLength;
+      arm();
+    }
+    if (response.status === 200) return { received, total: received };
+    const range = /\/(\d+)\s*$/.exec(response.headers.get("Content-Range") || "");
+    return { received, total: range ? Number(range[1]) : (received < RANGE ? start + received : null) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+async function fetchRangeWithRetries(url, start) {
+  for (let attempt = 0; ; attempt++) {
+    await quiet();
+    try {
+      return await fetchRange(url, start);
+    } catch (err) {
+      if (attempt >= RETRY_AFTER.length) throw new Error("download failed: " + url.split("/").pop() + " (" + String((err && err.message) || err) + ")");
+      await sleep(RETRY_AFTER[attempt]);
+    }
+  }
+}
+// Every file of the named packages into the browser's cache, from the URLs loadPackage
+// will request, one range at a time, smallest file first (sizes are learnt
+// from the first range of each).
+async function prefetch(names) {
+  const files = names.map(name => lockPackages[name]).filter(entry => entry && entry.file_name)
+    .map(entry => ({ url: new URL(entry.file_name, config.indexURL).href, next: 0, total: null }));
+  for (const file of files) {
+    const got = await fetchRangeWithRetries(file.url, 0);
+    file.next = got.received;
+    file.total = got.total;
+  }
+  const open = files.filter(file => file.total === null || file.next < file.total);
+  open.sort((a, b) => (a.total === null ? Infinity : a.total) - (b.total === null ? Infinity : b.total));
+  for (const file of open) {
+    while (file.total === null || file.next < file.total) {
+      const got = await fetchRangeWithRetries(file.url, file.next);
+      if (got.received === 0) break;
+      file.next += got.received;
+      if (got.total !== null) file.total = got.total;
+    }
+  }
+}
+async function install(name) {
+  const entry = lockPackages && lockPackages[name];
+  const started = performance.now();
+  const slow = setTimeout(() => {
+    postStatus(((config.messages || {}).initPackages || "Initialising Python packages ...") + " (" + ((entry && entry.name) || name) + ")");
+  }, SLOW_INSTALL);
+  try {
+    await pyodide.loadPackage((entry && entry.name) || name);
+  } finally {
+    clearTimeout(slow);
+  }
+  return performance.now() - started;
+}
+let setupRunning = null;
+async function setup() {
+  const steps = config.background || {};
+  const packages = steps.packages || [];
+  if (packages.length || steps.run) postStatus((config.messages || {}).initPackages || "Initialising Python packages ...");
+  if (packages.length) {
+    let lock = true;
+    try { await readLock(); } catch (err) { lock = false; }
+    const wanted = closure(packages).filter(name => !isLoaded(name));
+    // Without the lock file there is nothing to prefetch: the installs
+    // download inside Pyodide's lock, one package at a time.
+    if (lock) await prefetch(wanted);
+    for (const name of wanted) {
+      if (!isLoaded(name)) await whenIdle(() => install(name));
+    }
+  }
+  if (steps.run) await whenIdle(() => pyodide.runPythonAsync(steps.run));
+}
+function startSetup() {
+  if (setupRunning) return setupRunning;
+  setupRunning = setup().then(
+    () => { self.postMessage({ type: "setup", ok: true }); },
+    err => { setupRunning = null; self.postMessage({ type: "setup", ok: false, message: String((err && err.message) || err) }); });
+  return setupRunning;
 }
 
 // Raw Python call (RPC variant of runPythonAsync, e.g. for
@@ -155,6 +366,8 @@ async function handleMessage(msg) {
     switch (msg.type) {
       case "init":
         await init(msg.config);
+        // Stage 2 starts once the answer to init is on its way.
+        setTimeout(startSetup, 0);
         break;
       case "setInterrupt":
         pyodide.setInterruptBuffer(msg.buffer);
@@ -188,14 +401,28 @@ async function handleMessage(msg) {
 // Python has one interpreter and one output capture. Serialize mutations so a
 // checker from another extension cannot enter a document cell's stdout evidence.
 // Input/interrupt buffers are control messages, independent of this queue.
+// The queue's state (busy, downloads) lets stage 2 yield to every command.
 let commandQueue = Promise.resolve();
 self.onmessage = function(event) {
   const msg = event.data;
   if (msg.type === "setInterrupt" || msg.type === "setInputBuffers") {
     return handleMessage(msg);
   }
+  if (msg.type === "setupRetry") {
+    startSetup();
+    return Promise.resolve();
+  }
+  const download = mayDownload(msg);
+  busy++;
+  if (download) downloads++;
   const pending = commandQueue.then(() => handleMessage(msg));
   commandQueue = pending.catch(() => {});
+  const done = () => {
+    busy--;
+    if (download) { downloads--; lastDownload = performance.now(); }
+    changed();
+  };
+  pending.then(done, done);
   return pending;
 };
 `;
@@ -207,11 +434,14 @@ self.onmessage = function(event) {
   // options (all optional but indexURL):
   //   indexURL      Pyodide's base URL (ctm.runtime.indexURL() or a project's base-url)
   //   env           the interpreter's environment ({HOME: ...})
-  //   packages      micropip packages to install before the proxy is ready
-  //   background    [{load: [names], run: "Python"}, ...] after them, one at a time
+  //   packages      micropip packages to install before the proxy is ready (stage 1)
+  //   background    {packages: [names], run: "Python"}: stage 2, after the
+  //                 proxy is ready (proxy.whenSetup); never in a check's way
   //   plugin        worker-side source that calls registerPlugin(...)
   //   commands      {name: [argument names]}: the plugin's commands on the proxy
   //   messages      {loading, initPackages, extraPackages}: status texts
+  // Test-only: globalThis.__ctmWorkerNoBackground = true skips stage 2 (the
+  // loading measurements compare a page with and without it).
   //   onStatus(text)        a status text from the worker
   //   onRestart(started)    after restart(): the new start's promise
   //   publish       true: qpyodideReady, qpyodideInstance, _qpyodideGetInstance
@@ -252,8 +482,24 @@ self.onmessage = function(event) {
       });
     }
 
+    // Stage 2: proxy.whenSetup resolves (with the proxy) when the background
+    // packages are installed, or rejects; proxy.retrySetup() tries the
+    // missing steps again without restarting Python.
+    var setup = null;
+    function expectSetup() {
+      setup = {};
+      setup.promise = new Promise(function (resolve, reject) { setup.resolve = resolve; setup.reject = reject; });
+      setup.promise.catch(function () {});   // the components report it
+      proxy.whenSetup = setup.promise;
+      return setup.promise;
+    }
+
     worker.onmessage = function (event) {
       var msg = event.data;
+      if (msg.type === 'setup') {
+        if (msg.ok) setup.resolve(proxy); else setup.reject(new Error(msg.message));
+        return;
+      }
       if (msg.type === 'status')        { if (options.onStatus) options.onStatus(msg.text); return; }
       if (msg.type === 'streamStdout')  { if (proxy.onStream) proxy.onStream(msg.text, 'stdout'); return; }
       if (msg.type === 'streamStderr')  { if (proxy.onStream) proxy.onStream(msg.text, 'stderr'); return; }
@@ -283,6 +529,13 @@ self.onmessage = function(event) {
       inputDataBuf: null,       // Uint8Array(SharedArrayBuffer) – input data (UTF-8)
       onStream: null,           // Callback(text, type) – streamed stdout/stderr
       onInputRequired: null,    // Callback() – Python is waiting for input
+      whenSetup: null,          // Promise: stage 2 done (see above)
+
+      retrySetup: function () {
+        var promise = expectSetup();
+        worker.postMessage({ type: 'setupRetry' });
+        return promise;
+      },
 
       runPythonAsync: function (code) { return rpc('runPython', { code: code }); },
       loadPackagesFromImports: function (code) { return rpc('loadPackagesFromImports', { code: code }); },
@@ -344,6 +597,7 @@ self.onmessage = function(event) {
         return rpc(name, payload);
       };
     });
+    expectSetup();
 
     var started = (async function () {
       if (options.onStatus && options.messages && options.messages.loading) options.onStatus(options.messages.loading);
@@ -354,8 +608,9 @@ self.onmessage = function(event) {
             indexURL: options.indexURL,
             env: options.env || {},
             packages: options.packages || [],
-            background: options.background || [],
-            messages: options.messages || {}
+            background: root.__ctmWorkerNoBackground === true ? {} : (options.background || {}),
+            messages: options.messages || {},
+            timing: options.timing
           }
         });
       } finally {
