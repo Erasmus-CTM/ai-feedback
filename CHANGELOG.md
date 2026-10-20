@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### Added for components
+
+- **ctm-checkers' STACK engine** (ctm-checkers 0.2, consolidation step 2):
+  it has a wheel and page script of its own, so that pages with
+  math-exercise never carry it. `ctm.checkers.use("stack")`,
+  `ctm.checkers.wheel("stack")` and `ctm.checkers.environment(env, "stack")`
+  add it for a component that grades STACK questions (stack-sympy); a
+  ctm-checkers without it stops the render with the update command.
+  `MathExerciseRuntime.ensureCheckers` and `callCheckers` keep one install
+  per runtime and payload (`CTMCheckers`, `CTMCheckersStack`), so both work in
+  one runtime, in any order: ctm-checkers installed after the STACK engine
+  (or again, for a repeated call) replaces the package, so the runtime
+  forgets the STACK engine and installs it again on its next call; the
+  installs and the calls of one runtime run one after another, in one
+  queue, so that no call runs while an install replaces the package (also
+  with a component's direct `ensureCheckers`). The load after the install
+  walks what the page's scripts installed, so a math page loads no STACK
+  module.
+
 ### Added for authors
 
 - **Reveals, in Markdown** (P18, F1): `::: {.reading-step title="…"}`
@@ -98,6 +117,16 @@
   too, resolved as Quarto resolves them, for messages that name a file and
   line). In the browser: `CTMNav.reveal(element)` and
   `CTMReveal`. A new catalogue, `ui`, has en, de, nb and nn.
+- **For maintainer tools, what markdown-lint and the reveals read**
+  (additive; no change to a page or a warning): `ctm.source.read(lines)`
+  (one file's lines as the lint reads them: Markdown text without inline
+  code and comments, or code, front matter and fences),
+  `ctm.ui.rawHTML(lines)` (the raw HTML the lint names, by rule and line)
+  and `ctm.ui.defaultTitle(kind, lang)` (a reveal's title without
+  `title=`). `ctm.source.scan`, `markdown-lint` and the reveals' titles use
+  them, so there is one implementation. They need no page: CTM Assessment's
+  course converter runs them with `quarto pandoc lua` (docs/api.md, "Outside
+  a render") instead of keeping a copy of these rules.
 - `ctm.policy.withoutAI({component, kind, name, text, lang})`: a component
   asks about each of its exercises without a static check and gets nil (AI
   feedback on), `{action = "text", note}` or `{action = "drop"}`; ctm-libs
