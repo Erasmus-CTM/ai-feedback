@@ -7,7 +7,7 @@ is the library's own reference.
 
 ## Settings
 
-CTM settings live in four sections of the Quarto metadata:
+CTM settings live in five sections of the Quarto metadata:
 
 | Section | Keys |
 |---|---|
@@ -15,6 +15,7 @@ CTM settings live in four sections of the Quarto metadata:
 | `ai-feedback` | `mode` (`copy`, `api`), `storage` (`local`, `session`), `base-url`, `model`, `ui-language`, `feedback-language`, `enabled`, `policy-files`, `policy` |
 | `math-exercise` | `lang`, `feedback` (`auto`, `true`, `false`), `stop-after` |
 | `py-exercise` | `lang`, `feedback`, `stop-after`, `forbidden-imports`, `forbidden-keywords`, `submission`, `submission-key`, `show-test-hints` |
+| `pyodide` | pyodide-interaktiv's options (its own reference): `lang`, `feedback`, `feedback-hints`, `feedback-storage`, `show-startup-message`, `packages`, `base-url`, `build-variant`, `home-dir`, `local-storage`, `local-storage-epoch`, `pdf-fallback`, `<format>-autoexec`; read key by key on HTML pages (1.9 and later) |
 
 Settings combine **key by key** across `_quarto.yml`, the active profiles'
 `_quarto-<profile>.yml` (with several profiles the first listed wins, as in
@@ -53,18 +54,22 @@ Checks at render time:
 - Values that were accepted loosely before 0.9 (`py-exercise: submission`,
   `show-test-hints`, `feedback` other than true/false; a component section
   that is not a mapping) warn; other wrong values stop the render, naming the
-  key and the file.
+  key and the file. pyodide-interaktiv's on/off options keep the meaning they
+  had: true, false, 1 and 0; another value warns once and uses the default.
+- `pyodide` gets no unknown-option warnings (older projects carry options
+  that pyodide-interaktiv no longer reads).
 
 ## Languages
 
 A component's interface language is its own option (`math-exercise: lang`,
-`py-exercise: lang`, `ai-feedback: ui-language`), then `ctm-assessment: lang`,
-then Quarto's `lang`, then English; then the first language of the tag's
-chain that the component has: `nb-NO` → nb; `no` → nb; `nn` → nn, nb;
-`de-CH` → de; anything else → en. Every component speaks English, German and
-Norwegian Bokmål; the feedback interface also Spanish, the page's interface
-(reveals' titles, the lecture/reading switch; `ctm-assessment: lang`, then
-`lang`) also Nynorsk. The feedback's own
+`py-exercise: lang`, `pyodide: lang`, `ai-feedback: ui-language`), then
+`ctm-assessment: lang`, then Quarto's `lang`, then English; then the first
+language of the tag's chain that the component has: `nb-NO` → nb; `no` → nb;
+`nn` → nn, nb; `de-CH` → de; anything else → en. Every component speaks
+English, German and Norwegian Bokmål; the feedback interface also Spanish,
+pyodide-interaktiv also Swedish and Danish, the page's interface (reveals'
+titles, the lecture/reading switch; `ctm-assessment: lang`, then `lang`)
+also Nynorsk. The feedback's own
 language (`feedback-language`) is passed to the AI as written, from the
 activity, `ai-feedback: feedback-language`, `ctm-assessment: lang` or `lang`.
 
@@ -242,12 +247,17 @@ exercise. Where it runs before another CTM filter, a build without AI
 feedback stops and names the expected order; a build with AI feedback goes
 on as before, with a build warning that names it.
 
-pyodide-interaktiv 1.8 reads its own `pyodide: feedback`; ctm-libs sets it to
-false when its filter runs before pyodide-interaktiv's (the package order, or
-`filters: [ai-feedback, pyodide-interaktiv]`). The build message names a
-page's Pyodide cells only under an explicit `pyodide: feedback: true`
-(pyodide-interaktiv's own default is no request, as math-exercise's
-`feedback: auto`). Components released before
+pyodide-interaktiv 1.9 asks ctm-libs itself, in any filter order: without AI
+feedback its cells get no Feedback button, gear or adapter, and none of the
+AI-only fields (`task`, `feedback-policy`, `feedback-context`, the policy
+selection and the learning context); a cell with `#| task:` stays a runnable
+cell and does not count as an exercise only AI feedback can assess. The build
+message names a page's Pyodide cells only under an explicit
+`pyodide: feedback: true` (pyodide-interaktiv's own default is no request, as
+math-exercise's `feedback: auto`), once. pyodide-interaktiv 1.8 reads its own
+`pyodide: feedback`; ctm-libs sets it to false when its filter runs before
+pyodide-interaktiv's (the package order, or
+`filters: [ai-feedback, pyodide-interaktiv]`). Components released before
 CTM Assessment 0.9 do not know the switch when they run outside the package:
 ctm-libs still writes none of its own feedback scripts, configuration,
 policies or context, but the older components keep their own feedback code

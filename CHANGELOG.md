@@ -86,6 +86,21 @@
   `ctm-libs-end.lua` now stops a build without AI feedback, naming the
   expected order; with AI feedback a build warning names it.
 
+- **pyodide-interaktiv 1.9 runs on ctm-libs** (consolidation step 3): its
+  `pyodide:` options are a settings section (key by key on HTML pages, A1
+  included; `1` and `0` keep their meaning; other values that broke the
+  page's script now warn), its interface strings are the catalogue
+  `pyodide-interaktiv` (byte for byte; `ctm-assessment: lang` applies; `nn`
+  shows Bokmål), and its Python worker is ctm-libs' (below). On pages with
+  Pyodide cells, other components' checks no longer wait for matplotlib and
+  the other extra packages (D2): they download in the background without
+  getting in a check's way; Pyodide's own cells and Run buttons wait for
+  them as before.
+- **An old ai-feedback 0.8 next to CTM Assessment or pyodide-interaktiv 1.9**
+  still stops the page, now with what to do: "AI feedback is part of CTM
+  Assessment and of pyodide-interaktiv 1.9: remove ai-feedback from filters:
+  and delete the old folder."
+
 ### For component developers
 
 - `ctm.fail(message)` stops the render with a message for authors.
@@ -123,6 +138,32 @@
   `ctm.deps.folder(name)`; `ctm.deps.html` takes absolute paths of another
   installation's files. Check that `ctm.checkers` exists (older ctm-libs have
   none).
+- **The bootstrap takes options** (`ctm-bootstrap.lua`, byte-identical in
+  every component): `{standalone = "<install command>"}` for a component
+  that also works without the package with the ctm-libs it ships (the
+  messages then name that command; inside the package the package's
+  messages apply), and `{api = n}`, the interface level it needs. Without
+  options nothing changes, message for message. **`ctm.api` is 2**;
+  components asking for 1 accept it.
+- **CTMWorker** (`runtime/pyodide-worker.js`, dependency `ctm-worker`,
+  `ctm.runtime.worker()`): pyodide-interaktiv 1.8's Python worker and its RPC,
+  moved, with plugins (a component's worker-side commands, `capture` and
+  `setPrompt`), the two start-up stages of D2 (`proxy.whenSetup`,
+  `proxy.retrySetup()`) and the same proxy and globals (`qpyodideReady`,
+  `qpyodideInstance`, `_qpyodideGetInstance`, `mainPyodide`,
+  `qpyodide-runtime-restart`). `ctm.runtime.worker()` also writes
+  `coi-serviceworker.js` (1.8's file, byte for byte) to the output root and
+  adds its tag. `ctm.runtime.indexURL()` reads the one Pyodide constant of
+  `runtime/pyodide-runtime.js`.
+- `ctm.settings`: the section `pyodide`; `bool(..., {digits = true})` also
+  takes 1/0 and true/false in any case. `ctm.locale`: the component and
+  catalogue `pyodide-interaktiv` (en, de, sv, nb, da).
+- `templates/ai-feedback`: the forwarder pyodide-interaktiv ships, so that
+  updating replaces 1.8 projects' ai-feedback 0.8.1 folder
+  (`filters: [ai-feedback]` keeps working with one warning).
+- Without AI feedback, the bridge's "pyodide-interaktiv feedback" goes into
+  the build message only when pyodide-interaktiv did not ask itself (1.9 asks
+  under an explicit `pyodide: feedback: true`): Pyodide is named once.
 
 ## 0.9.0 (CTM Assessment 0.9.0)
 

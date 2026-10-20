@@ -113,24 +113,40 @@ A new language is added to `$languages` with all its texts.
 
 `tests/goldens/legacy-locales.json` holds the texts of math-exercise 0.9 and
 py-exercise 0.3, recorded once by `scripts/capture-legacy-locales.mjs`;
-`tests/locale.test.cjs` keeps the catalogues byte-identical to them.
+`tests/goldens/pyodide-interaktiv-locales.json` those of pyodide-interaktiv
+1.8 (every key of en, de, sv, no/nb and da, and the noscript texts), kept as
+data without a capture script. `tests/locale.test.cjs` keeps the catalogues
+byte-identical to them.
 
 ## The component bootstrap
 
 `bootstrap/ctm-bootstrap.lua` is copied byte for byte into every component
-(the CTM Assessment build compares the copies). It holds only the location
-logic: the package requirement (`CTM_COMPONENT_DEV=1` for component
-development), the search for ctm-libs, and the interface level `API`.
+(the CTM Assessment build compares the copies; pyodide-interaktiv's CI
+compares its generated copy with the ctm-libs commit it records). It holds
+only the location logic: the package requirement (`CTM_COMPONENT_DEV=1` for
+component development; `opts.standalone` for a component that also works
+without the package), the search for ctm-libs, and the interface level
+(`opts.api`, default `API`).
 
-`ctm.api >= API` only catches a ctm-libs that is too old for the component
-(for example a separately installed copy next to a newer component); it
-cannot catch a component that is too old for ctm-libs. Breaking changes are
-handled by the package: CTM Assessment builds ctm-libs and the components
-from pinned commits, tests them together and ships them in one version, so a
-change to ctm-libs' interface lands together with the components that use
-it. When a component starts to need something new from ctm-libs, raise
-`ctm.api` in `lua/ctm.lua` and the `API` of the bootstrap together, so that
-the component stops with the update message next to an older ctm-libs.
+`ctm.api >= opts.api` only catches a ctm-libs that is too old for the
+component (for example a separately installed copy next to a newer
+component); `>=` means a component that asks for 1 accepts a ctm-libs at 2,
+and it cannot catch a component that is too old for ctm-libs. Breaking
+changes are handled by the package: CTM Assessment builds ctm-libs and the
+components from pinned commits, tests them together and ships them in one
+version, so a change to ctm-libs' interface lands together with the
+components that use it. When a component starts to need something new from
+ctm-libs, raise `ctm.api` in `lua/ctm.lua` and let that component pass
+`{api = n}`; the bootstrap itself stays as it is, so the other components'
+copies need no change.
+
+## The ai-feedback forwarder
+
+`templates/ai-feedback/` is the forwarder pyodide-interaktiv ships next to
+its copy of ctm-libs (its `scripts/sync-ctm-libs.py` copies it): three files,
+`filters: [ai-feedback]` with one deprecation warning, and
+`feedback-quarto.lua` for older loaders. Its manifest carries ctm-libs'
+version (the sync script below). It is no extension of this repository.
 
 ## What older consumers rely on (until the alias goes)
 
@@ -149,8 +165,20 @@ load `_extensions/ai-feedback/feedback-quarto.lua` through their
 
 ## Python runtime
 
-`runtime/pyodide-runtime.js` names the Pyodide version (`indexURL`). A new
-version changes the browser's SymPy and Python: it is gated by the umbrella's
-Pyodide parity harness (every exercise of the example sites and courses under
-both versions) and goes in a commit of its own. CI's native checks use the
-SymPy version that Pyodide ships.
+`runtime/pyodide-runtime.js` names the Pyodide version (`indexURL`), the one
+constant: Lua reads it (`ctm.runtime.indexURL()`), and pyodide-interaktiv's
+worker uses it, so pages with Pyodide cells grade on the version they run (E12).
+A new version changes the browser's SymPy and Python: it is gated by the
+umbrella's Pyodide parity harness (every exercise of the example sites and
+courses under both versions), by `tests/browser/worker.mjs` (the prefetch
+requests the URLs `loadPackage` requests), by pyodide-interaktiv's plot tests
+(`plots_test.qmd`, the canvas backends) and by the umbrella's Pyodide cell
+parity run over the courses (T13); it goes in a commit of its own. CI's
+native checks use the SymPy version that Pyodide ships.
+
+`runtime/pyodide-worker.js` (CTMWorker) came from pyodide-interaktiv 1.8's
+`qpyodide-document-engine-initialization.js`; `.github/workflows/moved-worker.yml`
+shows how the moved blocks differ from 1.8 (a one-off check, removed with the
+alias). Its tests: `tests/worker*.test.cjs` with a fake Pyodide and network,
+and `tests/browser/worker.mjs` in Chromium with real Pyodide (needs the
+network or `PYODIDE_DIST`, a folder with the distribution's files).

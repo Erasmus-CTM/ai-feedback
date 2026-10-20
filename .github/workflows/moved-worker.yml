@@ -1,0 +1,24 @@
+name: The worker moved from pyodide-interaktiv
+# One-off check of consolidation step 3 (M13; removed with the alias, L3x):
+# runtime/pyodide-worker.js keeps the blocks it took from pyodide-interaktiv
+# 1.8 unchanged but for whitespace; the blocks that D2 and the plugin hooks
+# changed are in the job summary as a diff.
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  moved:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: pyodide-interaktiv 1.8 (the umbrella's pin before step 3)
+        uses: actions/checkout@v4
+        with:
+          repository: Erasmus-CTM/pyodide-interaktiv
+          ref: 8a16aa73bc1eea241ee1407525d8657c4c8b287b
+          path: _ci/pyodide-interaktiv
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node .github/moved-worker.mjs _ci/pyodide-interaktiv

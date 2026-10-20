@@ -20,15 +20,18 @@ filters: [ctm-assessment]
 ## What it provides
 
 - **Settings, key by key.** One reader for every CTM section (`ai-feedback`,
-  `ctm-assessment`, `math-exercise`, `py-exercise`) across `_quarto.yml`,
+  `ctm-assessment`, `math-exercise`, `py-exercise`, `pyodide`) across `_quarto.yml`,
   profiles, `_quarto.yml.local`, `_metadata.yml` and the page, so a page that
   sets one option keeps the project's other options. Credentials in the
   metadata stop the render.
 - **Languages.** One resolver and one message catalogue for every component:
   English, German and Norwegian Bokmål (and Spanish for the feedback
-  interface), with `ctm-assessment: lang` for all components at once.
+  interface, Swedish and Danish for pyodide-interaktiv), with
+  `ctm-assessment: lang` for all components at once.
 - **The Python runtime** of the page (Pyodide), loaded once whatever the mix
-  of components, with Stop for long checks.
+  of components, with Stop for long checks; and the Python worker
+  (`CTMWorker`, moved from pyodide-interaktiv) with `input()`, Stop by
+  interrupt, and extra packages that load without getting in a check's way.
 - **AI feedback.** Text, translation and image activities (`.ai-feedback`),
   feedback for the exercises of every component, teaching policies, and a
   build switch for sites without AI feedback (`ai-feedback: enabled: false`,
@@ -41,6 +44,8 @@ filters: [ctm-assessment]
 
 Components load the library through a small file they all copy,
 [`bootstrap/ctm-bootstrap.lua`](bootstrap/ctm-bootstrap.lua).
+pyodide-interaktiv also installs on its own, with a generated copy of
+ctm-libs ([details](docs/installation.md#pyodide-interaktiv-on-its-own)).
 
 ## Formerly ai-feedback
 

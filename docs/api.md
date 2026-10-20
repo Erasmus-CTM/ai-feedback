@@ -19,6 +19,10 @@ copies), and loads the page's instance with it:
 
 ```lua
 local ctm = dofile(quarto.utils.resolve_path("ctm-bootstrap.lua"))("math-exercise")
+-- A component that also works without the package, with the ctm-libs it ships
+-- (pyodide-interaktiv, decision 5), and needs interface level 2:
+local ctm = dofile(quarto.utils.resolve_path("ctm-bootstrap.lua"))("pyodide-interaktiv",
+  {standalone = "quarto add Erasmus-CTM/pyodide-interaktiv", api = 2})
 ```
 
 The bootstrap
@@ -28,12 +32,23 @@ The bootstrap
    (also under an owner folder). Without it the render stops with
    `Install CTM Assessment: quarto add https://erasmus-ctm.github.io/ctm-assessment/ctm-assessment.tar.gz`.
    Component development builds and component CI set `CTM_COMPONENT_DEV=1`
-   to build against a ctm-libs installation without the package;
+   to build against a ctm-libs installation without the package. With
+   `standalone` the package is not required;
 2. finds ctm-libs next to the component first (`_extensions/ctm-libs` in the
    package, or the same owner folder), then in the project's `_extensions`
    (`ctm-libs` or `<owner>/ctm-libs`; the nearest `_extensions` for a
-   single file), and stops with the same install command when there is none;
-3. checks the interface level (`ctm.api >= 1`).
+   single file), and stops with the same install command when there is none
+   (with `standalone` and no package: "needs its library ctm-libs, which is
+   missing next to it. Install <component> again: <standalone>");
+3. checks the interface level: `ctm.api >= opts.api` (default 1). Older
+   components ask for 1 and accept a newer ctm-libs; `>=` is the whole rule,
+   so a change that would break a component goes through the package's pins,
+   not through the level. Without the package a component with `standalone`
+   names its own install command here too.
+
+`ctm.api` is 2 since step 3 of the consolidation (CTMWorker,
+`ctm.runtime.worker`/`indexURL`, the `pyodide` settings section with
+`settings.bool`'s `digits`, the `pyodide-interaktiv` catalogue).
 
 Every filter of a page gets the same instance (`_G.__ctmLibs`); a page that
 would combine two installations of different versions stops. The instance
@@ -53,7 +68,7 @@ formats); authoring errors stop the render with `ctm.fail(message)`.
 ### ctm.settings
 
 Every CTM section (`ai-feedback`, `ctm-assessment`, `math-exercise`,
-`py-exercise`) is read key by key from `_quarto.yml`, the active profiles
+`py-exercise`, `pyodide`) is read key by key from `_quarto.yml`, the active profiles
 (the first listed wins), `_quarto.yml.local`, the `_metadata.yml` files from
 the project root to the page and the page's front matter, plus Quarto's
 merged metadata ([precedence](reference.md#settings)). A page that sets one
@@ -64,6 +79,7 @@ ctm.settings.load(meta)                          -- every entry point, once per 
 ctm.settings.get(section, key, opts)             -- value, origin, section
 ctm.settings.string(section, key, opts)          -- lists are joined, as pandoc.utils.stringify did
 ctm.settings.bool(section, key, opts)            -- true/false or "true"/"false"; else stops, naming key and origin
+                                                 -- (opts.digits: also 1/0 and true/false in any case)
 ctm.settings.number(section, key, opts)          -- opts.positive (> 0), opts.unit ("seconds") for the message
 ctm.settings.choice(section, key, values, opts)  -- one of values; true/false count as "true"/"false"
 ctm.settings.list(section, key, opts)            -- YAML list or comma-separated string -> trimmed strings
@@ -73,7 +89,10 @@ ctm.settings.policies()                          -- {json = "<browser policy con
 `opts.default` is the value when the key is unset; `opts.shared` falls back
 to `ctm-assessment.<key>` (for `stop-after` and `lang`; a component's own
 spelling wins at any level); `opts.loose` (bool) warns and uses the default
-instead of stopping, for values that were accepted loosely before 0.9.
+instead of stopping, for values that were accepted loosely before 0.9;
+`opts.digits` (bool) also takes `1` and `0` (YAML numbers or strings) and
+`true`/`false` in any case, the meaning pyodide-interaktiv's on/off options
+had before they were read key by key (no other section uses it).
 `origin` names the file (`_quarto.yml`, `chapter/_metadata.yml`,
 `chapter/page.qmd`) or `document metadata`.
 
@@ -97,7 +116,8 @@ ctm.locale.normalize("nb-NO"), ctm.locale.chain("nn")         -- "nb"; {"nn", "n
 ```
 
 A component's language is its own option (`math-exercise: lang`,
-`py-exercise: lang`; `ai-feedback: ui-language` for `"ai-feedback"`), then
+`py-exercise: lang`, `pyodide: lang` for `"pyodide-interaktiv"`;
+`ai-feedback: ui-language` for `"ai-feedback"`), then
 `ctm-assessment: lang`, then Quarto's `lang`, then `en`; then the first
 language of that tag's chain the namespace supports (`nb-NO` → nb, en;
 `no` → nb; `nn` → nn, nb, en; `de-CH` → de, en). A text a language lacks
@@ -180,7 +200,25 @@ answer to compare with; none has one yet.
 ctm.runtime.use()                      -- HTML dependency ctm-runtime (runtime/pyodide-runtime.js, head)
 ctm.runtime.stopAfter("py-exercise")   -- seconds before a running check offers Stop: <component>: stop-after,
                                        -- ctm-assessment: stop-after, 20
+ctm.runtime.indexURL()                 -- Pyodide's base URL: the one constant of runtime/pyodide-runtime.js
+ctm.runtime.worker()                   -- dependencies ctm-runtime and ctm-worker (runtime/pyodide-worker.js, head),
+                                       -- and coi-serviceworker.js (below), once per page
 ```
+
+`ctm.runtime.worker()` writes `runtime/coi-serviceworker.js` (pyodide-interaktiv
+1.8's file, byte for byte) into the project's output directory (next to the
+page for a single file) and adds `<script src="<offset>/coi-serviceworker.js">`
+to the head, `<offset>` being `quarto.project.offset`, so every page at every
+depth loads the one file at the output root. On hosts without COOP/COEP
+headers (GitHub Pages) it makes the page cross-origin isolated after one
+reload, which `input()` and a graceful Stop need. It keeps its `qpyodide`
+names: `globalThis.qpyodideCoiOutcome` (`"ready"` or `"unavailable"`), the
+events `coi-sw-ready` and `coi-unavailable`, the session key
+`qpyodide-coi-reload-pending` and the local key
+`qpyodide-coi-unavailable-<origin>`; the reload itself is the page's to do
+(pyodide-interaktiv's status line). Under `embed-resources: true` the script
+is inlined and cannot register itself; Python works without isolation (Stop
+restarts the worker).
 
 ### ctm.checkers
 
@@ -282,6 +320,7 @@ ctm.source.fences("details")   -- {{where = "file:line", attributes = "{...}"}} 
 | `ctm-locale` | `locales/ctm-locale.js`, `locales/common.js` | `ctm.locale.use()` | `CTMLocales` |
 | `ctm-locale-<namespace>` | `locales/<namespace>.js` | `ctm.locale.use(namespace)` | (adds the catalogue) |
 | `ctm-runtime` | `runtime/pyodide-runtime.js` | `ctm.runtime.use()` | `MathExerciseRuntime` |
+| `ctm-worker` | `runtime/pyodide-worker.js` | `ctm.runtime.worker()` | `CTMWorker` |
 | `ctm-checkers` | ctm-checkers' `ctm-checkers.js` (its version: `checkers.json`'s `dependency`) | `ctm.checkers.use()` | `CTMCheckers` |
 | `ai-feedback` | `feedback/feedback-core.js`, `feedback-dom.js`, `ai-feedback.js`, `ai-feedback.css` | `ctm.feedback.prepare` (when on) | `AIFeedback` |
 | `ctm-ui` | `ui/ctm-ui.css` | `ctm.ui` (reveals, the switch, embedded pages, tab links) | |
@@ -377,6 +416,75 @@ MathExerciseRuntime.forgetModules(py);                 // the next ensure* insta
   loads it with `importScripts`); a worker loads ctm-checkers.js the same
   way before `ensureCheckers`, so the install and the calls use the worker's
   namespace.
+
+### CTMWorker
+
+Python in a Web Worker for a page, with the RPC proxy other components use
+(moved from pyodide-interaktiv 1.8 in step 3; step 5 starts the same worker
+for standalone pages). Python runs in its own thread; on a cross-origin
+isolated page `interrupt()` stops a computation with a `KeyboardInterrupt`
+and `input()` works through `Atomics.wait`; otherwise Stop restarts the
+worker.
+
+```js
+const started = CTMWorker.start({
+  indexURL,                     // ctm.runtime.indexURL(), or a project's pyodide: base-url + build-variant
+  env: {HOME: '/home/pyodide', MPLBACKEND: 'AGG'},
+  packages: [],                 // micropip packages, stage 1 (a check may import them)
+  background: {                 // stage 2: never in a check's way (below)
+    packages: ['pyodide_http', 'micropip', 'matplotlib'],
+    run: 'import pyodide_http\npyodide_http.patch_all()'},
+  plugin: SOURCE,               // worker-side code: registerPlugin(api => ({commands: {runCell: async msg => ...}, stage1: 'Python'}))
+  commands: {runCell: ['code', 'wantPickle']},   // the plugin's commands on the proxy, with their arguments
+  messages: {loading, initPackages, extraPackages},   // status texts, in the page's language
+  onStatus(text) {},            // a status text from the worker
+  onRestart(started) {},        // after proxy.restart(): the new start
+  publish: true,                // qpyodideReady, qpyodideInstance, _qpyodideGetInstance, mainPyodide
+});
+const proxy = await started;    // after stage 1
+await proxy.whenSetup;          // after stage 2 (rejects with the reason; proxy.retrySetup() tries the missing steps again)
+```
+
+**The proxy** (`await qpyodideReady`, `mainPyodide`; a test pins its keys):
+`runPythonAsync(code)` (the result through `toJs({dict_converter:
+Object.fromEntries, create_pyproxies: false})`), `loadPackagesFromImports(code)`,
+`loadPackage(name)`, `globals.set(name, value)`, `toPy(value)` (identity: the
+conversion happens in the worker), `isWorkerProxy`; control: `interrupt()`,
+`clearInterrupt()`, `abortInput()`, `provideInput(text)`, `restart(reason)`
+(fires `qpyodide-runtime-restart` on `window`, rejects pending calls, starts
+again and publishes the new start), `interruptBuffer`, `inputStatusBuf`,
+`inputDataBuf`, `onStream(text, "stdout"|"stderr")`, `onInputRequired(prompt)`;
+stage 2: `whenSetup`, `retrySetup()`; and the plugin's commands. Calls are
+answered in order (one interpreter, one output capture): a check from one
+component never enters another's captured output. `MathExerciseRuntime`'s
+`ensurePyodide`, `installModule`, `ensureCheckers`/`callCheckers`, `canStop`
+and `stop` use this subset.
+
+**Plugins.** `registerPlugin(factory)` runs in the worker; `factory(api)`
+returns `{commands, stage1}`. `api.pyodide()` is the interpreter;
+`api.capture.start()`, `push(entry)` and `entries()` hold the stdout/stderr
+of a command (the worker's streams push to it); `api.setPrompt(text)` sets
+the prompt the next `input()` request carries (Pyodide's stdout is
+line-buffered). `stage1` is Python run once the interpreter is ready.
+
+**The two stages (D2).** Stage 1: the interpreter, the plugins' `stage1`,
+and with `packages` micropip and those packages; then the proxy is ready.
+Stage 2 fetches the files of the background packages (their closure in
+Pyodide's lock file, minus what is loaded) into the browser's cache in 512
+KB byte ranges, one request at a time, from the URLs `loadPackage` will
+request, outside Pyodide's package lock; before each range it waits while a
+command that may download is queued or running (`loadPackage`, or
+`loadPackagesFromImports` of a package not yet loaded) and 2 s after the last
+one. Then it installs one package at a time, dependencies first, each only
+while nothing is queued or running, and runs `background.run`. A check
+therefore shares the line with at most the rest of one range, and meets at
+most one install in progress (numpy is the largest). A range without a byte
+for 30 s is requested again after 5 s, then after 30 s; a third failure
+rejects `whenSetup`. Limits: a private window does not keep the 6.7 MB
+matplotlib wheel in its in-memory cache, and with the cache switched off in
+the developer tools nothing is kept; installs then download inside Pyodide's
+lock, and a check can wait for that one file. A restart runs both stages
+again. Test-only: `globalThis.__ctmWorkerNoBackground = true` skips stage 2.
 
 ### CTMNav and CTMReveal
 
