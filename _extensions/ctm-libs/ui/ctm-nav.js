@@ -178,17 +178,29 @@
   // puts its target. WebKit still jumps to it once its pane is laid out, also
   // after the script has scrolled (a busy page lays out late): the target at
   // the viewport's top, a tab title's tab row above it, out of view. The
-  // target's scroll-margin-top places the anchor below the header instead.
+  // target's scroll-margin-top places the anchor below the header instead
+  // (negative where a section's heading has a top margin). It follows the
+  // anchor and the header when they reflow later (a web font, a narrower
+  // window, a rotated phone): a jump then still lands there.
   var margined = null;
+  function margin(target, anchor) {
+    if (!target.getClientRects().length || !anchor.getClientRects().length) return;
+    var offset = target.getBoundingClientRect().top - anchor.getBoundingClientRect().top;
+    target.style.scrollMarginTop = Math.round(offset + clearance()) + 'px';
+  }
   function landAt(target, anchor) {
     if (target !== targetFor(location.hash)) return;
-    if (margined && margined.element !== target) {
-      margined.element.style.scrollMarginTop = margined.value;
-      margined = null;
+    if (margined) {
+      if (margined.observer) margined.observer.disconnect();
+      if (margined.element !== target) margined.element.style.scrollMarginTop = margined.value;
     }
-    if (!margined) margined = {element: target, value: target.style.scrollMarginTop};
-    var offset = target.getBoundingClientRect().top - anchor.getBoundingClientRect().top;
-    target.style.scrollMarginTop = Math.max(0, Math.round(offset + clearance())) + 'px';
+    if (!margined || margined.element !== target) margined = {element: target, value: target.style.scrollMarginTop};
+    margin(target, anchor);
+    margined.observer = typeof ResizeObserver === 'function' ? new ResizeObserver(function () { margin(target, anchor); }) : null;
+    if (!margined.observer) return;
+    margined.observer.observe(anchor);
+    var header = document.getElementById('quarto-header');
+    if (header) margined.observer.observe(header);
   }
   function inView(element) {
     var rect = element.getBoundingClientRect();
