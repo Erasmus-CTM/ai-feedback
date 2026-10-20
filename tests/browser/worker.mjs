@@ -186,9 +186,6 @@ async function checkScenario() {
   // On a slow line (1.6 Mbit/s), a check's SymPy download during stage 2
   // shares the line with at most the rest of one 512 KB range.
   await withPage('h', async page => {
-    await start(page, {indexURL: index(VERSION)});   // warm the interpreter's files without stage 2
-  });
-  await withPage('h', async page => {
     await start(page, {indexURL: index(VERSION), background: BACKGROUND});
     cdn.state.rate = 200000; cdn.state.latency = 100;   // about 1.6 Mbit/s
     await page.waitForTimeout(1500);
@@ -206,8 +203,9 @@ async function checkScenario() {
 async function starvationScenario() {
   // N2: on the slow line, with a check every 20 s, stage 2 still completes.
   await withPage('h', async page => {
+    // The slow line from the start: stage 2 is measured from the end of stage 1.
     cdn.state.rate = 200000; cdn.state.latency = 100;
-    await start(page, {indexURL: index(VERSION), background: BACKGROUND});
+    const ready = await start(page, {indexURL: index(VERSION), background: BACKGROUND});
     await page.evaluate(() => {
       window.__checks = 0;
       const proxy = window.__w.proxy;
@@ -218,9 +216,17 @@ async function starvationScenario() {
     cdn.state.rate = 0; cdn.state.latency = 0;
     assert.equal(done.error, undefined, done.error);
     const checks = await page.evaluate(() => window.__checks);
-    report.push(`starvation: stage 2 done after ${Math.round(done.setup / 1000)} s on the slow line with ${checks} checks`);
-    assert.ok(done.setup < 100000 + 20000, 'stage 2 within 100 s after start-up');
-  }, {persistent: false});
+    const stage2 = done.setup - ready.ready;
+    // Everything the line carries meanwhile: stage 2's files and the first
+    // check's SymPy (later checks download nothing and do not pause stage 2).
+    const packages = await lock(VERSION);
+    let bytes = 0;
+    for (const file of closure(packages, ['pyodide-http', 'micropip', 'matplotlib', 'sympy'])) bytes += await size(VERSION, file);
+    const line = bytes / 200000 * 1000;
+    report.push(`starvation: stage 2 done ${Math.round(stage2 / 1000)} s after stage 1 on the slow line (its files and SymPy: ${Math.round(line / 1000)} s of line), with ${checks} checks, one every 20 s`);
+    assert.ok(checks >= 2, 'the checks ran');
+    assert.ok(stage2 < line + 30000, `stage 2 within the line time + 30 s (${Math.round(stage2 / 1000)} s)`);
+  });
 }
 
 async function stallScenario() {

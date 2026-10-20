@@ -440,89 +440,91 @@ self.onmessage = function(event) {
   //   plugin        worker-side source that calls registerPlugin(...)
   //   commands      {name: [argument names]}: the plugin's commands on the proxy
   //   messages      {loading, initPackages, extraPackages}: status texts
-  // Test-only: globalThis.__ctmWorkerNoBackground = true skips stage 2 (the
-  // loading measurements compare a page with and without it).
   //   onStatus(text)        a status text from the worker
   //   onRestart(started)    after restart(): the new start's promise
   //   publish       true: qpyodideReady, qpyodideInstance, _qpyodideGetInstance
   //                 and mainPyodide (the globals other components use)
-  function start(options) {
-    options = options || {};
-    var started = boot(options);
+  // Test-only: globalThis.__ctmWorkerNoBackground = true skips stage 2 (the
+  // loading measurements compare a page with and without it); options.timing
+  // shortens stage 2's limits.
+  function start(options = {}) {
+    const started = bootPyodideWorker(options);
     if (options.publish) publish(started);
     return started;
   }
 
   function publish(started) {
-    root.mainPyodide = undefined;
-    root.qpyodideReady = started;
+    globalThis.mainPyodide = undefined;
+    globalThis.qpyodideReady = started;
+
     // Compatibility alias: older extensions (e.g. py-exercise) expect
     // `qpyodideInstance` and `await` on it.
-    root.qpyodideInstance = started;
-    // A function to retrieve the promise object.
-    root._qpyodideGetInstance = function () { return root.qpyodideInstance; };
-    // mainPyodide is set by boot() when the proxy is ready; a rejected start
-    // is the components' to report.
-    started.catch(function () {});
+    globalThis.qpyodideInstance = started;
+
+    // Create a function to retrieve the promise object.
+    globalThis._qpyodideGetInstance = function() {
+      return globalThis.qpyodideInstance;
+    }
+
+    // A failed start is the components' to report.
+    started.catch(() => {});
   }
 
-  function boot(options) {
-    var pending = new Map();
-    var nextId = 1;
+  function bootPyodideWorker(options) {
+    const pending = new Map();
+    let nextId = 1;
 
-    var source = WORKER_SOURCE + (options.plugin ? '\n' + options.plugin + '\n' : '');
-    var blobUrl = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
-    var worker = new Worker(blobUrl, { type: 'module' });
+    const blobUrl = URL.createObjectURL(
+      new Blob([WORKER_SOURCE + (options.plugin ? "\n" + options.plugin + "\n" : "")], { type: "text/javascript" })
+    );
+    const worker = new Worker(blobUrl, { type: "module" });
 
-    function rpc(type, payload) {
-      return new Promise(function (resolve, reject) {
-        var id = nextId++;
-        pending.set(id, { resolve: resolve, reject: reject });
-        worker.postMessage(Object.assign({ type: type, id: id }, payload || {}));
+    function rpc(type, payload = {}) {
+      return new Promise((resolve, reject) => {
+        const id = nextId++;
+        pending.set(id, { resolve, reject });
+        worker.postMessage({ type, id, ...payload });
       });
     }
 
     // Stage 2: proxy.whenSetup resolves (with the proxy) when the background
     // packages are installed, or rejects; proxy.retrySetup() tries the
     // missing steps again without restarting Python.
-    var setup = null;
+    let setup = null;
     function expectSetup() {
       setup = {};
-      setup.promise = new Promise(function (resolve, reject) { setup.resolve = resolve; setup.reject = reject; });
-      setup.promise.catch(function () {});   // the components report it
+      setup.promise = new Promise((resolve, reject) => { setup.resolve = resolve; setup.reject = reject; });
+      setup.promise.catch(() => {});   // the components report it
       proxy.whenSetup = setup.promise;
       return setup.promise;
     }
 
-    worker.onmessage = function (event) {
-      var msg = event.data;
-      if (msg.type === 'setup') {
-        if (msg.ok) setup.resolve(proxy); else setup.reject(new Error(msg.message));
-        return;
-      }
-      if (msg.type === 'status')        { if (options.onStatus) options.onStatus(msg.text); return; }
-      if (msg.type === 'streamStdout')  { if (proxy.onStream) proxy.onStream(msg.text, 'stdout'); return; }
-      if (msg.type === 'streamStderr')  { if (proxy.onStream) proxy.onStream(msg.text, 'stderr'); return; }
-      if (msg.type === 'inputRequired') { if (proxy.onInputRequired) proxy.onInputRequired(msg.prompt != null ? msg.prompt : ''); return; }
-      var entry = pending.get(msg.id);
+    worker.onmessage = (event) => {
+      const msg = event.data;
+      if (msg.type === "setup")        { if (msg.ok) setup.resolve(proxy); else setup.reject(new Error(msg.message)); return; }
+      if (msg.type === "status")      { options.onStatus?.(msg.text); return; }
+      if (msg.type === "streamStdout") { proxy.onStream?.(msg.text, "stdout"); return; }
+      if (msg.type === "streamStderr") { proxy.onStream?.(msg.text, "stderr"); return; }
+      if (msg.type === "inputRequired") { proxy.onInputRequired?.(msg.prompt ?? ""); return; }
+      const entry = pending.get(msg.id);
       if (!entry) return;
       pending.delete(msg.id);
-      if (msg.type === 'error') {
+      if (msg.type === "error") {
         entry.reject(new Error(msg.message));
       } else {
         entry.resolve(msg.value);
       }
     };
 
-    worker.onerror = function (event) {
-      console.error('CTMWorker: error in the Pyodide worker', event);
+    worker.onerror = (event) => {
+      console.error("CTMWorker: error in the Pyodide worker", event);
     };
 
     // Proxy object: what `await qpyodideReady` / `mainPyodide` resolves to.
     // The Pyodide-like methods are RPC variants, so that extensions like
     // py-exercise keep working (postMessage guarantees ordering, so e.g.
     // globals.set may be called without await before runPythonAsync).
-    var proxy = {
+    const proxy = {
       isWorkerProxy: true,
       interruptBuffer: null,
       inputStatusBuf: null,     // Int32Array(SharedArrayBuffer) – input status
@@ -531,31 +533,25 @@ self.onmessage = function(event) {
       onInputRequired: null,    // Callback() – Python is waiting for input
       whenSetup: null,          // Promise: stage 2 done (see above)
 
-      retrySetup: function () {
-        var promise = expectSetup();
-        worker.postMessage({ type: 'setupRetry' });
-        return promise;
-      },
-
-      runPythonAsync: function (code) { return rpc('runPython', { code: code }); },
-      loadPackagesFromImports: function (code) { return rpc('loadPackagesFromImports', { code: code }); },
-      loadPackage: function (name) { return rpc('loadPackage', { name: name }); },
-      toPy: function (value) { return value; },   // conversion happens worker-side
+      runPythonAsync: (code) => rpc("runPython", { code }),
+      loadPackagesFromImports: (code) => rpc("loadPackagesFromImports", { code }),
+      loadPackage: (name) => rpc("loadPackage", { name }),
+      toPy: (value) => value,   // conversion happens worker-side
       globals: {
-        set: function (name, value) { return rpc('setGlobal', { name: name, value: value }); }
+        set: (name, value) => rpc("setGlobal", { name, value })
       },
 
       /** Graceful abort (KeyboardInterrupt) – only with SharedArrayBuffer. */
-      interrupt: function () {
+      interrupt() {
         if (this.interruptBuffer) this.interruptBuffer[0] = 2;   // SIGINT
         this.abortInput();
       },
-      clearInterrupt: function () {
+      clearInterrupt() {
         if (this.interruptBuffer) this.interruptBuffer[0] = 0;
       },
 
       /** Aborts a pending input() wait in the worker (status 3 = aborted). */
-      abortInput: function () {
+      abortInput() {
         if (this.inputStatusBuf && Atomics.load(this.inputStatusBuf, 0) === 1) {
           Atomics.store(this.inputStatusBuf, 0, 3);
           Atomics.notify(this.inputStatusBuf, 0, 1);
@@ -563,9 +559,9 @@ self.onmessage = function(event) {
       },
 
       /** Delivers an input value to the waiting worker (status 2 = ready). */
-      provideInput: function (text) {
+      provideInput(text) {
         if (!this.inputStatusBuf || !this.inputDataBuf) return;
-        var encoded = new TextEncoder().encode(text);
+        const encoded = new TextEncoder().encode(text);
         this.inputDataBuf.fill(0);
         this.inputDataBuf.set(encoded.slice(0, this.inputDataBuf.length - 1));
         Atomics.store(this.inputStatusBuf, 0, 2);
@@ -574,41 +570,45 @@ self.onmessage = function(event) {
 
       /**
        * Hard restart: terminate the worker, reject all pending calls, and
-       * boot a fresh runtime (options.onRestart runs the startup cells again).
+       * boot a fresh runtime (options.onRestart: startup cells run again).
        */
-      restart: function (reason) {
-        root.dispatchEvent(new Event('qpyodide-runtime-restart'));
+      restart(reason) {
+        window.dispatchEvent(new Event("qpyodide-runtime-restart"));
         worker.terminate();
-        var error = new Error(reason || 'Python was restarted.');
-        pending.forEach(function (entry) { entry.reject(error); });
+        const error = new Error(reason || "Python was restarted.");
+        for (const entry of pending.values()) entry.reject(error);
         pending.clear();
 
-        var again = boot(options);
+        const again = bootPyodideWorker(options);
         if (options.publish) publish(again);
-        if (options.onRestart) options.onRestart(again);
+        options.onRestart?.(again);
         return again;
+      },
+
+      /** Stage 2 again, for the steps that are missing (Python keeps running). */
+      retrySetup() {
+        const promise = expectSetup();
+        worker.postMessage({ type: "setupRetry" });
+        return promise;
       }
     };
-    Object.keys(options.commands || {}).forEach(function (name) {
-      var names = options.commands[name] || [];
-      proxy[name] = function () {
-        var payload = {};
-        for (var i = 0; i < names.length; i++) payload[names[i]] = arguments[i];
-        return rpc(name, payload);
-      };
-    });
+
+    // The plugin's commands, e.g. runCell: (code, wantPickle) => rpc("runCell", { code, wantPickle })
+    for (const [name, args] of Object.entries(options.commands || {})) {
+      proxy[name] = (...values) => rpc(name, Object.fromEntries(args.map((arg, i) => [arg, values[i]])));
+    }
     expectSetup();
 
-    var started = (async function () {
-      if (options.onStatus && options.messages && options.messages.loading) options.onStatus(options.messages.loading);
+    const started = (async () => {
+      if (options.messages?.loading) options.onStatus?.(options.messages.loading);
 
       try {
-        await rpc('init', {
+        await rpc("init", {
           config: {
             indexURL: options.indexURL,
             env: options.env || {},
             packages: options.packages || [],
-            background: root.__ctmWorkerNoBackground === true ? {} : (options.background || {}),
+            background: globalThis.__ctmWorkerNoBackground === true ? {} : (options.background || {}),
             messages: options.messages || {},
             timing: options.timing
           }
@@ -620,14 +620,14 @@ self.onmessage = function(event) {
       // Enable the shared buffer if the page is cross-origin isolated.
       // Interrupt buffer: graceful abort (KeyboardInterrupt).
       // Input buffer: Atomics-based input() (Python pauses via Atomics.wait).
-      if (root.crossOriginIsolated && typeof SharedArrayBuffer !== 'undefined') {
+      if (globalThis.crossOriginIsolated && typeof SharedArrayBuffer !== "undefined") {
         try {
           proxy.interruptBuffer = new Uint8Array(new SharedArrayBuffer(1));
-          await rpc('setInterrupt', { buffer: proxy.interruptBuffer });
+          await rpc("setInterrupt", { buffer: proxy.interruptBuffer });
 
           proxy.inputStatusBuf = new Int32Array(new SharedArrayBuffer(4));
           proxy.inputDataBuf   = new Uint8Array(new SharedArrayBuffer(4096));
-          await rpc('setInputBuffers', {
+          await rpc("setInputBuffers", {
             inputStatusBuf: proxy.inputStatusBuf,
             inputDataBuf:   proxy.inputDataBuf
           });
@@ -635,11 +635,12 @@ self.onmessage = function(event) {
           proxy.interruptBuffer = null;
           proxy.inputStatusBuf  = null;
           proxy.inputDataBuf    = null;
-          console.warn('CTMWorker: shared buffer unavailable', err);
+          console.warn("CTMWorker: shared buffer unavailable", err);
         }
       }
 
-      if (options.publish && root.qpyodideReady === started) root.mainPyodide = proxy;
+      if (options.publish && globalThis.qpyodideReady === started) globalThis.mainPyodide = proxy;
+
       return proxy;
     })();
     return started;

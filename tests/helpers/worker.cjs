@@ -33,6 +33,7 @@ function pageContext({crossOriginIsolated = false} = {}) {
     crossOriginIsolated, workers, statuses: [],
   };
   context.globalThis = context;
+  context.window = context;
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(FILE, 'utf8'), context, {filename: FILE});
   return context;
