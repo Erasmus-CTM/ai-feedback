@@ -96,6 +96,28 @@
   feedback on), `{action = "text", note}` or `{action = "drop"}`; ctm-libs
   keeps the setting, the names, the build message, the error and the note.
   Check that the function exists (older ctm-libs have none).
+- **ctm-checkers**, the Python checker library of CTM Assessment
+  (consolidation step 2): `ctm.checkers.require(component, api)` (stops
+  with the install or update command), `use()` (the HTML dependency
+  `ctm-checkers` with its page script, versioned by `checkers.json`'s
+  `dependency`), `manifest()`, `wheel()` and `environment(env)` (the wheel on
+  `PYTHONPATH` for build-time Python). In the browser,
+  `MathExerciseRuntime.ensureCheckers(py)` installs it once per runtime with
+  the install code of its page script and loads the whole library (learner
+  code that deletes the installed wheel breaks no later call), and
+  `callCheckers(py, name, request)` runs a call with a call text that looks
+  up no name in the shared namespace (rebinding a name there does not affect
+  it), installs again and repeats a call that failed before reaching
+  ctm-checkers once (the request still in the namespace tells, no traceback
+  needed), and leaves no `_ctm_` name behind. A runtime that was stopped or
+  restarted (a stop on the page, or pyodide-interaktiv's restart event) gets
+  no further call, since its terminated worker never answers: the call and
+  those waiting behind it fail at once, and other runtimes are not held up.
+  `_ctm_guard` keeps
+  `ctm_checkers` modules; `scriptURL` is the runtime script's URL;
+  `ctm.deps.folder(name)`; `ctm.deps.html` takes absolute paths of another
+  installation's files. Check that `ctm.checkers` exists (older ctm-libs have
+  none).
 
 ## 0.9.0 (CTM Assessment 0.9.0)
 

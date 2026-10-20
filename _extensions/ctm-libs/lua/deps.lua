@@ -48,6 +48,14 @@ return function(ctm)
     return sibling(name) ~= nil or #installations(name) > 0
   end
 
+  -- The folder of `name`: the installation next to ctm-libs first (the
+  -- package), else the project's _extensions/[owner/]<name>; nil when it is
+  -- not installed.
+  function M.folder(name)
+    local manifest = sibling(name) or installations(name)[1]
+    return manifest and pandoc.path.directory(manifest) or nil
+  end
+
   -- What the page's source uses: `.ai-feedback` activities and `.jsxgraph` blocks.
   function M.uses(doc)
     local used = {}
@@ -69,7 +77,12 @@ return function(ctm)
 
   -- quarto.doc.add_html_dependency for files of this installation: `scripts`
   -- and `stylesheets` are paths relative to ctm-libs (strings, or tables with
-  -- `path` and the usual options); version defaults to ctm-libs' version.
+  -- `path` and the usual options), or absolute paths of a file of another
+  -- installation (ctm-checkers' page script); version defaults to ctm-libs'
+  -- version.
+  local function located(file)
+    return pandoc.path.is_absolute(file) and file or ctm.path(file)
+  end
   function M.html(spec)
     if not quarto.doc.is_format("html") then return end
     local dependency = {}
@@ -82,10 +95,10 @@ return function(ctm)
           if type(file) == "table" then
             local copy = {}
             for key, value in pairs(file) do copy[key] = value end
-            copy.path = ctm.path(file.path)
+            copy.path = located(file.path)
             table.insert(files, copy)
           else
-            table.insert(files, ctm.path(file))
+            table.insert(files, located(file))
           end
         end
         dependency[kind] = files

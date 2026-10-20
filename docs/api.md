@@ -5,8 +5,8 @@ directly: they install CTM Assessment, which bundles it.
 
 - [Loading ctm-libs from a component](#loading-ctm-libs-from-a-component)
 - [Lua: ctm.settings](#ctmsettings) · [ctm.locale](#ctmlocale) ·
-  [ctm.feedback](#ctmfeedback) · [ctm.runtime](#ctmruntime) · [ctm.deps](#ctmdeps) ·
-  [ctm.ui](#ctmui) · [ctm.sections](#ctmsections) · [ctm.source](#ctmsource)
+  [ctm.feedback](#ctmfeedback) · [ctm.runtime](#ctmruntime) · [ctm.checkers](#ctmcheckers) ·
+  [ctm.deps](#ctmdeps) · [ctm.ui](#ctmui) · [ctm.sections](#ctmsections) · [ctm.source](#ctmsource)
 - [Browser: dependencies and globals](#browser-dependencies-and-globals) ·
   [CTMLocales](#ctmlocales) · [MathExerciseRuntime](#mathexerciseruntime) ·
   [CTMNav and CTMReveal](#ctmnav-and-ctmreveal) · [AIFeedback](#aifeedback-api-v1)
@@ -182,13 +182,45 @@ ctm.runtime.stopAfter("py-exercise")   -- seconds before a running check offers 
                                        -- ctm-assessment: stop-after, 20
 ```
 
+### ctm.checkers
+
+ctm-checkers, the Python checker library of CTM Assessment, is a folder of
+its own (`checkers.json`, the wheel, the page script `ctm-checkers.js`), which
+the package installs next to ctm-libs. A component that grades with it:
+
+```lua
+ctm.checkers.require("math-exercise", 1)  -- once per page: stops the render when ctm-checkers is not installed
+                                          -- (install command) or has another API level (update command);
+                                          -- returns checkers.json. Compatible: the same major level and at
+                                          -- least the required minor level (1, "1.2").
+ctm.checkers.use()                        -- HTML dependency ctm-checkers (ctm-checkers.js, head)
+ctm.checkers.manifest()                   -- checkers.json: name, version, api, dependency, wheel, sha256, script
+ctm.checkers.wheel()                      -- absolute path of the wheel
+ctm.checkers.environment(env)             -- env (default: this process's environment) with the wheel first
+                                          -- on PYTHONPATH (";" on Windows) and CTM_CHECKERS_WHEEL, for
+                                          -- pandoc.system.with_environment around build-time Python
+ctm.checkers.folder()                     -- the installation used, or nil
+```
+
+The installation used is the one next to ctm-libs (the package) first, else
+the project's `_extensions/[owner/]ctm-checkers` (`quarto add` of a
+ctm-checkers checkout, for component development). On an older ctm-libs
+`ctm.checkers` is nil: check for it and stop with the update command. The
+dependency's version is `checkers.json`'s `dependency`, a release's version,
+or `X.Y.Z.devN+<sha8 of the wheel>` for a development version, so its path
+(`site_libs/quarto-contrib/ctm-checkers-<dependency>/`) changes with the
+wheel. Static hosts serve that `+` (a test serves it); one that reads `+` in
+a path as a space (classic S3 website endpoints) would not.
+
 ### ctm.deps
 
 ```lua
 ctm.deps.installed("jsxgraph")             -- next to ctm-libs, or in the project's _extensions
+ctm.deps.folder("ctm-checkers")            -- that installation's folder (next to ctm-libs first), or nil
 ctm.deps.uses(doc)                         -- {["ai-feedback"] = true, jsxgraph = true} for the page's blocks
 ctm.deps.requireUsed(doc, "math-exercise") -- stops with the install command when .jsxgraph blocks lack JSXGraph
 ctm.deps.html{name = ..., scripts = {"locales/common.js"}}  -- add_html_dependency with files of ctm-libs
+                                           -- (an absolute path: a file of another installation)
 ```
 
 ### ctm.ui
@@ -249,12 +281,13 @@ ctm.source.fences("details")   -- {{where = "file:line", attributes = "{...}"}} 
 | `ctm-locale` | `locales/ctm-locale.js`, `locales/common.js` | `ctm.locale.use()` | `CTMLocales` |
 | `ctm-locale-<namespace>` | `locales/<namespace>.js` | `ctm.locale.use(namespace)` | (adds the catalogue) |
 | `ctm-runtime` | `runtime/pyodide-runtime.js` | `ctm.runtime.use()` | `MathExerciseRuntime` |
+| `ctm-checkers` | ctm-checkers' `ctm-checkers.js` (its version: `checkers.json`'s `dependency`) | `ctm.checkers.use()` | `CTMCheckers` |
 | `ai-feedback` | `feedback/feedback-core.js`, `feedback-dom.js`, `ai-feedback.js`, `ai-feedback.css` | `ctm.feedback.prepare` (when on) | `AIFeedback` |
 | `ctm-ui` | `ui/ctm-ui.css` | `ctm.ui` (reveals, the switch, embedded pages, tab links) | |
 | `ctm-reveal` | `ui/ctm-reveal.js` | `ctm.ui` (pages with reveals) | `CTMReveal` |
 | `ctm-nav` | `ui/ctm-nav.js` | `ctm.ui` (pages with a tabset or a reveal, unless `tab-links: false`) | `CTMNav` |
 
-All carry ctm-libs' version. Quarto keeps one dependency per name, so each
+All but `ctm-checkers` carry ctm-libs' version. Quarto keeps one dependency per name, so each
 file loads once per page whatever the mix of components, as a cacheable file
 (inlined only with `embed-resources`). Configuration objects stay inline
 before the body: `window.__aiFeedbackConfig`, `window.__aiFeedbackPolicies`.
@@ -281,9 +314,68 @@ without `$` keys), `{"$ref": "common.stop"}`, `{"$t": "Row {row}", "$args":
 
 The page-wide Python runtime (Pyodide from jsDelivr, or pyodide-interaktiv's
 worker when that is on the page): `indexURL`, `loadTimeout`, `loadScript`,
-`ensurePyodide`, `installModule`, `forgetModules`, `ensureGuard`, `canStop`,
-`stop`, `stopCount`, `whenSlow`. A copy with this interface replaces an older
-one that loaded first.
+`ensurePyodide`, `installModule`, `forgetModules`, `ensureGuard`,
+`ensureCheckers`, `callCheckers`, `scriptURL`, `canStop`, `stop`,
+`stopCount`, `whenSlow`. A copy with this interface (`ensureCheckers`)
+replaces an older one that loaded first.
+
+```js
+await MathExerciseRuntime.ensureGuard(py);             // the guard module _ctm_guard (snapshot, restore)
+await MathExerciseRuntime.ensureCheckers(py);          // ctm-checkers from the page's ctm-checkers.js
+const text = await MathExerciseRuntime.callCheckers(py, 'math_exercise.check', request);   // JSON text
+MathExerciseRuntime.forgetModules(py);                 // the next ensure* installs again
+```
+
+`py` is a runtime or an object with `globals.set` and `runPythonAsync`
+(pyodide-interaktiv's worker proxy); nothing else is used.
+
+- `ensureCheckers(py[, payload])` installs ctm-checkers once per runtime
+  with its page script's own install code (`CTMCheckers.install(py)`, which
+  checks the wheel's SHA-256 and imports `ctm_checkers` from the wheel);
+  `payload` defaults to the page's `CTMCheckers`. Then it imports every
+  module of the library, so that no call reads the wheel file again (learner
+  code that deletes or overwrites `/tmp/ctm-checkers` breaks no later call),
+  and removes the names the install code leaves in the namespace
+  (`_ctm_import`, `_ctm_globals`; the call text below needs neither).
+  Without ctm-checkers.js on the page it fails with a message.
+- `callCheckers(py, name, request[, payload])` runs ctm-checkers' call
+  `name` (`math_exercise.check`, `math_exercise.check_custom`) on `request`
+  (ctm-checkers `docs/api.md`) and returns its JSON text. It sets
+  `_ctm_request` and runs a call text that looks up no name in the
+  namespace learner code shares (`import builtins as _ctm_builtins`, then
+  `_ctm_builtins.__import__("ctm_checkers.browser", …).call(name,
+  _ctm_builtins.globals())`), in the same namespace as the request, so
+  learner code that rebinds a name there (`__import__`, `globals`,
+  `builtins`, a `_ctm_` name) does not affect it. Afterwards
+  `_ctm_request`, `_ctm_builtins` and the install code's names are removed
+  from the namespace. This is the call text of ctm-checkers 0.1 pages; the
+  call text in ctm-checkers' own `docs/api.md` (with `_ctm_import`) is not
+  used. The calls of one runtime run one after another: pass the runtime
+  object that `ensurePyodide` returned, so that every caller queues on the
+  same one. A runtime that hangs holds up only its own calls.
+- When the call text failed before it reached ctm-checkers' `call`
+  (learner code removed ctm-checkers or rebound what the import uses),
+  ctm-checkers is installed again and the call repeated once. The cleanup
+  tells: `call` takes `_ctm_request` out of the namespace before anything
+  else, so a request still there after a failure means the call text
+  failed. This needs no traceback, which learner code may turn off
+  (`sys.tracebacklimit = 0`). The second failure reaches the caller, as
+  does an error that `call` raised itself (the answer to the request, such
+  as the admission rule's `ValueError`).
+- A runtime that was stopped or restarted gets nothing more, since
+  pyodide-interaktiv's terminated worker never answers. The evidence is a
+  stop on the page (`stop()`) or pyodide-interaktiv's
+  `qpyodide-runtime-restart` event, which `restart()` sends before it
+  rejects the pending calls; an error never counts, whatever its text. The
+  failed call reaches the caller at once with no cleanup or repeat, and the
+  caller moves to the new runtime. Every later call or install for that
+  runtime, including one waiting behind the failed call, fails at once.
+- `_ctm_guard`'s snapshot keeps the modules named `_ctm_…` and
+  `ctm_checkers…`: a checker that removes them is undone after its call.
+- `scriptURL` is the runtime script's own URL on a page (for a worker that
+  loads it with `importScripts`); a worker loads ctm-checkers.js the same
+  way before `ensureCheckers`, so the install and the calls use the worker's
+  namespace.
 
 ### CTMNav and CTMReveal
 

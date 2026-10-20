@@ -7,6 +7,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -14,6 +16,29 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Pinned commits (tests/pins.json)
+        id: pins
+        run: jq -r 'to_entries[] | select(.value | type == "object") | "\(.key)=\(.value.commit)"' tests/pins.json >> "$GITHUB_OUTPUT"
+      - name: The umbrella's review-dependencies script
+        uses: actions/checkout@v4
+        with:
+          repository: Erasmus-CTM/ctm-assessment
+          ref: ${{ steps.pins.outputs['ctm-assessment'] }}
+          path: _ci/ctm-assessment
+          sparse-checkout: tools/ci
+          persist-credentials: false
+      - name: Select explicit review dependencies (main keeps the pins)
+        id: review
+        env:
+          REVIEW_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: python3 _ci/ctm-assessment/tools/ci/review-dependencies.py
+      - name: ctm-checkers (installs, calls and the render fixture)
+        uses: actions/checkout@v4
+        with:
+          repository: Erasmus-CTM/ctm-checkers
+          ref: ${{ steps.review.outputs['ctm-checkers'] || steps.pins.outputs['ctm-checkers'] }}
+          path: _ctm-checkers-source
+          persist-credentials: false
       - run: python -m pip install 'PyYAML>=6'
       - run: python scripts/sync-feedback-defaults.py --check
       - run: python scripts/check-locales.py
