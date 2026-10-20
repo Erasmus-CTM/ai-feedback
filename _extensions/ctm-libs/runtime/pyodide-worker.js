@@ -328,16 +328,31 @@ async function prefetch(names) {
     }
   }
 }
+// A failed loadPackage does not reject: Pyodide reports the error through
+// errorCallback and goes on. The package is then not loaded, and stage 2
+// fails with a short reason that names it ("matplotlib: Failed to load
+// 'matplotlib-3.8.4-cp313-cp313-pyodide_2025_0_wasm32.whl': request
+// failed."), file names instead of URLs; the console gets Pyodide's text.
+function shortReason(text) {
+  return String(text).split("\n")[0].replace(/https?:\/\/[^\s'"]*\/([^\s'"\/]+)/g, "$1").slice(0, 200);
+}
 async function install(name) {
   const entry = lockPackages && lockPackages[name];
+  const label = (entry && entry.name) || name;
   const started = performance.now();
+  const errors = [];
   const slow = setTimeout(() => {
-    postStatus(((config.messages || {}).initPackages || "Initialising Python packages ...") + " (" + ((entry && entry.name) || name) + ")");
+    postStatus(((config.messages || {}).initPackages || "Initialising Python packages ...") + " (" + label + ")");
   }, SLOW_INSTALL);
   try {
-    await pyodide.loadPackage((entry && entry.name) || name);
+    await pyodide.loadPackage(label, { checkIntegrity: true, errorCallback: text => { errors.push(String(text)); } });
   } finally {
     clearTimeout(slow);
+  }
+  if (!isLoaded(name)) {
+    console.warn("CTMWorker: stage 2 could not install " + label + ": " + (errors.join("\n") || "not loaded"));
+    const reason = errors.find(text => !/^The following error occurred/.test(text)) || "not installed";
+    throw new Error(label + ": " + shortReason(reason));
   }
   return performance.now() - started;
 }

@@ -348,3 +348,24 @@ test('S-a: an install past its ceiling still waits until nothing is queued or ru
   await clock.advance(10 * CEILING);
   assert.deepEqual(s.setupMessage(), {type: 'setup', ok: true});
 });
+
+test('a failed install (Pyodide reports it and does not reject) ends stage 2 with the package and Pyodide\'s reason, file names for URLs', async () => {
+  const s = stages({pyodide: (ctx, fake, events) => ({
+    loadPackage: async (names, options = {}) => {
+      for (const name of [].concat(names)) {
+        events.push('install ' + name);
+        if (name === 'matplotlib') {
+          options.errorCallback?.("Failed to load 'https://cdn.example/pyodide/matplotlib-1.0-py3-none-any.whl': request failed.");
+          options.errorCallback?.('The following error occurred while loading matplotlib:');
+          continue;   // as Pyodide 0.28: no rejection, the package is not loaded
+        }
+        fake.loadedPackages[name] = 'default channel';
+      }
+    },
+  })});
+  await s.init();
+  await W.waitFor(s.setupMessage, 5000, 'setup');
+  assert.deepEqual(s.setupMessage(), {type: 'setup', ok: false, message: "matplotlib: Failed to load 'matplotlib-1.0-py3-none-any.whl': request failed."});
+  assert.ok(!s.events.includes('run PATCH'), 'the patch does not run after a failed install');
+  assert.match(s.warnings.join('\n'), /could not install matplotlib: Failed to load 'https:\/\/cdn\.example\/pyodide\/matplotlib-1\.0-py3-none-any\.whl'/);
+});

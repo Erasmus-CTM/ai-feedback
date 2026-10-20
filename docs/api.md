@@ -517,7 +517,9 @@ and a check shorter than 5 s meets at most one install in progress (numpy is
 the largest). A range without a byte for 30 s is requested again after 5 s,
 then after 30 s; a third failure rejects `whenSetup` with a short reason
 that names the package once (`matplotlib: HTTP 404`); the console has the
-URL. Limits: a private window does not keep the 6.7 MB matplotlib wheel in its in-memory cache, and with the cache switched off in
+URL. So does an install that Pyodide reports as failed (`loadPackage` does
+not reject; the reason is Pyodide's, with file names for URLs), and the
+steps after it do not run. Limits: a private window does not keep the 6.7 MB matplotlib wheel in its in-memory cache, and with the cache switched off in
 the developer tools nothing is kept; installs then download inside Pyodide's
 lock, and a check can wait for that one file. A restart runs both stages
 again. Test-only: `globalThis.__ctmWorkerNoBackground = true` skips stage 2.
