@@ -44,8 +44,8 @@ test('pyodide-interaktiv: every text of 1.8 is reproduced byte for byte (no and 
   assert.deepEqual(Object.keys(pyodideGolden.js).sort(), ['da', 'de', 'en', 'nb', 'no', 'sv']);
   for (const [lang, old] of Object.entries(pyodideGolden.js)) {
     const table = L.table('pyodide-interaktiv', lang);
-    // The catalogue adds noscript (from qpyodide.lua) and nothing else of 1.8's.
-    assert.deepEqual(Object.keys(table).filter(key => !(key in old)).sort(), ['noscript'], lang);
+    // The catalogue adds noscript (from qpyodide.lua) and stage 2's two texts (D2).
+    assert.deepEqual(Object.keys(table).filter(key => !(key in old)).sort(), ['noscript', 'setupFailed', 'setupRetry'], lang);
     for (const [key, value] of Object.entries(old)) {
       if (value && value.$calls) {
         assert.equal(typeof table[key], 'function', lang + '.' + key);
@@ -56,6 +56,7 @@ test('pyodide-interaktiv: every text of 1.8 is reproduced byte for byte (no and 
     }
   }
   for (const [lang, text] of Object.entries(pyodideGolden.lua.noscriptMessages)) assert.equal(L.t('pyodide-interaktiv', 'noscript', lang), text, lang);
+  assert.equal(L.t('pyodide-interaktiv', 'setupFailed', 'en', 'HTTP 404'), '🟠 Extra packages could not be loaded: HTTP 404; Python runs without them.');
   // nn shows Bokmål until the catalogue has Nynorsk (step 4); other languages English.
   assert.equal(L.resolve('pyodide-interaktiv', 'nn'), 'nb');
   assert.equal(L.resolve('pyodide-interaktiv', 'no'), 'nb');
