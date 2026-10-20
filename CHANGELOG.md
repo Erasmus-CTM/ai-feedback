@@ -36,7 +36,9 @@
   HTML that has a Markdown form (`<details>`, `<summary>`, `<div id>`
   anchors, `<iframe>`, a hand-written switch), about tabsets without the
   `tab-ids.lua` line and about a `.details` without a title, naming files
-  and lines.
+  and lines. It reads nested includes where Quarto finds them: relative to
+  the page (or, starting with `/`, to the project), not to the file that
+  includes them.
 
 ### Changed for authors
 
@@ -88,8 +90,9 @@
 - `ctm.ui` (the page's interface, two passes of `ctm.filters()` before
   `ctm.feedback.prepare`), `ctm.sections` (the walk AI feedback's context
   follows: headings, tabs, scopes; lifted from `feedback.lua`) and
-  `ctm.source` (the page's Markdown with its included files, for messages
-  that name a file and line). In the browser: `CTMNav.reveal(element)` and
+  `ctm.source` (the page's Markdown with its included files, nested ones
+  too, resolved as Quarto resolves them, for messages that name a file and
+  line). In the browser: `CTMNav.reveal(element)` and
   `CTMReveal`. A new catalogue, `ui`, has en, de, nb and nn.
 - `ctm.policy.withoutAI({component, kind, name, text, lang})`: a component
   asks about each of its exercises without a static check and gets nil (AI

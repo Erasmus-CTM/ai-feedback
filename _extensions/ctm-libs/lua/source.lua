@@ -2,7 +2,8 @@
 -- (ctm.source): Quarto does not tell which file or line a block came from.
 --
 --   ctm.source.pageName()        "pages/x.qmd", followed by " (or a file it includes)" when it does
---   ctm.source.files()           the page and the files it includes ({{< include >}}), in order:
+--   ctm.source.files()           the page and the files it includes ({{< include >}}, nested ones
+--                                too, relative to the page as in Quarto), in order:
 --                                {{path, label, lines}}; labels are relative to the project
 --   ctm.source.scan(visit)       visit(text, file, line, raw) for every line outside code
 --                                (fenced or indented), comments and front matter; `raw` is
@@ -42,10 +43,17 @@ return function(ctm)
   end
 
   local cached = nil
+  -- Includes resolve as Quarto resolves them, nested ones too: relative to
+  -- the page's folder (not to the file that includes them), or to the
+  -- project's root when they start with "/".
   function M.files()
     if cached then return cached end
     cached = {}
     local seen = {}
+    local page = quarto.doc.input_file
+    if not page then return cached end
+    local folder = pandoc.path.directory(page)
+    local root = quarto.project and quarto.project.directory
     local function add(path)
       path = tidy(pandoc.path.normalize(path))
       if seen[path] then return end
@@ -57,16 +65,15 @@ return function(ctm)
         local include = line:match("{{<%s*include%s+(.-)%s*>}}")
         if include then
           include = include:gsub('^"(.*)"$', "%1"):gsub("^'(.*)'$", "%1")
-          local root = quarto.project and quarto.project.directory
           if include:sub(1, 1) == "/" and root and root ~= "" then
             add(pandoc.path.join({root, include:sub(2)}))
           else
-            add(pandoc.path.join({pandoc.path.directory(path), include}))
+            add(pandoc.path.join({folder, include}))
           end
         end
       end
     end
-    if quarto.doc.input_file then add(quarto.doc.input_file) end
+    add(page)
     return cached
   end
 

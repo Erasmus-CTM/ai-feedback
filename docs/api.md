@@ -265,11 +265,12 @@ block.
 ### ctm.source
 
 The page's Markdown, for messages that name a file and line (Quarto does not
-say where a block came from).
+say where a block came from). Includes resolve as in Quarto, nested ones too:
+relative to the page, or to the project when they start with `/`.
 
 ```lua
 ctm.source.pageName()          -- "pages/x.qmd", with " (or a file it includes)" when it includes files
-ctm.source.files()             -- the page and its {{< include >}} files: {{path, label, lines}}
+ctm.source.files()             -- the page and its {{< include >}} files, nested too: {{path, label, lines}}
 ctm.source.scan(visit)         -- visit(text, file, line, raw) outside code, inline code, comments, front matter
 ctm.source.fences("details")   -- {{where = "file:line", attributes = "{...}"}} of the fenced divs with that class
 ```
