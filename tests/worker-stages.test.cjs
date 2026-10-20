@@ -23,10 +23,11 @@ const BACKGROUND = {packages: ['pyodide_http', 'micropip', 'matplotlib'], run: '
 const TIMING = {range: 1024, resumeAfter: 50, stall: 100, retryAfter: [20, 40], slowInstall: 10000, installQuiet: 40};
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-function stages({net = {}, pyodide = () => ({}), background = BACKGROUND, packages = []} = {}) {
+function stages({net = {}, pyodide = () => ({}), background = BACKGROUND, packages = [], timing = {}} = {}) {
   const network = W.fakeNet({packages: PACKAGES, ...net});
-  const events = [];
-  const w = W.workerContext({globals: {fetch: network.fetch, URL, AbortController}, pyodide: (ctx, fake) => {
+  const events = [], warnings = [];
+  const console = {...globalThis.console, warn: (...args) => warnings.push(args.join(' '))};
+  const w = W.workerContext({globals: {fetch: network.fetch, URL, AbortController, console}, pyodide: (ctx, fake) => {
     const own = pyodide(ctx, fake, events);
     return {
       ...own,
@@ -38,7 +39,7 @@ function stages({net = {}, pyodide = () => ({}), background = BACKGROUND, packag
     };
   }});
   const setupMessage = () => w.messages.find(m => m.type === 'setup');
-  return {w, network, events, setupMessage, init: () => w.init({background, packages, timing: TIMING})};
+  return {w, network, events, warnings, setupMessage, init: () => w.init({background, packages, timing: {...TIMING, ...timing}})};
 }
 const wheels = log => log.filter(entry => entry.file.endsWith('.whl'));
 
@@ -119,7 +120,10 @@ test('a stalled download is tried three times; then stage 2 fails, commands keep
   await s.init();
   await W.waitFor(s.setupMessage, 5000, 'setup failure');
   assert.equal(s.setupMessage().ok, false);
-  assert.match(s.setupMessage().message, /download failed: matplotlib-1\.0-py3-none-any\.whl/);
+  // Short, for the status line: the package once, no URL; the console has the URL.
+  assert.equal(s.setupMessage().message, 'matplotlib: no data for 100 ms');
+  assert.equal(s.warnings.length, 1);
+  assert.match(s.warnings[0], /could not download https:\/\/cdn\.example\/pyodide\/matplotlib-1\.0-py3-none-any\.whl .*3 tries/);
   const tries = s.network.log.filter(entry => entry.file.startsWith('matplotlib'));
   assert.equal(tries.length, 3);
   assert.ok(tries.every(entry => entry.aborted));
@@ -267,4 +271,45 @@ test('S1: a check of several calls in a row meets at most one install, not one b
   await W.waitFor(s.setupMessage, 5000, 'setup');
   assert.equal(s.setupMessage().ok, true);
   assert.equal(s.events.filter(event => event.startsWith('install ')).length, 6, 'stage 2 still installs everything');
+});
+
+test('m2: an HTTP error ends stage 2 with the package and the status only; the URL goes to the console', async () => {
+  const s = stages({net: {status: {matplotlib: 404}}});
+  await s.init();
+  await W.waitFor(s.setupMessage, 5000, 'setup failure');
+  assert.deepEqual(s.setupMessage(), {type: 'setup', ok: false, message: 'matplotlib: HTTP 404'});
+  assert.equal(s.network.log.filter(entry => entry.file.startsWith('matplotlib')).length, 3, 'three tries');
+  assert.match(s.warnings.join('\n'), /https:\/\/cdn\.example\/pyodide\/matplotlib-1\.0-py3-none-any\.whl.*HTTP 404/);
+});
+
+test('S-a: commands that never leave the quiet time postpone an install by the ceiling at most; installs stay a ceiling apart', async () => {
+  // Commands every ~10 ms against a 60 ms quiet time: without the ceiling no
+  // install would ever start while they go on (the review's probe).
+  const QUIET = 60, CEILING = 250;
+  const installs = [];
+  const s = stages({timing: {installQuiet: QUIET, installCeiling: CEILING}, pyodide: (ctx, fake, events) => ({
+    loadPackage: async names => {
+      for (const name of [].concat(names)) { installs.push(performance.now()); events.push('install ' + name); fake.loadedPackages[name] = 'default channel'; }
+    },
+    runPythonAsync: async code => { if (code === 'PATCH') installs.push(performance.now()); events.push('run ' + code); },
+  })});
+  await s.init();
+  const t0 = performance.now();
+  let id = 100, last = t0, widest = 0;
+  while (!s.setupMessage() && performance.now() - t0 < 8000) {
+    await s.w.send({id: id++, type: 'runPython', code: 'POLL'});
+    const now = performance.now();
+    widest = Math.max(widest, now - last);
+    last = now;
+    await sleep(10);
+  }
+  assert.ok(s.setupMessage(), 'stage 2 finished while the commands went on');
+  assert.equal(s.setupMessage().ok, true);
+  assert.ok(widest < QUIET, 'the commands never left the quiet time (' + Math.round(widest) + ' ms)');
+  assert.equal(installs.length, 7, 'six installs and the patch');
+  // Each waited for the ceiling (the stream never went quiet), so no window
+  // shorter than the ceiling holds two: a check shorter than that meets one.
+  for (let i = 1; i < installs.length; i++) assert.ok(installs[i] - installs[i - 1] >= CEILING - 2, 'install ' + i + ' after ' + Math.round(installs[i] - installs[i - 1]) + ' ms');
+  assert.ok(installs.at(-1) - t0 < 7 * (CEILING + QUIET) + 1000, 'bounded: ' + Math.round(installs.at(-1) - t0) + ' ms');
+  assert.ok(s.w.results().every(m => m.type === 'result'), 'every command answered');
 });

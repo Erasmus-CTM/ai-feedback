@@ -56,7 +56,16 @@ test('pyodide-interaktiv: every text of 1.8 is reproduced byte for byte (no and 
     }
   }
   for (const [lang, text] of Object.entries(pyodideGolden.lua.noscriptMessages)) assert.equal(L.t('pyodide-interaktiv', 'noscript', lang), text, lang);
-  assert.equal(L.t('pyodide-interaktiv', 'setupFailed', 'en', 'HTTP 404'), '🟠 Plots are not available: some packages could not be loaded (HTTP 404). Other Python code runs.');
+  // Stage 2's failure: the effect, the package once, and that other code is unaffected,
+  // in the catalogue's own words for it (inputPanelUnavailable: "works normally").
+  const failed = {
+    en: '🟠 Plots are not available: some packages could not be loaded (matplotlib: HTTP 404). Other Python code works normally.',
+    de: '🟠 Plots sind nicht verfügbar: Einige Pakete konnten nicht geladen werden (matplotlib: HTTP 404). Anderer Python-Code läuft normal.',
+    sv: '🟠 Grafer är inte tillgängliga: några paket kunde inte laddas (matplotlib: HTTP 404). Annan Python-kod fungerar som vanligt.',
+    nb: '🟠 Grafer er ikke tilgjengelige: noen pakker kunne ikke lastes inn (matplotlib: HTTP 404). Annen Python-kode virker som normalt.',
+    da: '🟠 Grafer er ikke tilgængelige: nogle pakker kunne ikke indlæses (matplotlib: HTTP 404). Anden Python-kode virker som normalt.',
+  };
+  for (const [lang, text] of Object.entries(failed)) assert.equal(L.t('pyodide-interaktiv', 'setupFailed', lang, 'matplotlib: HTTP 404'), text, lang);
   // nn shows Bokmål until the catalogue has Nynorsk (step 4); other languages English.
   assert.equal(L.resolve('pyodide-interaktiv', 'nn'), 'nb');
   assert.equal(L.resolve('pyodide-interaktiv', 'no'), 'nb');

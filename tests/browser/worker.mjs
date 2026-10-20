@@ -236,7 +236,7 @@ async function stallScenario() {
     cdn.state.stall = 'matplotlib-';
     await start(page, {indexURL: index(VERSION), background: BACKGROUND, timing: {stall: 1500, retryAfter: [300, 600]}});
     const done = await waitSetup(page, 60000);
-    assert.match(done.error || '', /download failed: matplotlib/);
+    assert.equal(done.error, 'matplotlib: no data for 2 s', 'the package once, no URL');
     assert.equal(cdn.state.log.filter(entry => entry.stalled).length, 3);
     assert.equal(await page.evaluate(() => window.__w.proxy.runPythonAsync('1 + 1')), 2);
     cdn.state.stall = null;

@@ -163,9 +163,9 @@ test('B1: a restart during stage 2 rejects the old whenSetup; calls on the old p
   const third = page.CTMWorker.start({indexURL: 'https://cdn.example/'});
   page.workers[2].reply({type: 'result', id: page.workers[2].posted[0].id, value: true});
   const failed = (await third).whenSetup;
-  page.workers[2].reply({type: 'setup', ok: false, message: 'download failed: x.whl'});
+  page.workers[2].reply({type: 'setup', ok: false, message: 'x: HTTP 404'});
   const failure = await settle(failed);
-  assert.equal(failure.message, 'download failed: x.whl');
+  assert.equal(failure.message, 'x: HTTP 404');
   assert.equal(failure.restarted, undefined);
 });
 

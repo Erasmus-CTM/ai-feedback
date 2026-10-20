@@ -482,12 +482,16 @@ command that may download is queued or running (`loadPackage`, or
 one. Then it installs one package at a time, dependencies first, each only
 while nothing is queued or running and no command has ended for 300 ms (so
 no install slips in between the calls of one check), and runs
-`background.run`. A check therefore shares the line with at most the rest of
-one range, and meets at most one install in progress (numpy is the
-largest). A range without a byte
-for 30 s is requested again after 5 s, then after 30 s; a third failure
-rejects `whenSetup`. Limits: a private window does not keep the 6.7 MB
-matplotlib wheel in its in-memory cache, and with the cache switched off in
+`background.run`. Commands that never pause for 300 ms cannot hold an
+install off for longer than 5 s: after waiting that long, it takes the next
+moment nothing is queued or running. Each install's 5 s count from the end
+of the one before, so installs under a stream of commands are at least 5 s
+apart. A check therefore shares the line with at most the rest of one range,
+and a check shorter than 5 s meets at most one install in progress (numpy is
+the largest). A range without a byte for 30 s is requested again after 5 s,
+then after 30 s; a third failure rejects `whenSetup` with a short reason
+that names the package once (`matplotlib: HTTP 404`); the console has the
+URL. Limits: a private window does not keep the 6.7 MB matplotlib wheel in its in-memory cache, and with the cache switched off in
 the developer tools nothing is kept; installs then download inside Pyodide's
 lock, and a check can wait for that one file. A restart runs both stages
 again. Test-only: `globalThis.__ctmWorkerNoBackground = true` skips stage 2.

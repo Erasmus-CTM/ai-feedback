@@ -107,6 +107,7 @@ async function init(cfg) {
   if (timing.retryAfter) RETRY_AFTER = timing.retryAfter;
   if (timing.slowInstall) SLOW_INSTALL = timing.slowInstall;
   if (timing.installQuiet !== undefined) INSTALL_QUIET = timing.installQuiet;
+  if (timing.installCeiling !== undefined) INSTALL_CEILING = timing.installCeiling;
   // Translated status texts come along from the main thread
   const msg = config.messages || {};
   const mod = await import(config.indexURL + "pyodide.mjs");
@@ -155,6 +156,7 @@ let STALL = 30000;               // ms without a byte: the range is requested ag
 let RETRY_AFTER = [5000, 30000]; // then a third failure ends stage 2
 let SLOW_INSTALL = 60000;        // an install this long is named in the status line
 let INSTALL_QUIET = 300;         // ms of quiet after any command before an install
+let INSTALL_CEILING = 5000;      // ms an install waits for that quiet at most
 let busy = 0, downloads = 0, lastDownload = -Infinity, lastCommand = -Infinity;
 let wakers = [];
 function changed() {
@@ -187,10 +189,19 @@ function quiet() {
 // so a command arriving later waits for it. The quiet time keeps an install
 // out of the gaps between a check's calls (each call is a round trip from
 // the page), so a check of k calls meets at most one install, not k.
+// Ceiling: commands that never leave INSTALL_QUIET ms between them would
+// postpone the installs for as long as they go on, so a task that has waited
+// INSTALL_CEILING ms takes the next moment nothing is queued or running.
+// Each task's wait starts when the previous one has ended, so installs are
+// at least INSTALL_CEILING ms apart, and a check shorter than that still
+// meets at most one.
 function whenIdle(task) {
+  const since = performance.now();
   return until(() => {
     if (busy > 0) return false;
-    const left = lastCommand + INSTALL_QUIET - performance.now();
+    const now = performance.now();
+    if (now - since >= INSTALL_CEILING) return true;
+    const left = Math.min(lastCommand + INSTALL_QUIET, since + INSTALL_CEILING) - now;
     return left <= 0 ? true : left;
   }).then(() => {
     const run = commandQueue.then(task);
@@ -253,15 +264,16 @@ function mayDownload(msg) {
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 // One byte range; a request without a byte for STALL ms counts as failed.
 // Returns the bytes received and the file's size when the server names it.
+// Errors are short (the status line shows them); the URL goes to the console.
 async function fetchRange(url, start) {
   const controller = new AbortController();
-  let timer = null;
-  const arm = () => { clearTimeout(timer); timer = setTimeout(() => controller.abort(), STALL); };
+  let timer = null, stalled = false;
+  const arm = () => { clearTimeout(timer); timer = setTimeout(() => { stalled = true; controller.abort(); }, STALL); };
   arm();
   try {
     const response = await fetch(url, { headers: { Range: "bytes=" + start + "-" + (start + RANGE - 1) }, signal: controller.signal });
     if (response.status === 416) return { received: 0, total: start };
-    if (response.status !== 206 && response.status !== 200) throw new Error("HTTP " + response.status + " for " + url);
+    if (response.status !== 206 && response.status !== 200) throw new Error("HTTP " + response.status);
     const reader = response.body.getReader();
     let received = 0;
     for (;;) {
@@ -273,18 +285,24 @@ async function fetchRange(url, start) {
     if (response.status === 200) return { received, total: received };
     const range = /\/(\d+)\s*$/.exec(response.headers.get("Content-Range") || "");
     return { received, total: range ? Number(range[1]) : (received < RANGE ? start + received : null) };
+  } catch (err) {
+    throw stalled ? new Error("no data for " + (STALL < 1000 ? STALL + " ms" : Math.round(STALL / 1000) + " s")) : err;
   } finally {
     clearTimeout(timer);
   }
 }
-async function fetchRangeWithRetries(url, start) {
+// The error names the package once ("matplotlib: HTTP 404"), for the
+// status line; the console gets the URL.
+async function fetchRangeWithRetries(file, start) {
   for (let attempt = 0; ; attempt++) {
     await quiet();
     try {
-      return await fetchRange(url, start);
+      return await fetchRange(file.url, start);
     } catch (err) {
-      if (attempt >= RETRY_AFTER.length) throw new Error("download failed: " + url.split("/").pop() + " (" + String((err && err.message) || err) + ")");
-      await sleep(RETRY_AFTER[attempt]);
+      if (attempt < RETRY_AFTER.length) { await sleep(RETRY_AFTER[attempt]); continue; }
+      const reason = String((err && err.message) || err);
+      console.warn("CTMWorker: stage 2 could not download " + file.url + " (bytes from " + start + ", " + (attempt + 1) + " tries): " + reason);
+      throw new Error(file.name + ": " + reason);
     }
   }
 }
@@ -293,9 +311,9 @@ async function fetchRangeWithRetries(url, start) {
 // from the first range of each).
 async function prefetch(names) {
   const files = names.map(name => lockPackages[name]).filter(entry => entry && entry.file_name)
-    .map(entry => ({ url: new URL(entry.file_name, config.indexURL).href, next: 0, total: null }));
+    .map(entry => ({ name: entry.name || entry.file_name, url: new URL(entry.file_name, config.indexURL).href, next: 0, total: null }));
   for (const file of files) {
-    const got = await fetchRangeWithRetries(file.url, 0);
+    const got = await fetchRangeWithRetries(file, 0);
     file.next = got.received;
     file.total = got.total;
   }
@@ -303,7 +321,7 @@ async function prefetch(names) {
   open.sort((a, b) => (a.total === null ? Infinity : a.total) - (b.total === null ? Infinity : b.total));
   for (const file of open) {
     while (file.total === null || file.next < file.total) {
-      const got = await fetchRangeWithRetries(file.url, file.next);
+      const got = await fetchRangeWithRetries(file, file.next);
       if (got.received === 0) break;
       file.next += got.received;
       if (got.total !== null) file.total = got.total;

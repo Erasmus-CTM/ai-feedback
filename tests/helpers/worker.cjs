@@ -95,8 +95,9 @@ module.exports = {FILE, PROXY_KEYS, tick, pageContext, workerSource, workerConte
 // A fake network for the stage-2 prefetch: a lock file and wheels of given
 // sizes at `base`. Every request is logged; `hold` keeps requests open until
 // release(); `stall` names files whose requests never send a byte (they end
-// when the worker aborts them).
-function fakeNet({base = 'https://cdn.example/pyodide/', packages = {}, hold = false, stall = [], exposeRange = true, lock = true} = {}) {
+// when the worker aborts them); `status` answers a package's file with that
+// HTTP status ({matplotlib: 404}).
+function fakeNet({base = 'https://cdn.example/pyodide/', packages = {}, hold = false, stall = [], status = {}, exposeRange = true, lock = true} = {}) {
   const log = [], held = [];
   const lockJSON = {info: {}, packages: {}};
   for (const [name, spec] of Object.entries(packages)) {
@@ -121,6 +122,8 @@ function fakeNet({base = 'https://cdn.example/pyodide/', packages = {}, hold = f
     if (stall.some(name => file.startsWith(name + '-'))) {
       return new Promise((resolve, reject) => init.signal.addEventListener('abort', () => { entry.aborted = true; reject(Object.assign(new Error('aborted'), {name: 'AbortError'})); }));
     }
+    const failing = Object.keys(status).find(name => file.startsWith(name + '-'));
+    if (failing) { entry.done = true; return response(status[failing], ''); }
     if (hold) await new Promise(resolve => held.push(resolve));
     const size = sizes[file];
     const [, from, to] = /bytes=(\d+)-(\d+)/.exec(range);

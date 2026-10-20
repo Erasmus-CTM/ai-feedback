@@ -96,7 +96,8 @@
   the other extra packages (D2): they download in the background without
   getting in a check's way; Pyodide's own cells and Run buttons wait for
   them as before. If they cannot be loaded, the status line says that plots
-  are not available, other Python code runs, and Retry loads them again.
+  are not available (naming the package), other Python code works normally,
+  and Retry loads them again.
 - **An old ai-feedback 0.8 next to CTM Assessment or pyodide-interaktiv 1.9**
   still stops the page, now with what to do: "AI feedback is part of CTM
   Assessment and of pyodide-interaktiv 1.9: remove ai-feedback from filters:
@@ -154,7 +155,10 @@
   `qpyodideInstance`, `_qpyodideGetInstance`, `mainPyodide`,
   `qpyodide-runtime-restart`). `restart()` also rejects the old `whenSetup`
   (the error's `restarted` is true); later calls on the old proxy reject at
-  once, and restarting it again returns the same new start.
+  once, and restarting it again returns the same new start. A stage-2
+  install waits for a 300 ms pause in the commands, for 5 s at most, so a
+  page that calls Python without pause cannot postpone the installs for
+  ever, and a check shorter than 5 s meets at most one install.
   `ctm.runtime.worker()` also writes
   `coi-serviceworker.js` (1.8's file, byte for byte) to the output root and
   adds its tag. `ctm.runtime.indexURL()` reads the one Pyodide constant of
