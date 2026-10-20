@@ -4,6 +4,12 @@
 -- (ctm-assessment next to the component or in the project's _extensions) the
 -- render stops with the install command. Component development builds and CI
 -- set CTM_COMPONENT_DEV=1 to use a ctm-libs installation without the package.
+-- Options (the second argument, a table):
+--   standalone  the component also works without the package, with the
+--               ctm-libs it ships (decision 5); the value is its own install
+--               command, named when that ctm-libs is missing or too old.
+--               Inside the package the package's messages apply.
+--   api         the ctm-libs interface level the component needs (default API).
 local INSTALL = "quarto add https://erasmus-ctm.github.io/ctm-assessment/ctm-assessment.tar.gz"
 local API = 1
 local function exists(p) local f = p and io.open(p, "r"); if f then f:close() return true end return false end
@@ -29,13 +35,18 @@ local function find(name, entry)
     if exists(pandoc.path.join({dir, entry})) then return dir end
   end
 end
-return function(component)
-  if os.getenv("CTM_COMPONENT_DEV") ~= "1" and not find("ctm-assessment", "_extension.yml") then
+return function(component, opts)
+  opts = opts or {}
+  local package = find("ctm-assessment", "_extension.yml")
+  if not package and not opts.standalone and os.getenv("CTM_COMPONENT_DEV") ~= "1" then
     assert(false, component .. " is part of CTM Assessment, which is not installed in this project. Install CTM Assessment: " .. INSTALL)
   end
+  local again = opts.standalone and not package and (" Install " .. component .. " again: " .. opts.standalone)
   local dir = find("ctm-libs", pandoc.path.join({"lua", "ctm.lua"}))
-  assert(dir, component .. " is part of CTM Assessment and needs its library ctm-libs, which is not installed. Install CTM Assessment: " .. INSTALL)
+  assert(dir, again and (component .. " needs its library ctm-libs, which is missing next to it." .. again)
+    or (component .. " is part of CTM Assessment and needs its library ctm-libs, which is not installed. Install CTM Assessment: " .. INSTALL))
   local ctm = dofile(pandoc.path.join({dir, "lua", "ctm.lua"}))
-  assert(ctm.api >= API, component .. " needs a newer ctm-libs than " .. dir .. " (" .. ctm.version .. "). Update CTM Assessment: " .. INSTALL)
+  assert(ctm.api >= (opts.api or API), component .. " needs a newer ctm-libs than " .. dir .. " (" .. ctm.version .. ")."
+    .. (again or (" Update CTM Assessment: " .. INSTALL)))
   return ctm
 end

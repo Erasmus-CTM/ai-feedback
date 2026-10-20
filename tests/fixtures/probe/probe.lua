@@ -5,7 +5,11 @@
 --   ```
 -- block by <script type="application/json" class="ctm-probe" data-name="name">
 -- holding the JSON of the values the code returns (a list when several).
-local ctm = dofile(quarto.utils.resolve_path("ctm-bootstrap.lua"))("probe")
+-- probe-options.lua next to it, when a test writes one, returns the
+-- bootstrap's options ({standalone = ..., api = ...}).
+local options = io.open(quarto.utils.resolve_path("probe-options.lua"), "r")
+if options then options:close(); options = dofile(quarto.utils.resolve_path("probe-options.lua")) end
+local ctm = dofile(quarto.utils.resolve_path("ctm-bootstrap.lua"))("probe", options)
 
 local function evaluate(code, doc)
   local env = setmetatable({ctm = ctm, doc = doc, meta = doc.meta}, {__index = _G})

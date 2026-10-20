@@ -33,8 +33,11 @@ if cached then
   return cached
 end
 
--- api: the interface level components require (ctm-bootstrap.lua checks it).
-local ctm = {dir = dir, version = manifestVersion(dir), api = 1}
+-- api: the interface level components require (ctm-bootstrap.lua checks it,
+-- against its API or the component's opts.api). 2: the Python worker
+-- (CTMWorker, ctm.runtime.worker, ctm.runtime.indexURL), the pyodide settings
+-- section and settings.bool's digits option, the pyodide-interaktiv catalogue.
+local ctm = {dir = dir, version = manifestVersion(dir), api = 2}
 ctm.fail = fail
 
 -- Absolute path of a file of this installation.
