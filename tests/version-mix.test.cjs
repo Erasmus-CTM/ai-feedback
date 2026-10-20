@@ -36,7 +36,7 @@ test('the same version from two installations renders', {skip}, () => {
   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
 });
 
-test('an ai-feedback 0.8 registered on the page before ctm-libs stops it with the old message', {skip}, () => {
+test('an ai-feedback 0.8 registered on the page before ctm-libs stops it with the migration message', {skip}, () => {
   const dir = C.tempdir('feedback-mix-');
   try {
     C.install(dir);
@@ -47,6 +47,6 @@ test('an ai-feedback 0.8 registered on the page before ctm-libs stops it with th
     });
     const r = C.render(dir, ['page.qmd']);
     assert.notEqual(r.status, 0);
-    assert.match(r.stderr, /This page combines filters that use different ai-feedback versions: \/old\/.* \(0\.8\.1\) and .*ctm-libs.lua.feedback\.lua \(0\.9\.0\)/s);
+    assert.match(r.stderr, /This page combines filters that use different ai-feedback versions: \/old\/.* \(0\.8\.1\) and .*ctm-libs.lua.feedback\.lua \(0\.9\.0\)\. AI feedback is part of CTM Assessment and of pyodide-interaktiv 1\.9: remove ai-feedback from filters: and delete the old folder\./s);
   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
 });

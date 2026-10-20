@@ -9,7 +9,9 @@ Generated from their sources:
 
 Versions follow _extensions/ctm-libs/_extension.yml: the ai-feedback alias
 manifest (older components' loaders compare it with ctm-libs' registration),
-the VERSION constant of feedback-core.js, package.json and package-lock.json.
+the manifest of the forwarder template (templates/ai-feedback, shipped by
+pyodide-interaktiv), the VERSION constant of feedback-core.js, package.json
+and package-lock.json.
 
   python scripts/sync-feedback-defaults.py           # write the files
   python scripts/sync-feedback-defaults.py --check   # fail if any file differs (CI)
@@ -82,6 +84,9 @@ def expected_files(version):
 
     update(FEEDBACK / 'ai-feedback.js', interface)
     update(ROOT / '_extensions' / 'ai-feedback' / '_extension.yml',
+           lambda text, path: sub_once(r'^version:.*$', f'version: {version}', text, path, re.M))
+    # The forwarder pyodide-interaktiv ships (step 3, E9 (ii)).
+    update(ROOT / 'templates' / 'ai-feedback' / '_extension.yml',
            lambda text, path: sub_once(r'^version:.*$', f'version: {version}', text, path, re.M))
     update(ROOT / 'package.json',
            lambda text, path: sub_once(r'^(  "version": )"[^"]*"', rf'\g<1>"{version}"', text, path, re.M))
