@@ -68,16 +68,31 @@ return function(ctm)
     return manifest
   end
 
-  -- checkers.json of the installation: name, version, api, dependency, wheel, sha256, script.
+  -- checkers.json of the installation: name, version, api, dependency, wheel,
+  -- sha256, script, and from ctm-checkers 0.2 `parts` (the STACK engine's
+  -- wheel and page script: parts.stack).
   function M.manifest()
     local _, manifest = installation()
     return manifest
   end
 
-  -- The absolute path of the wheel (Python imports from it: zipimport).
-  function M.wheel()
+  -- The entry of `part` in the manifest (`nil`: ctm-checkers itself); stops
+  -- the render when this ctm-checkers has no such part (older than 0.2).
+  local function entry(manifest, folder, part)
+    if part == nil then return manifest end
+    local found = type(manifest.parts) == "table" and manifest.parts[part] or nil
+    if type(found) ~= "table" or type(found.wheel) ~= "string" or type(found.script) ~= "string" then
+      ctm.fail("ctm-checkers " .. tostring(manifest.version) .. " in " .. folder .. " has no " .. tostring(part)
+        .. " part (it comes with ctm-checkers 0.2). Update CTM Assessment: " .. INSTALL)
+    end
+    return found
+  end
+
+  -- The absolute path of the wheel (Python imports from it: zipimport): of
+  -- ctm-checkers, or of its `part` ("stack": the STACK engine's own wheel).
+  function M.wheel(part)
     local folder, manifest = installation()
-    local wheel = pandoc.path.join({folder, manifest.wheel})
+    local wheel = pandoc.path.join({folder, entry(manifest, folder, part).wheel})
     local file = io.open(wheel, "rb")
     if not file then ctm.fail("ctm-checkers' wheel " .. wheel .. " is missing. Install CTM Assessment again: " .. INSTALL) end
     file:close()
@@ -86,14 +101,17 @@ return function(ctm)
 
   -- `env` (default: this process's environment) with the wheel first on
   -- PYTHONPATH (";" between entries on Windows) and CTM_CHECKERS_WHEEL, for
-  -- pandoc.system.with_environment around a build-time Python run.
-  function M.environment(env)
+  -- pandoc.system.with_environment around a build-time Python run. With
+  -- `part` ("stack"), that part's wheel follows the first on PYTHONPATH
+  -- (ctm_checkers joins them: python -m ctm_checkers.stack.cli works).
+  function M.environment(env, part)
     local result = {}
     for key, value in pairs(env or pandoc.system.environment()) do result[key] = value end
     local wheel = M.wheel()
     local separator = pandoc.system.os == "mingw32" and ";" or ":"
+    local wheels = part and (wheel .. separator .. M.wheel(part)) or wheel
     local path = result.PYTHONPATH
-    result.PYTHONPATH = (path and path ~= "") and (wheel .. separator .. path) or wheel
+    result.PYTHONPATH = (path and path ~= "") and (wheels .. separator .. path) or wheels
     result.CTM_CHECKERS_WHEEL = wheel
     return result
   end
@@ -104,10 +122,19 @@ return function(ctm)
   -- development version X.Y.Z.devN+<sha8 of the wheel>, so the path
   -- site_libs/quarto-contrib/ctm-checkers-<dependency>/ changes with the wheel.
   -- The page's runtime installs it into Pyodide (MathExerciseRuntime.ensureCheckers).
-  function M.use()
+  -- With `part` ("stack"), that part's page script follows as the HTML
+  -- dependency "ctm-checkers-<part>" (version: its `dependency`); a page with
+  -- math-exercise alone never carries it (ctm-checkers 0.2: the STACK engine
+  -- has its own wheel and script).
+  function M.use(part)
     local folder, manifest = installation()
     ctm.deps.html({name = NAME, version = tostring(manifest.dependency or manifest.version),
       scripts = {pandoc.path.join({folder, manifest.script})}})
+    if part ~= nil then
+      local found = entry(manifest, folder, part)
+      ctm.deps.html({name = NAME .. "-" .. tostring(part), version = tostring(found.dependency or manifest.version),
+        scripts = {pandoc.path.join({folder, found.script})}})
+    end
   end
 
   return M

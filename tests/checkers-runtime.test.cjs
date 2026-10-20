@@ -88,6 +88,23 @@ test('ensureCheckers installs once per runtime; a failed install, or forgetModul
   assert.equal(attempts, 2);
 });
 
+test('ensureCheckers and callCheckers keep one install per runtime and payload (ctm-checkers, its STACK engine)', async () => {
+  const context = runtime();
+  const R = context.MathExerciseRuntime;
+  const base = Object.assign(payload(), { name: 'ctm-checkers' });
+  const stack = Object.assign(payload(), { name: 'ctm-checkers-stack' });
+  context.CTMCheckers = base;
+  const py = fakePy();
+  await Promise.all([R.ensureCheckers(py), R.ensureCheckers(py, stack), R.ensureCheckers(py, stack), R.ensureCheckers(py)]);
+  // The STACK payload (which installs ctm-checkers too) is installed although ctm-checkers already was.
+  assert.deepEqual([base.installs.length, stack.installs.length], [1, 1]);
+  // A call text that failed before the call installs that call's payload again.
+  let calls = 0;
+  const once = fakePy((code) => code.includes('.call(') && ++calls === 1);
+  assert.ok(JSON.parse(await R.callCheckers(once, 'stack.grade', { answers: {} }, stack)).request);
+  assert.deepEqual([base.installs.length, stack.installs.length], [1, 3]);
+});
+
 test('ensureCheckers without ctm-checkers.js on the page fails with a message', async () => {
   const R = runtime().MathExerciseRuntime;
   await assert.rejects(R.ensureCheckers(fakePy()), /ctm-checkers is not loaded on this page: its script ctm-checkers\.js is missing/);
@@ -514,4 +531,33 @@ test('Pyodide: in a worker (importScripts), the same install and call', { skip: 
   await R.ensureCheckers(proxy);
   assert.equal(py.runPython('import sys\nsys.modules["ctm_checkers"].__version__'), manifest.version);
   assert.deepEqual(JSON.parse(await R.callCheckers(proxy, 'math_exercise.check', REQUEST)), { status: 'correct', score: 1.0 });
+});
+
+test('Pyodide: stack-sympy\'s worker: both page scripts, the STACK engine installed and loaded once, its calls', { skip: skipPyodide, timeout: 600000 }, async () => {
+  assert.ok(haveCheckers, 'ctm-checkers is missing: check out the commit of tests/pins.json into ' + checkersSource);
+  const manifest = JSON.parse(fs.readFileSync(path.join(checkersFolder, 'checkers.json'), 'utf8'));
+  assert.ok(manifest.parts && manifest.parts.stack, 'ctm-checkers 0.2 or later (tests/pins.json) has parts.stack');
+  const py = await realPyodide();
+  const context = vm.createContext({ setTimeout, clearTimeout, WeakMap, Promise });
+  context.importScripts = (...files) => { for (const file of files) vm.runInContext(fs.readFileSync(file, 'utf8'), context); };
+  vm.runInContext('importScripts(' + [path.join(ctmLibs.library, 'runtime', 'pyodide-runtime.js'), path.join(checkersFolder, manifest.script),
+    path.join(checkersFolder, manifest.parts.stack.script)].map((file) => JSON.stringify(file)).join(', ') + ')', context);
+  const R = context.MathExerciseRuntime, stack = context.CTMCheckersStack;
+  const proxy = proxyOf(py);
+  await Promise.all([R.ensureCheckers(proxy, stack), R.ensureCheckers(proxy, stack)]);
+  // The whole library is loaded at install, the STACK engine included.
+  assert.equal(py.runPython('import sys\n"ctm_checkers.stack.engine" in sys.modules'), true);
+  // stack-sympy's grading request: the question and variant as the card holds them.
+  const scope = py.toPy({ xml: fs.readFileSync(path.join(checkersSource, 'examples', 'stack', 'polynomial-expansion.xml'), 'utf8') });
+  let prepared;
+  try {
+    prepared = JSON.parse(py.runPython('import json\nfrom ctm_checkers.stack.importer import import_xml\nfrom ctm_checkers.stack.engine import instantiate\n'
+      + 'q = import_xml(xml)[0]\njson.dumps({"question": q, "variant": instantiate(q, 1)})', { globals: scope }));
+  } finally { scope.destroy(); }
+  const graded = JSON.parse(await R.callCheckers(proxy, 'stack.grade', { ...prepared, answers: { ans: 'x^2+7*x+12' } }, stack));
+  assert.equal(graded.ok, true);
+  assert.equal(graded.result.score, 1);
+  const tests = JSON.parse(await R.callCheckers(proxy, 'stack.tests', { ...prepared, answers: {} }, stack));
+  assert.equal(tests.result.passed, true);
+  assert.deepEqual(py.runPython('sorted(n for n in globals() if n.startswith("_ctm_"))').toJs(), []);
 });

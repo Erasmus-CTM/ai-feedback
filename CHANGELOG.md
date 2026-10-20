@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Added for components
+
+- **ctm-checkers' STACK engine** (ctm-checkers 0.2, consolidation step 2):
+  it has a wheel and page script of its own, so that pages with
+  math-exercise never carry it. `ctm.checkers.use("stack")`,
+  `ctm.checkers.wheel("stack")` and `ctm.checkers.environment(env, "stack")`
+  add it for a component that grades STACK questions (stack-sympy); a
+  ctm-checkers without it stops the render with the update command.
+  `MathExerciseRuntime.ensureCheckers` and `callCheckers` keep one install
+  per runtime and payload (`CTMCheckers`, `CTMCheckersStack`), so both work in
+  one runtime; the load after the install walks what the page's scripts
+  installed, so a math page loads no STACK module.
+
 ### Added for authors
 
 - **Reveals, in Markdown** (P18, F1): `::: {.reading-step title="…"}`

@@ -203,9 +203,10 @@
   // call reads the wheel file again: learner code may delete or overwrite
   // /tmp/ctm-checkers (math-exercise 0.10 kept its checker module in memory
   // too). A module that cannot be imported yet (a package not loaded) is
-  // imported on its first use instead. ctm-checkers 0.1 holds math-exercise's
-  // modules only; when the STACK engine joins the wheel (0.2.0), this load
-  // must be limited to the modules a page's calls use.
+  // imported on its first use instead. The walk sees what the page's scripts
+  // installed: from ctm-checkers 0.2 the STACK engine has a wheel and page
+  // script of its own (ctm-checkers-stack.js), so a page with math-exercise
+  // alone loads no STACK module.
   var CHECKERS_LOAD = [
     'def _ctm_checkers_load():',
     '    import builtins, importlib, pkgutil',
@@ -247,12 +248,17 @@
   }
 
   // Installs ctm-checkers, the Python checker library, into the runtime `py`,
-  // once per runtime like the modules above (forgetModules forgets it too).
-  // `payload` defaults to the page's ctm-checkers.js (globalThis.CTMCheckers,
-  // HTML dependency "ctm-checkers"); its own install code does the work with
-  // py.globals.set and py.runPythonAsync only (ctm-checkers docs/api.md):
-  // it checks the wheel's SHA-256 and imports ctm_checkers from the wheel.
-  // Then the whole library is loaded (CHECKERS_LOAD).
+  // once per runtime and payload like the modules above (forgetModules
+  // forgets it too). `payload` defaults to the page's ctm-checkers.js
+  // (globalThis.CTMCheckers, HTML dependency "ctm-checkers"); another is
+  // ctm-checkers-stack.js (globalThis.CTMCheckersStack), whose install
+  // installs ctm-checkers and its STACK engine. Its own install code does the
+  // work with py.globals.set and py.runPythonAsync only (ctm-checkers
+  // docs/api.md): it checks the wheel's SHA-256 and imports ctm_checkers from
+  // the wheel. Then the whole library is loaded (CHECKERS_LOAD).
+  function checkersKey(checkers) {
+    return (checkers && typeof checkers.name === 'string' && checkers.name) || 'ctm-checkers';
+  }
   function ensureCheckers(py, payload) {
     var checkers = payload || root.CTMCheckers;
     if (!checkers || typeof checkers.install !== 'function') {
@@ -260,7 +266,7 @@
     }
     var failure = gone && gone.get(py);
     if (failure) return Promise.reject(failure);
-    return once(py, 'ctm-checkers', function () {
+    return once(py, checkersKey(checkers), function () {
       return Promise.resolve(checkers.install(py)).then(function () { return py.runPythonAsync(CHECKERS_LOAD); });
     });
   }
@@ -334,7 +340,7 @@
         if (!failure) return result;
         if (requestLeft !== true || tries > 0) throw failure;
         var done = installed && installed.get(py);
-        if (done) delete done['ctm-checkers'];
+        if (done) delete done[checkersKey(payload || root.CTMCheckers)];
       }
     }
     var previous = (checkerCalls && checkerCalls.get(py)) || Promise.resolve();
