@@ -56,7 +56,7 @@ test('pyodide-interaktiv: every text of 1.8 is reproduced byte for byte (no and 
     }
   }
   for (const [lang, text] of Object.entries(pyodideGolden.lua.noscriptMessages)) assert.equal(L.t('pyodide-interaktiv', 'noscript', lang), text, lang);
-  assert.equal(L.t('pyodide-interaktiv', 'setupFailed', 'en', 'HTTP 404'), '🟠 Extra packages could not be loaded: HTTP 404; Python runs without them.');
+  assert.equal(L.t('pyodide-interaktiv', 'setupFailed', 'en', 'HTTP 404'), '🟠 Plots are not available: some packages could not be loaded (HTTP 404). Other Python code runs.');
   // nn shows Bokmål until the catalogue has Nynorsk (step 4); other languages English.
   assert.equal(L.resolve('pyodide-interaktiv', 'nn'), 'nb');
   assert.equal(L.resolve('pyodide-interaktiv', 'no'), 'nb');

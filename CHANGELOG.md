@@ -95,7 +95,8 @@
   Pyodide cells, other components' checks no longer wait for matplotlib and
   the other extra packages (D2): they download in the background without
   getting in a check's way; Pyodide's own cells and Run buttons wait for
-  them as before.
+  them as before. If they cannot be loaded, the status line says that plots
+  are not available, other Python code runs, and Retry loads them again.
 - **An old ai-feedback 0.8 next to CTM Assessment or pyodide-interaktiv 1.9**
   still stops the page, now with what to do: "AI feedback is part of CTM
   Assessment and of pyodide-interaktiv 1.9: remove ai-feedback from filters:
