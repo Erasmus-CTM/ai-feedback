@@ -148,6 +148,26 @@ test('.details without a title shows the default title; markdown-lint names it, 
   assert.deepEqual(warnings(r.stderr), ['(W) markdown-lint: .details without a title (_parts/part.md:3) shows "Detaljer": say what it holds with ::: {.details title="…"}.']);
 }, 'ctm-assessment:\n  markdown-lint: true\n'));
 
+// Quarto resolves an include in an included file relative to the page, not
+// to the file that includes it (ctm-assessment review A2, S2); "/" is the
+// project's root. Written relative to _inc/m/a.md, the include would stop
+// the render.
+test('markdown-lint finds nested includes where Quarto does: relative to the page, or to the root', {skip}, () => withProject({
+  'pages/page.qmd': front('lang: en\n') + 'Intro.\n\n{{< include ../_inc/m/a.md >}}\n',
+  '_inc/m/a.md': 'In a.\n\n{{< include ../_inc/m/b.md >}}\n',
+  '_inc/m/b.md': 'In b.\n\n::: {.details}\nUntitled.\n:::\n\n{{< include /_inc/c.md >}}\n',
+  '_inc/c.md': 'In c.\n\n<div id="in-c"></div>\n',
+}, dir => {
+  const r = C.render(dir);
+  assert.equal(r.status, 0, r.stderr);
+  const html = C.html(dir, 'pages/page.qmd');
+  assert.deepEqual(['In a.', 'In b.', 'Untitled.', 'In c.'].filter(text => !html.includes('>' + text)), [], 'Quarto rendered every include');
+  assert.deepEqual(warnings(r.stderr), [
+    '(W) markdown-lint: raw HTML <div id="…"></div> (_inc/c.md:3): write ::: {#id} and ::: on the next line instead.',
+    '(W) markdown-lint: .details without a title (_inc/m/b.md:3) shows "Details": say what it holds with ::: {.details title="…"}.',
+  ]);
+}, 'ctm-assessment:\n  markdown-lint: true\n'));
+
 test('a reveal in a list item, in a tab and in a callout', {skip}, () => withProject({
   'page.qmd': front('lang: en\n') + '- Item\n\n  ::: {.hint title="Item hint"}\n  In the item.\n  :::\n\n'
     + '::: {.panel-tabset}\n## A\n\n::: {.solution}\nIn a tab.\n:::\n\n## B\n\nB.\n:::\n\n::: {.callout-note}\n## Note\n\n::: {.reading-step}\nIn a callout.\n:::\n:::\n',

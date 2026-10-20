@@ -25,7 +25,9 @@
   an anchor or an exercise inside tabs or a closed reveal, from the page or
   from another page, also Back/Forward, opens every enclosing tab and reveal,
   scrolls the target into view below the header, keeps it there while the
-  page settles, and focuses it. A link wins over a grouped tabset's
+  page settles, and focuses it. The browser's own jump to the fragment, which
+  WebKit makes late on a busy page, lands there too, also after the tab row
+  or the header reflows: a tab title's tab row stays in view. A link wins over a grouped tabset's
   remembered tab without changing it. A reload returns to where the reader
   was, or, before the reader has scrolled, typed, clicked or touched, follows
   the link again: so does the reload with which coi-serviceworker makes a
@@ -36,7 +38,9 @@
   HTML that has a Markdown form (`<details>`, `<summary>`, `<div id>`
   anchors, `<iframe>`, a hand-written switch), about tabsets without the
   `tab-ids.lua` line and about a `.details` without a title, naming files
-  and lines.
+  and lines. It reads nested includes where Quarto finds them: relative to
+  the page (or, starting with `/`, to the project), not to the file that
+  includes them.
 
 ### Changed for authors
 
@@ -88,8 +92,9 @@
 - `ctm.ui` (the page's interface, two passes of `ctm.filters()` before
   `ctm.feedback.prepare`), `ctm.sections` (the walk AI feedback's context
   follows: headings, tabs, scopes; lifted from `feedback.lua`) and
-  `ctm.source` (the page's Markdown with its included files, for messages
-  that name a file and line). In the browser: `CTMNav.reveal(element)` and
+  `ctm.source` (the page's Markdown with its included files, nested ones
+  too, resolved as Quarto resolves them, for messages that name a file and
+  line). In the browser: `CTMNav.reveal(element)` and
   `CTMReveal`. A new catalogue, `ui`, has en, de, nb and nn.
 - `ctm.policy.withoutAI({component, kind, name, text, lang})`: a component
   asks about each of its exercises without a static check and gets nil (AI

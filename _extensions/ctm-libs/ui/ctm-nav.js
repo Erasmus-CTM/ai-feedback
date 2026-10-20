@@ -6,9 +6,10 @@
  * A link to an id inside tabs or closed <details> (a heading, an anchor, an
  * exercise, a tab title's .ctm-tab-target) opens every enclosing tab, nested
  * ones too, and every enclosing <details>; then it scrolls the target below
- * the header and focuses it. This works for links in the page (the address
- * bar shows the id: pushState), links from other pages, Back/Forward and
- * reloads. It runs after Quarto's own handlers: a link wins over the tab a
+ * the header and focuses it; the browser's own jump to the fragment lands
+ * there too (the target's scroll-margin-top). This works for links in the
+ * page (the address bar shows the id: pushState), links from other pages,
+ * Back/Forward and reloads. It runs after Quarto's own handlers: a link wins over the tab a
  * grouped tabset remembers, for this view, without changing what it
  * remembers. While editors, boards and Python output change the layout above
  * the target, it stays in place, for 2 s at most or until the reader scrolls,
@@ -173,6 +174,36 @@
   function scrollTo(element) {
     scrollToY(window.scrollY + element.getBoundingClientRect().top - clearance());
   }
+  // The browser's own jump to the address's fragment lands where the script
+  // puts its target. WebKit still jumps to it once its pane is laid out, also
+  // after the script has scrolled (a busy page lays out late): the target at
+  // the viewport's top, a tab title's tab row above it, out of view. The
+  // target's scroll-margin-top places the anchor below the header instead
+  // (negative where a section's heading has a top margin). It follows the
+  // target, the anchor and the header when they reflow later (a web font, a
+  // narrower window, a rotated phone, Quarto's late section:target offset):
+  // a jump then still lands there.
+  var margined = null;
+  function margin(target, anchor) {
+    if (!target.getClientRects().length || !anchor.getClientRects().length) return;
+    var offset = target.getBoundingClientRect().top - anchor.getBoundingClientRect().top;
+    target.style.scrollMarginTop = Math.round(offset + clearance()) + 'px';
+  }
+  function landAt(target, anchor) {
+    if (target !== targetFor(location.hash)) return;
+    if (margined) {
+      if (margined.observer) margined.observer.disconnect();
+      if (margined.element !== target) margined.element.style.scrollMarginTop = margined.value;
+    }
+    if (!margined || margined.element !== target) margined = {element: target, value: target.style.scrollMarginTop};
+    margin(target, anchor);
+    margined.observer = typeof ResizeObserver === 'function' ? new ResizeObserver(function () { margin(target, anchor); }) : null;
+    if (!margined.observer) return;
+    margined.observer.observe(anchor);
+    if (anchor !== target) margined.observer.observe(target);
+    var header = document.getElementById('quarto-header');
+    if (header) margined.observer.observe(header);
+  }
   function inView(element) {
     var rect = element.getBoundingClientRect();
     return rect.height > 0 && rect.top >= 0 && rect.top < window.innerHeight;
@@ -259,6 +290,7 @@
         moved = false;
       } else if (target && target.getClientRects().length) {
         anchor = anchorOf(target);
+        landAt(target, anchor);
         scrollTo(anchor);
         focus(target);
         target.setAttribute('data-ctm-nav', how);
@@ -273,7 +305,7 @@
       // remembered choice): the link wins.
       if (target && !position && !allActive(panes)) {
         return openAll(target, panes).then(frame).then(function () {
-          if (current() && anchor) { scrollTo(anchor); pin(anchor); }
+          if (current() && anchor) { landAt(target, anchor); scrollTo(anchor); pin(anchor); }
         });
       }
       return null;
