@@ -25,7 +25,9 @@
   an anchor or an exercise inside tabs or a closed reveal, from the page or
   from another page, also Back/Forward, opens every enclosing tab and reveal,
   scrolls the target into view below the header, keeps it there while the
-  page settles, and focuses it. A link wins over a grouped tabset's
+  page settles, and focuses it. The browser's own jump to the fragment, which
+  WebKit makes late on a busy page, lands there too: a tab title's tab row
+  stays in view. A link wins over a grouped tabset's
   remembered tab without changing it. A reload returns to where the reader
   was, or, before the reader has scrolled, typed, clicked or touched, follows
   the link again: so does the reload with which coi-serviceworker makes a
