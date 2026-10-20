@@ -193,12 +193,15 @@ ctm.checkers.require("math-exercise", 1)  -- once per page: stops the render whe
                                           -- (install command) or has another API level (update command);
                                           -- returns checkers.json. Compatible: the same major level and at
                                           -- least the required minor level (1, "1.2").
-ctm.checkers.use()                        -- HTML dependency ctm-checkers (ctm-checkers.js, head)
-ctm.checkers.manifest()                   -- checkers.json: name, version, api, dependency, wheel, sha256, script
-ctm.checkers.wheel()                      -- absolute path of the wheel
-ctm.checkers.environment(env)             -- env (default: this process's environment) with the wheel first
-                                          -- on PYTHONPATH (";" on Windows) and CTM_CHECKERS_WHEEL, for
-                                          -- pandoc.system.with_environment around build-time Python
+ctm.checkers.use([part])                  -- HTML dependency ctm-checkers (ctm-checkers.js, head); with part "stack"
+                                          -- also ctm-checkers-stack (ctm-checkers-stack.js, after it)
+ctm.checkers.manifest()                   -- checkers.json: name, version, api, dependency, wheel, sha256, script,
+                                          -- parts (ctm-checkers 0.2: parts.stack, the STACK engine)
+ctm.checkers.wheel([part])                -- absolute path of the wheel, or of the part's wheel
+ctm.checkers.environment(env[, part])     -- env (default: this process's environment) with the wheel first
+                                          -- on PYTHONPATH (";" on Windows), the part's wheel after it, and
+                                          -- CTM_CHECKERS_WHEEL, for pandoc.system.with_environment around
+                                          -- build-time Python
 ctm.checkers.folder()                     -- the installation used, or nil
 ```
 
@@ -211,6 +214,12 @@ or `X.Y.Z.devN+<sha8 of the wheel>` for a development version, so its path
 (`site_libs/quarto-contrib/ctm-checkers-<dependency>/`) changes with the
 wheel. Static hosts serve that `+` (a test serves it); one that reads `+` in
 a path as a space (classic S3 website endpoints) would not.
+
+From ctm-checkers 0.2 its STACK engine has a wheel and page script of its
+own (`checkers.json` `parts.stack`), so that pages with math-exercise never
+carry it: a component that grades STACK questions (stack-sympy) passes
+`"stack"` to `use`, `wheel` and `environment`; a ctm-checkers without that
+part stops the render with the update command.
 
 ### ctm.deps
 
@@ -314,12 +323,13 @@ the ctm-libs it needs. `tests/markdown-api.test.cjs` runs them this way.
 | `ctm-locale-<namespace>` | `locales/<namespace>.js` | `ctm.locale.use(namespace)` | (adds the catalogue) |
 | `ctm-runtime` | `runtime/pyodide-runtime.js` | `ctm.runtime.use()` | `MathExerciseRuntime` |
 | `ctm-checkers` | ctm-checkers' `ctm-checkers.js` (its version: `checkers.json`'s `dependency`) | `ctm.checkers.use()` | `CTMCheckers` |
+| `ctm-checkers-stack` | ctm-checkers' `ctm-checkers-stack.js` (its version: `parts.stack.dependency`) | `ctm.checkers.use("stack")` | `CTMCheckersStack` |
 | `ai-feedback` | `feedback/feedback-core.js`, `feedback-dom.js`, `ai-feedback.js`, `ai-feedback.css` | `ctm.feedback.prepare` (when on) | `AIFeedback` |
 | `ctm-ui` | `ui/ctm-ui.css` | `ctm.ui` (reveals, the switch, embedded pages, tab links) | |
 | `ctm-reveal` | `ui/ctm-reveal.js` | `ctm.ui` (pages with reveals) | `CTMReveal` |
 | `ctm-nav` | `ui/ctm-nav.js` | `ctm.ui` (pages with a tabset or a reveal, unless `tab-links: false`) | `CTMNav` |
 
-All but `ctm-checkers` carry ctm-libs' version. Quarto keeps one dependency per name, so each
+All but `ctm-checkers` and `ctm-checkers-stack` carry ctm-libs' version. Quarto keeps one dependency per name, so each
 file loads once per page whatever the mix of components, as a cacheable file
 (inlined only with `embed-resources`). Configuration objects stay inline
 before the body: `window.__aiFeedbackConfig`, `window.__aiFeedbackPolicies`.
@@ -362,16 +372,32 @@ MathExerciseRuntime.forgetModules(py);                 // the next ensure* insta
 (pyodide-interaktiv's worker proxy); nothing else is used.
 
 - `ensureCheckers(py[, payload])` installs ctm-checkers once per runtime
-  with its page script's own install code (`CTMCheckers.install(py)`, which
-  checks the wheel's SHA-256 and imports `ctm_checkers` from the wheel);
-  `payload` defaults to the page's `CTMCheckers`. Then it imports every
+  and payload with its page script's own install code
+  (`CTMCheckers.install(py)`, which checks the wheel's SHA-256 and imports
+  `ctm_checkers` from the wheel); `payload` defaults to the page's
+  `CTMCheckers`; `CTMCheckersStack` (stack-sympy's worker) installs
+  ctm-checkers and its STACK engine. A page with math-exercise alone has no
+  STACK module to load. Both work in one runtime, in any order: after
+  `CTMCheckers`, `CTMCheckersStack` installs the ctm-checkers wheel a second
+  time (its install includes it); and since ctm-checkers' own install
+  replaces the whole package, `CTMCheckers` installed after the STACK
+  engine (or again, for a repeated call) makes the runtime forget the STACK
+  engine, which the next STACK call installs again. The installs and the
+  calls of one runtime run one after another, in one queue, so no call runs
+  while an install replaces the package: any order of `ensureCheckers` and
+  `callCheckers` works, also a component's direct `ensureCheckers` (as
+  stack-sympy's worker and math-exercise make when they start) while
+  another component's call waits. Then it imports every
   module of the library, so that no call reads the wheel file again (learner
   code that deletes or overwrites `/tmp/ctm-checkers` breaks no later call),
-  and removes the names the install code leaves in the namespace
-  (`_ctm_import`, `_ctm_globals`; the call text below needs neither).
+  and removes the names that the install code of ctm-checkers 0.1 (as in
+  CTM Assessment 0.10.0) leaves in the namespace (`_ctm_import`,
+  `_ctm_globals`; the call text below needs neither; later versions leave
+  none).
   Without ctm-checkers.js on the page it fails with a message.
 - `callCheckers(py, name, request[, payload])` runs ctm-checkers' call
-  `name` (`math_exercise.check`, `math_exercise.check_custom`) on `request`
+  `name` (`math_exercise.check`, `math_exercise.check_custom`; with the
+  payload `CTMCheckersStack`, `stack.validate`, `stack.grade`, `stack.tests`) on `request`
   (ctm-checkers `docs/api.md`) and returns its JSON text. It sets
   `_ctm_request` and runs a call text that looks up no name in the
   namespace learner code shares (`import builtins as _ctm_builtins`, then
@@ -380,11 +406,11 @@ MathExerciseRuntime.forgetModules(py);                 // the next ensure* insta
   learner code that rebinds a name there (`__import__`, `globals`,
   `builtins`, a `_ctm_` name) does not affect it. Afterwards
   `_ctm_request`, `_ctm_builtins` and the install code's names are removed
-  from the namespace. This is the call text of ctm-checkers 0.1 pages; the
-  call text in ctm-checkers' own `docs/api.md` (with `_ctm_import`) is not
-  used. The calls of one runtime run one after another: pass the runtime
-  object that `ensurePyodide` returned, so that every caller queues on the
-  same one. A runtime that hangs holds up only its own calls.
+  from the namespace. This is the call text that ctm-checkers' `docs/api.md`
+  documents (from 0.2.0; it works with 0.1 pages too). The calls of one runtime run one after another, in the
+  same queue as its installs: pass the runtime object that `ensurePyodide`
+  returned, so that every caller queues on the same one. A runtime that
+  hangs holds up only its own calls and installs.
 - When the call text failed before it reached ctm-checkers' `call`
   (learner code removed ctm-checkers or rebound what the import uses),
   ctm-checkers is installed again and the call repeated once. The cleanup
