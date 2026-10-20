@@ -442,7 +442,8 @@ const started = CTMWorker.start({
   publish: true,                // qpyodideReady, qpyodideInstance, _qpyodideGetInstance, mainPyodide
 });
 const proxy = await started;    // after stage 1
-await proxy.whenSetup;          // after stage 2 (rejects with the reason; proxy.retrySetup() tries the missing steps again)
+await proxy.whenSetup;          // after stage 2 (rejects with the reason; proxy.retrySetup() tries the missing steps again;
+                                //   after proxy.restart() it rejects with the restart's error, error.restarted === true)
 ```
 
 **The proxy** (`await qpyodideReady`, `mainPyodide`; a test pins its keys):
@@ -451,8 +452,11 @@ Object.fromEntries, create_pyproxies: false})`), `loadPackagesFromImports(code)`
 `loadPackage(name)`, `globals.set(name, value)`, `toPy(value)` (identity: the
 conversion happens in the worker), `isWorkerProxy`; control: `interrupt()`,
 `clearInterrupt()`, `abortInput()`, `provideInput(text)`, `restart(reason)`
-(fires `qpyodide-runtime-restart` on `window`, rejects pending calls, starts
-again and publishes the new start), `interruptBuffer`, `inputStatusBuf`,
+(fires `qpyodide-runtime-restart` on `window`, rejects pending calls and
+`whenSetup` with an error whose `restarted` is true, starts again and
+publishes the new start; afterwards every call on the old proxy rejects at
+once with that error, and `restart` on it again returns the same new start),
+`interruptBuffer`, `inputStatusBuf`,
 `inputDataBuf`, `onStream(text, "stdout"|"stderr")`, `onInputRequired(prompt)`;
 stage 2: `whenSetup`, `retrySetup()`; and the plugin's commands. Calls are
 answered in order (one interpreter, one output capture): a check from one
@@ -476,9 +480,11 @@ request, outside Pyodide's package lock; before each range it waits while a
 command that may download is queued or running (`loadPackage`, or
 `loadPackagesFromImports` of a package not yet loaded) and 2 s after the last
 one. Then it installs one package at a time, dependencies first, each only
-while nothing is queued or running, and runs `background.run`. A check
-therefore shares the line with at most the rest of one range, and meets at
-most one install in progress (numpy is the largest). A range without a byte
+while nothing is queued or running and no command has ended for 300 ms (so
+no install slips in between the calls of one check), and runs
+`background.run`. A check therefore shares the line with at most the rest of
+one range, and meets at most one install in progress (numpy is the
+largest). A range without a byte
 for 30 s is requested again after 5 s, then after 30 s; a third failure
 rejects `whenSetup`. Limits: a private window does not keep the 6.7 MB
 matplotlib wheel in its in-memory cache, and with the cache switched off in

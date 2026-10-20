@@ -47,13 +47,13 @@ const VERBATIM = [
   ['abortInput', 'abortInput() {'],
   ['provideInput', 'provideInput(text) {'],
   ['the shared buffers', '// Enable the shared buffer if the page is cross-origin isolated.', 'console.warn('],
-  ['rpc', 'function rpc(type, payload = {}) {'],
 ];
 const CHANGED = [
   ['init (the two stages of D2)', 'async function init(', null],
   ['handleMessage (plugin commands)', 'async function handleMessage(msg) {', null],
   ['the command queue (D2 yields to commands)', 'let commandQueue = Promise.resolve();', '};'],
-  ['restart (publish, onRestart)', 'restart(reason) {', null],
+  ['rpc (after a restart, calls reject at once: B1)', 'function rpc(type, payload = {}) {', 'worker.postMessage({ type, id, ...payload });'],
+  ['restart (publish, onRestart; whenSetup rejected: B1)', 'restart(reason) {', null],
 ];
 let failed = 0;
 const summary = ['## Moved from pyodide-interaktiv 1.8 (8a16aa7)', ''];

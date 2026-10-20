@@ -115,6 +115,60 @@ test('restart: the event, pending calls rejected, a new worker published, onRest
   assert.equal(page.mainPyodide, second);
 });
 
+test('a start that is no longer the published one does not set mainPyodide when it ends', async () => {
+  const page = W.pageContext();
+  const first = page.CTMWorker.start({indexURL: 'https://cdn.example/', publish: true});
+  const second = page.CTMWorker.start({indexURL: 'https://cdn.example/', publish: true});
+  assert.equal(page.qpyodideReady, second);
+  page.workers[1].reply({type: 'result', id: page.workers[1].posted[0].id, value: true});
+  const current = await second;
+  page.workers[0].reply({type: 'result', id: page.workers[0].posted[0].id, value: true});
+  await first;
+  assert.equal(page.mainPyodide, current);
+});
+
+// How a promise stands after `ms`: 'resolved', the rejection, or 'pending'.
+const settle = (promise, ms = 200) => Promise.race([promise.then(() => 'resolved', error => error),
+  new Promise(resolve => setTimeout(() => resolve('pending'), ms))]);
+
+test('B1: a restart during stage 2 rejects the old whenSetup; calls on the old proxy reject at once; a second restart of it returns the same start', async () => {
+  // A cell waits for whenSetup before it sends its command; a restart then
+  // has no pending call to reject, so the wait itself must end.
+  const page = W.pageContext();
+  const first = page.CTMWorker.start({indexURL: 'https://cdn.example/', publish: true, commands: {runCell: ['code']}});
+  page.workers[0].reply({type: 'result', id: page.workers[0].posted[0].id, value: true});
+  const proxy = await first;
+  const waiting = proxy.whenSetup;
+  assert.equal(await settle(waiting, 20), 'pending', 'stage 2 is running');
+  const again = proxy.restart('Stopped.');
+  const stopped = await settle(waiting);
+  assert.ok(stopped instanceof Error, 'the old whenSetup must reject, not stay ' + stopped);
+  assert.equal(stopped.message, 'Stopped.');
+  assert.equal(stopped.restarted, true, 'a restart is told apart from a failed stage 2');
+  const posted = page.workers[0].posted.length;
+  for (const call of [proxy.runPythonAsync('1'), proxy.runCell('print(1)'), proxy.loadPackage('sympy'), proxy.retrySetup()]) {
+    const outcome = await settle(call);
+    assert.ok(outcome instanceof Error && outcome.restarted, 'a call on the old proxy rejects at once: ' + outcome);
+  }
+  assert.equal(page.workers[0].posted.length, posted, 'nothing is sent to the terminated worker');
+  // A second Stop on the same old proxy boots no third worker.
+  assert.equal(proxy.restart('Again.'), again);
+  assert.equal(page.workers.length, 2);
+  // The new start is unaffected: its stage 2 resolves with its proxy.
+  page.workers[1].reply({type: 'result', id: page.workers[1].posted[0].id, value: true});
+  const second = await again;
+  page.workers[1].reply({type: 'setup', ok: true});
+  assert.equal(await second.whenSetup, second);
+  // A failed stage 2 is not a restart.
+  const third = page.CTMWorker.start({indexURL: 'https://cdn.example/'});
+  page.workers[2].reply({type: 'result', id: page.workers[2].posted[0].id, value: true});
+  const failed = (await third).whenSetup;
+  page.workers[2].reply({type: 'setup', ok: false, message: 'download failed: x.whl'});
+  const failure = await settle(failed);
+  assert.equal(failure.message, 'download failed: x.whl');
+  assert.equal(failure.restarted, undefined);
+});
+
 test('cross-origin isolated pages get the interrupt and input buffers; a failure leaves them off', async () => {
   for (const fail of [false, true]) {
     const page = W.pageContext({crossOriginIsolated: true});

@@ -248,22 +248,35 @@ async function stallScenario() {
 }
 
 async function restartScenario() {
-  // A restart during stage 2 runs both stages again and rejects pending calls.
+  // A restart during stage 2 runs both stages again and rejects pending
+  // calls. B1: a second restart while the new stage 2 runs (Stop on a cell
+  // that waits for it) rejects that start's whenSetup and the calls on its
+  // proxy at once, and the third start works.
   await withPage('h', async page => {
     cdn.state.rate = 400000;
     await start(page, {indexURL: index(VERSION), background: BACKGROUND});
     await page.waitForTimeout(1000);
     const result = await page.evaluate(async () => {
+      const settle = (promise, ms) => Promise.race([promise.then(() => 'resolved', error => (error.restarted ? 'restarted: ' : '') + error.message),
+        new Promise(resolve => setTimeout(() => resolve('pending'), ms))]);
       const old = window.__w.proxy;
       const pending = old.runPythonAsync('import time\ntime.sleep(5)\n1').then(() => 'resolved', error => error.message);
       const again = old.restart('Restarted by the test.');
       const proxy = await again;
-      const setup = await proxy.whenSetup.then(() => 'ok', error => error.message);
-      return {pending: await pending, setup, same: proxy === old, published: globalThis.mainPyodide === proxy, value: await proxy.runPythonAsync('6 * 7')};
+      const waiting = proxy.whenSetup;
+      const during = await settle(waiting, 100);
+      const third = proxy.restart('Stopped during stage 2.');
+      const oldSetup = await settle(waiting, 2000);
+      const oldCall = await settle(proxy.runPythonAsync('1'), 2000);
+      const latest = await third;
+      const setup = await latest.whenSetup.then(() => 'ok', error => error.message);
+      return {pending: await pending, during, oldSetup, oldCall, setup, fresh: latest !== proxy && latest !== old, published: globalThis.mainPyodide === latest,
+        value: await latest.runPythonAsync('6 * 7')};
     });
     cdn.state.rate = 0;
-    assert.deepEqual(result, {pending: 'Restarted by the test.', setup: 'ok', same: false, published: true, value: 42});
-    report.push('restart: during stage 2, both stages again, the pending call rejected');
+    assert.deepEqual(result, {pending: 'Restarted by the test.', during: 'pending', oldSetup: 'restarted: Stopped during stage 2.',
+      oldCall: 'restarted: Stopped during stage 2.', setup: 'ok', fresh: true, published: true, value: 42});
+    report.push('restart: during stage 2, both stages again, the pending call rejected; a second restart during the new stage 2 ends its whenSetup and calls at once (B1)');
   }, {persistent: false});
 }
 

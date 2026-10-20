@@ -106,6 +106,7 @@ async function init(cfg) {
   if (timing.stall) STALL = timing.stall;
   if (timing.retryAfter) RETRY_AFTER = timing.retryAfter;
   if (timing.slowInstall) SLOW_INSTALL = timing.slowInstall;
+  if (timing.installQuiet !== undefined) INSTALL_QUIET = timing.installQuiet;
   // Translated status texts come along from the main thread
   const msg = config.messages || {};
   const mod = await import(config.indexURL + "pyodide.mjs");
@@ -146,13 +147,15 @@ async function init(cfg) {
 // --- Commands that may download, and the queue's state ---------------------
 // busy: commands queued or running; downloads: those of them that may
 // download (loadPackage, loadPackagesFromImports of a package not yet
-// loaded); lastDownload: when the last such command ended.
+// loaded); lastDownload: when the last such command ended; lastCommand: when
+// the last command of any kind ended.
 let RANGE = 512 * 1024;          // bytes per prefetch request
 let RESUME_AFTER = 2000;         // ms of quiet after a download command
 let STALL = 30000;               // ms without a byte: the range is requested again
 let RETRY_AFTER = [5000, 30000]; // then a third failure ends stage 2
 let SLOW_INSTALL = 60000;        // an install this long is named in the status line
-let busy = 0, downloads = 0, lastDownload = -Infinity;
+let INSTALL_QUIET = 300;         // ms of quiet after any command before an install
+let busy = 0, downloads = 0, lastDownload = -Infinity, lastCommand = -Infinity;
 let wakers = [];
 function changed() {
   const list = wakers;
@@ -179,17 +182,20 @@ function quiet() {
     return left <= 0 ? true : left;
   });
 }
-// Runs task in the command queue as soon as nothing is queued or running; it
-// is queued at that very moment, so a command arriving later waits for it.
+// Runs task in the command queue once nothing is queued or running and no
+// command has ended for INSTALL_QUIET ms; it is queued at that very moment,
+// so a command arriving later waits for it. The quiet time keeps an install
+// out of the gaps between a check's calls (each call is a round trip from
+// the page), so a check of k calls meets at most one install, not k.
 function whenIdle(task) {
-  return new Promise((resolve, reject) => {
-    const check = () => {
-      if (busy > 0) { wakers.push(check); return; }
-      const run = commandQueue.then(task);
-      commandQueue = run.catch(() => {});
-      run.then(resolve, reject);
-    };
-    check();
+  return until(() => {
+    if (busy > 0) return false;
+    const left = lastCommand + INSTALL_QUIET - performance.now();
+    return left <= 0 ? true : left;
+  }).then(() => {
+    const run = commandQueue.then(task);
+    commandQueue = run.catch(() => {});
+    return run;
   });
 }
 
@@ -419,7 +425,8 @@ self.onmessage = function(event) {
   commandQueue = pending.catch(() => {});
   const done = () => {
     busy--;
-    if (download) { downloads--; lastDownload = performance.now(); }
+    lastCommand = performance.now();
+    if (download) { downloads--; lastDownload = lastCommand; }
     changed();
   };
   pending.then(done, done);
@@ -479,7 +486,12 @@ self.onmessage = function(event) {
     );
     const worker = new Worker(blobUrl, { type: "module" });
 
+    // After restart(): the restart's error. The worker is gone, so calls on
+    // this proxy reject at once instead of waiting for an answer that never
+    // comes.
+    let gone = null, replacement = null;
     function rpc(type, payload = {}) {
+      if (gone) return Promise.reject(gone);
       return new Promise((resolve, reject) => {
         const id = nextId++;
         pending.set(id, { resolve, reject });
@@ -569,17 +581,24 @@ self.onmessage = function(event) {
       },
 
       /**
-       * Hard restart: terminate the worker, reject all pending calls, and
-       * boot a fresh runtime (options.onRestart: startup cells run again).
+       * Hard restart: terminate the worker, reject all pending calls and
+       * whenSetup (error.restarted is true), and boot a fresh runtime
+       * (options.onRestart: startup cells run again). Later calls on this
+       * proxy reject at once; restarting it again returns the same new start.
        */
       restart(reason) {
+        if (gone) return replacement;
         window.dispatchEvent(new Event("qpyodide-runtime-restart"));
         worker.terminate();
         const error = new Error(reason || "Python was restarted.");
+        error.restarted = true;
+        gone = error;
         for (const entry of pending.values()) entry.reject(error);
         pending.clear();
+        setup.reject(error);   // whoever waits for stage 2 stops waiting
 
         const again = bootPyodideWorker(options);
+        replacement = again;
         if (options.publish) publish(again);
         options.onRestart?.(again);
         return again;
@@ -588,7 +607,8 @@ self.onmessage = function(event) {
       /** Stage 2 again, for the steps that are missing (Python keeps running). */
       retrySetup() {
         const promise = expectSetup();
-        worker.postMessage({ type: "setupRetry" });
+        if (gone) setup.reject(gone);
+        else worker.postMessage({ type: "setupRetry" });
         return promise;
       }
     };

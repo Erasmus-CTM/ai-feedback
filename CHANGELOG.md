@@ -151,7 +151,10 @@
   `setPrompt`), the two start-up stages of D2 (`proxy.whenSetup`,
   `proxy.retrySetup()`) and the same proxy and globals (`qpyodideReady`,
   `qpyodideInstance`, `_qpyodideGetInstance`, `mainPyodide`,
-  `qpyodide-runtime-restart`). `ctm.runtime.worker()` also writes
+  `qpyodide-runtime-restart`). `restart()` also rejects the old `whenSetup`
+  (the error's `restarted` is true); later calls on the old proxy reject at
+  once, and restarting it again returns the same new start.
+  `ctm.runtime.worker()` also writes
   `coi-serviceworker.js` (1.8's file, byte for byte) to the output root and
   adds its tag. `ctm.runtime.indexURL()` reads the one Pyodide constant of
   `runtime/pyodide-runtime.js`.

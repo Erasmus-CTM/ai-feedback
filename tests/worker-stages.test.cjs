@@ -18,15 +18,18 @@ const PACKAGES = {
   mpmath: {size: 400},
 };
 const BACKGROUND = {packages: ['pyodide_http', 'micropip', 'matplotlib'], run: 'PATCH'};
-// Fast limits: 1 KB ranges, 50 ms of quiet, a 100 ms stall, retries after 20 and 40 ms.
-const TIMING = {range: 1024, resumeAfter: 50, stall: 100, retryAfter: [20, 40], slowInstall: 10000};
+// Fast limits: 1 KB ranges, 50 ms of quiet after a download, a 100 ms stall,
+// retries after 20 and 40 ms, 40 ms of quiet after any command before an install.
+const TIMING = {range: 1024, resumeAfter: 50, stall: 100, retryAfter: [20, 40], slowInstall: 10000, installQuiet: 40};
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-function stages({net = {}, pyodide = () => ({}), background = BACKGROUND} = {}) {
+function stages({net = {}, pyodide = () => ({}), background = BACKGROUND, packages = []} = {}) {
   const network = W.fakeNet({packages: PACKAGES, ...net});
   const events = [];
   const w = W.workerContext({globals: {fetch: network.fetch, URL, AbortController}, pyodide: (ctx, fake) => {
     const own = pyodide(ctx, fake, events);
     return {
+      ...own,
       loadPackage: own.loadPackage || (async names => {
         for (const name of [].concat(names)) { events.push('install ' + name); fake.loadedPackages[name] = 'default channel'; }
       }),
@@ -35,7 +38,7 @@ function stages({net = {}, pyodide = () => ({}), background = BACKGROUND} = {}) 
     };
   }});
   const setupMessage = () => w.messages.find(m => m.type === 'setup');
-  return {w, network, events, setupMessage, init: () => w.init({background, timing: TIMING})};
+  return {w, network, events, setupMessage, init: () => w.init({background, packages, timing: TIMING})};
 }
 const wheels = log => log.filter(entry => entry.file.endsWith('.whl'));
 
@@ -176,4 +179,92 @@ test('may-download: loadPackagesFromImports counts only for a package not yet lo
   s.network.release();
   await W.waitFor(() => s.network.log.length > before, 200, 'no pause for a loaded package');
   for (;;) { if (!s.network.release() && s.setupMessage()) break; await new Promise(r => setTimeout(r, 2)); }
+});
+
+test('stage 1 with pyodide: packages: micropip is loaded before its packages, both before the answer to init; stage 2 leaves micropip out', async () => {
+  const s = stages({packages: ['shapely'], pyodide: (ctx, fake, events) => ({
+    pyimport: name => {
+      events.push('pyimport ' + name);
+      if (!fake.loadedPackages[name]) throw new Error('No module named ' + name);
+      return {install: async names => { events.push('micropip.install ' + [].concat(names).join(',')); }, destroy() {}};
+    },
+  })});
+  await s.init();
+  assert.equal(s.w.result(0).type, 'result', s.w.result(0).message);
+  assert.deepEqual(s.events, ['install micropip', 'pyimport micropip', 'micropip.install shapely'], 'stage 1, before init answers');
+  await W.waitFor(s.setupMessage, 5000, 'setup');
+  assert.equal(s.setupMessage().ok, true);
+  assert.ok(!wheels(s.network.log).some(entry => entry.file.startsWith('micropip-')), 'micropip is not fetched again');
+  assert.equal(s.events.filter(event => event === 'install micropip').length, 1);
+});
+
+test('S2: loadPackagesFromImports of a package not yet loaded pauses the prefetch until it ends and the quiet time has passed', async () => {
+  let finish = null;
+  const s = stages({net: {hold: true}, pyodide: (ctx, fake, events) => ({
+    loadPackagesFromImports: () => new Promise(resolve => { finish = () => { events.push('imports loaded'); resolve(); }; }),
+  })});
+  await s.init();
+  await W.waitFor(() => s.network.held.length === 1, 2000, 'first range');
+  const check = s.w.send({id: 40, type: 'loadPackagesFromImports', code: 'sympy'});
+  await W.tick();
+  const before = s.network.log.length;
+  s.network.release();                      // the range in flight ends
+  await sleep(150);                         // three times the quiet time
+  assert.equal(s.network.log.length, before, 'no new range while the check may download');
+  finish();
+  await check;
+  const ended = performance.now();
+  await W.waitFor(() => s.network.log.length > before, 2000, 'prefetch resumes');
+  assert.ok(performance.now() - ended >= 45, 'resumed after the quiet time');
+  for (;;) { if (!s.network.release() && s.setupMessage()) break; await sleep(2); }
+  assert.equal(s.setupMessage().ok, true);
+});
+
+test('S2: an install never jumps the queue: a command queued behind a running one goes before it', async () => {
+  let release = null;
+  const s = stages({pyodide: (ctx, fake, events) => ({
+    runPythonAsync: async code => {
+      events.push('run ' + code);
+      if (code === 'LONG') await new Promise(resolve => { release = resolve; });
+      events.push('ran ' + code);
+    },
+  })});
+  await s.init();
+  const long = s.w.send({id: 50, type: 'runPython', code: 'LONG'});
+  // runPython does not pause the prefetch: every range arrives meanwhile.
+  const ranges = Object.values({h: 1500, pa: 700, mi: 900, nu: 2600, cy: 300, ma: 5200}).reduce((n, size) => n + Math.ceil(size / 1024), 0);
+  await W.waitFor(() => wheels(s.network.log).filter(entry => entry.done).length === ranges, 5000, 'every range');
+  await sleep(100);                          // longer than the install quiet time
+  const next = s.w.send({id: 51, type: 'runPython', code: 'NEXT'});
+  await W.tick();
+  release();
+  await Promise.all([long, next]);
+  await W.waitFor(s.setupMessage, 5000, 'setup');
+  const order = s.events.filter(event => /^(ran LONG|run NEXT|install )/.test(event));
+  assert.deepEqual(order.slice(0, 3), ['ran LONG', 'run NEXT', 'install pyodide-http']);
+});
+
+test('S1: a check of several calls in a row meets at most one install, not one between each of its calls', async () => {
+  const s = stages({pyodide: (ctx, fake, events) => ({
+    loadPackage: async names => {
+      for (const name of [].concat(names)) {
+        events.push('install ' + name);
+        await sleep(15);
+        fake.loadedPackages[name] = 'default channel';
+      }
+    },
+  })});
+  await s.init();
+  await W.waitFor(() => s.events.includes('install pyodide-http'), 5000, 'the installs have begun');
+  // A check: four round trips from the page, a few ms apart.
+  const start = s.events.length;
+  for (let i = 0; i < 4; i++) {
+    await s.w.send({id: 60 + i, type: 'runPython', code: 'CHECK' + i});
+    await sleep(5);
+  }
+  const during = s.events.slice(start, s.events.lastIndexOf('run CHECK3')).filter(event => event.startsWith('install '));
+  assert.ok(during.length <= 1, 'installs between the check\'s calls: ' + during.join(', '));
+  await W.waitFor(s.setupMessage, 5000, 'setup');
+  assert.equal(s.setupMessage().ok, true);
+  assert.equal(s.events.filter(event => event.startsWith('install ')).length, 6, 'stage 2 still installs everything');
 });
