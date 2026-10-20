@@ -125,7 +125,8 @@ ${filler(12)}
     + '[Del 2](long.qmd#long-del2), [del 3](long.qmd#long-del3), [del 5](long.qmd#long-del5).\n',
   // A heavy page, as ingmat3a's uke3 and page4: a tabset below the fold
   // whose tab row wraps over several lines, applets (frames whose scripts
-  // load slowly) in some panes, a web font still loading, and scripts that
+  // load slowly) in some panes, a web font still loading (a monospace one, in
+  // the text and the tab row: other metrics than the theme's), and scripts that
   // keep the page busy after it is shown (MathJax, the applets), so that
   // the script opens the pane and scrolls before the browser has laid it
   // out. WebKit then still jumps to the fragment: the pane's top at the
@@ -135,8 +136,8 @@ title: Lang side
 include-in-header:
   - text: |
       <style>
-      @font-face { font-family: CtmSlowFont; src: url(slow-font.woff) format("woff"); }
-      main p { font-family: CtmSlowFont, serif; }
+      @font-face { font-family: CtmSlowFont; src: url(slow-font.ttf) format("truetype"); }
+      main p, .nav-link { font-family: CtmSlowFont, serif; }
       </style>
       <script>
       addEventListener('pageshow', () => {
@@ -151,7 +152,7 @@ ${filler(14)}
 
 ::: {.panel-tabset}
 
-${Array.from({length: 8}, (_, i) => `## ${i + 1}. En ganske lang fanetittel nummer ${i + 1}
+${Array.from({length: 8}, (_, i) => `## ${i + 1}. Fanetittel nummer ${i + 1}
 
 ::: {#long-del${i + 1} .ctm-tab-target}
 :::
@@ -382,17 +383,22 @@ function build() {
   return dir;
 }
 
+const FONTS = ['/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf', '/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf',
+  '/usr/share/fonts/truetype/freefont/FreeMono.ttf', '/System/Library/Fonts/Menlo.ttc'];
 function serve(root) {
-  const types = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.woff': 'font/woff', '.woff2': 'font/woff2', '.svg': 'image/svg+xml', '.png': 'image/png'};
+  const types = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.woff': 'font/woff', '.woff2': 'font/woff2', '.svg': 'image/svg+xml', '.png': 'image/png', '.ttf': 'font/ttf', '.ttc': 'font/collection'};
   const server = http.createServer((request, response) => {
     // As GitHub Pages: a folder serves its index.html, x serves x.html.
     let file = path.join(root, decodeURIComponent(new URL(request.url, 'http://x').pathname));
-    // long.html's web font: any font will do.
-    const font = file === path.join(root, 'slow-font.woff');
-    if (font) file = path.join(root, 'site_libs', 'bootstrap', 'bootstrap-icons.woff');
+    // long.html's web font: a monospace font of the system.
+    const font = file === path.join(root, 'slow-font.ttf');
+    if (font) {
+      file = FONTS.find(candidate => fs.existsSync(candidate));
+      if (!file) throw new Error('needs one of ' + FONTS.join(', '));
+    }
     if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, 'index.html');
     else if (!fs.existsSync(file) && fs.existsSync(file + '.html')) file += '.html';
-    if (!file.startsWith(root) || !fs.existsSync(file)) { response.writeHead(404); response.end(); return; }
+    if (!(font || file.startsWith(root)) || !fs.existsSync(file)) { response.writeHead(404); response.end(); return; }
     const send = () => {
       response.writeHead(200, {'content-type': types[path.extname(file)] || 'application/octet-stream'});
       response.end(fs.readFileSync(file));
@@ -439,6 +445,21 @@ async function state(page, id) {
   }, id);
 }
 const settle = page => page.waitForTimeout(600);
+// The browser's own jump to the fragment, as WebKit makes it late, after the
+// script has scrolled (scrollIntoView honours scroll-margin-top as a fragment
+// navigation does): where the anchor was before and after it. The anchor is
+// the tab row for a tab title, a section's heading, or the target.
+function jump(page, id) {
+  return page.evaluate(id => {
+    const target = document.getElementById(id);
+    const anchor = target.classList.contains('ctm-tab-target') ? target.closest('.panel-tabset').querySelector(':scope > [role="tablist"]')
+      : target.tagName === 'SECTION' && /^H[1-6]$/.test(target.firstElementChild?.tagName || '') ? target.firstElementChild : target;
+    const before = Math.round(anchor.getBoundingClientRect().top);
+    target.scrollIntoView({block: 'start', behavior: 'instant'});
+    return {before, after: Math.round(anchor.getBoundingClientRect().top)};
+  }, id);
+}
+const lands = (where, label) => assert.ok(Math.abs(where.after - where.before) <= 1, label + ': the fragment jump lands where the script put it ' + JSON.stringify(where));
 // Until the script has handled the target (`how`: its data-ctm-nav mark),
 // then until the page has settled. Renderers in CI can be slow.
 async function handled(page, id, how) {
@@ -513,6 +534,7 @@ async function loads(browser, base, name) {
   assert.equal(s.focusMark, true, name + ' #eks-3: marked for the focus style ' + JSON.stringify(s));
   assert.ok(s.focusInView && s.focusInTarget, name + ' #eks-3 focus in view');
   assert.equal(s.mark, 'load', name + ': handled by the script' + ' ' + JSON.stringify(s));
+  lands(await jump(page, 'eks-3'), name + ' #eks-3');
 
   await open(page, base + 'index.html#deep-head');
   s = await state(page, 'deep-head');
@@ -528,6 +550,7 @@ async function loads(browser, base, name) {
   assert.deepEqual(s.panes, [true], name + ' ' + JSON.stringify(s));
   assert.equal(s.mark, 'load', name + ' ' + JSON.stringify(s));
   assert.ok(s.top >= s.headerBottom, name + ' #anchor-b below the header');
+  lands(await jump(page, 'anchor-b'), name + ' #anchor-b');
 
   // A tab title: the tab row stays visible, the panel (or its first heading) has focus.
   await open(page, base + 'index.html#tab-b');
@@ -757,7 +780,8 @@ async function slowLoads(browser, base, name) {
 // uke3 and page4): typed, and from another page. From when the script has
 // handled the link, the tab row stays below the header and in view, at
 // every scroll (no jump away and back) and after 2 s; the panel or its first
-// heading has focus.
+// heading has focus. The browser's own jump to the fragment, imitated in
+// every engine, lands there too, also after the tab row has reflowed.
 const ROWS = `(() => {
   const rows = window.__rows = [];
   addEventListener('scroll', () => {
@@ -789,11 +813,24 @@ async function deepTabs(browser, base, name) {
     assert.ok(below(early.top) && below(late.top), label + ': the tab row below the header');
     assert.ok(late.rows.split(',').filter(Boolean).every(top => below(+top)), label + ': at every scroll');
     assert.ok(s.focusInView, label);
+    lands(await jump(page, id), label);
   };
   for (const id of ['long-del2', 'long-del3', 'long-del5']) {
     await open(page, base + 'long.html#' + id);
     await check(id, 'typed');
   }
+  // The tab row reflows after the link was handled (a narrower window, a
+  // rotated phone): a later jump still lands below the header.
+  await open(page, base + 'long.html#long-del5');
+  await page.waitForTimeout(1500);
+  const wide = await row('long-del5');
+  await page.setViewportSize({width: 700, height: 800});
+  await page.waitForTimeout(400);
+  const narrow = await row('long-del5'), where = await jump(page, 'long-del5');
+  await page.setViewportSize({width: 1280, height: 800});
+  const label = name + ' reflowed #long-del5 ' + JSON.stringify({wide, narrow, where});
+  assert.notEqual(narrow.height, wide.height, label + ': the tab row reflowed');
+  assert.ok(Math.abs(where.after - (narrow.header + 16)) <= 1, label + ': the jump lands below the header');
   for (const id of ['long-del3', 'long-del5']) {
     await open(page, base + 'other.html');
     await page.click('main a[href$="long.html#' + id + '"]');
