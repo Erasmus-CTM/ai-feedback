@@ -87,6 +87,52 @@ test('the package layout: manifest, wheel, environment, API check and the page s
   });
 });
 
+test('the STACK engine\'s part: its wheel after the first on PYTHONPATH and its page script after ctm-checkers.js', {skip}, async () => {
+  const expected = manifest();
+  const stack = expected.parts && expected.parts.stack;
+  assert.ok(stack, 'ctm-checkers 0.2 or later (tests/pins.json) has parts.stack');
+  await withProject((dir) => {
+    C.installPackage(dir);
+    fs.cpSync(folder, path.join(dir, '_extensions', 'ctm-checkers'), {recursive: true});
+  }, {
+    '_quarto.yml': 'project:\n  type: website\n  render: [index.qmd, math.qmd]\nfilters: [ctm-libs, probe]\n',
+    'index.qmd': page(
+      C.probe('wheel', 'return ctm.checkers.wheel("stack")'),
+      C.probe('environment', 'local e = ctm.checkers.environment({PYTHONPATH = "/site-packages"}, "stack")\n'
+        + 'return {PYTHONPATH = e.PYTHONPATH, CTM_CHECKERS_WHEEL = e.CTM_CHECKERS_WHEEL}'),
+      C.probe('use', 'ctm.checkers.use("stack")\nreturn true')),
+    'math.qmd': page(C.probe('use', 'ctm.checkers.use()\nreturn true')),
+  }, async (dir) => {
+    const r = C.render(dir);
+    assert.equal(r.status, 0, r.stderr);
+    const installed = path.join(dir, '_extensions', 'ctm-checkers');
+    const html = C.html(path.join(dir, '_site'), 'index.qmd');
+    const p = C.probes(html);
+    assert.equal(p.wheel, path.join(installed, stack.wheel));
+    assert.deepEqual(p.environment, {PYTHONPATH: path.join(installed, expected.wheel) + ':' + path.join(installed, stack.wheel) + ':/site-packages',
+      CTM_CHECKERS_WHEEL: path.join(installed, expected.wheel)});
+    const tags = [...html.matchAll(/<script src="([^"]*ctm-checkers[^"]*)"/g)].map((match) => match[1]);
+    assert.deepEqual(tags.map((tag) => tag.split('/').slice(-2).join('/')),
+      ['ctm-checkers-' + expected.dependency + '/' + expected.script, 'ctm-checkers-stack-' + stack.dependency + '/' + stack.script]);
+    const fetched = await fetchFrom(path.join(dir, '_site'), new URL(tags[1], 'http://host/index.html').pathname);
+    assert.equal(fetched.status, 200, tags[1]);
+    assert.ok(fetched.body.equals(fs.readFileSync(path.join(folder, stack.script))));
+    // A page that uses ctm-checkers alone (math-exercise) carries no STACK engine.
+    const math = C.html(path.join(dir, '_site'), 'math.qmd');
+    assert.equal([...math.matchAll(/<script src="([^"]*ctm-checkers[^"]*)"/g)].length, 1);
+    assert.ok(!math.includes('ctm-checkers-stack'));
+  });
+  // A part this ctm-checkers does not have stops the render with the update command.
+  await withProject((dir) => fs.cpSync(folder, path.join(dir, '_extensions', 'ctm-checkers'), {recursive: true}), {
+    '_quarto.yml': 'project:\n  type: default\n  render: [page.qmd]\nfilters: [ctm-libs, probe]\n',
+    'page.qmd': page(C.probe('use', 'ctm.checkers.use("nothing")\nreturn true')),
+  }, (dir) => {
+    const r = C.render(dir, [], {CTM_COMPONENT_DEV: '1'});
+    assert.notEqual(r.status, 0);
+    assert.match(r.stderr, new RegExp('has no nothing part \\(it comes with ctm-checkers 0\\.2\\)\\. Update CTM Assessment: ' + INSTALL.replace(/[.]/g, '\\.')));
+  });
+});
+
 test('quarto add of a ctm-checkers checkout: the project\'s installation is found', {skip}, () => withProject((dir) => {
   const added = spawnSync(C.quarto, ['add', source, '--no-prompt'], {cwd: dir, encoding: 'utf8', timeout: 240000});
   assert.equal(added.status, 0, added.stderr);
