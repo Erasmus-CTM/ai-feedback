@@ -25,7 +25,7 @@ const browsers = process.argv.slice(2).length ? process.argv.slice(2) : ['chromi
 // --- the site ---------------------------------------------------------------
 const filler = n => Array.from({length: n}, (_, i) => `Avsnitt ${i + 1} med litt tekst, slik at siden blir lang nok til å rulle.`).join('\n\n');
 const SITE = {
-  '_quarto.yml': 'project:\n  type: website\n  resources: [coi-serviceworker.js]\nwebsite:\n  title: UI\n  navbar:\n    left: [index.qmd, other.qmd, group.qmd, plain.qmd, slow.qmd, dark.qmd]\n'
+  '_quarto.yml': 'project:\n  type: website\n  resources: [coi-serviceworker.js, slow-applet.js]\nwebsite:\n  title: UI\n  navbar:\n    left: [index.qmd, other.qmd, group.qmd, plain.qmd, slow.qmd, dark.qmd, long.qmd]\n'
     + 'format:\n  html:\n    theme: cosmo\nfilters: [ctm-libs]\nlang: nb\n',
   'index.qmd': `---
 title: Faner og lenker
@@ -121,7 +121,58 @@ Målet langt nede.
 ${filler(12)}
 `,
   'other.qmd': '---\ntitle: En annen side\n---\n\n[Eksempel 3](index.qmd#eks-3), [det dype](index.qmd#deep-head), [fane B](index.qmd#tab-b).\n\n'
-    + '[Første fane](slow.qmd#first-start), [løsningen](slow.qmd#sol-1), [utenfor faner](slow.qmd#outside).\n',
+    + '[Første fane](slow.qmd#first-start), [løsningen](slow.qmd#sol-1), [utenfor faner](slow.qmd#outside).\n\n'
+    + '[Del 2](long.qmd#long-del2), [del 3](long.qmd#long-del3), [del 5](long.qmd#long-del5).\n',
+  // A heavy page, as ingmat3a's uke3 and page4: a tabset below the fold
+  // whose tab row wraps over several lines, applets (frames whose scripts
+  // load slowly) in some panes, a web font still loading, and scripts that
+  // keep the page busy after it is shown (MathJax, the applets), so that
+  // the script opens the pane and scrolls before the browser has laid it
+  // out. WebKit then still jumps to the fragment: the pane's top at the
+  // viewport's top, the tab row above it, out of view.
+  'long.qmd': `---
+title: Lang side
+include-in-header:
+  - text: |
+      <style>
+      @font-face { font-family: CtmSlowFont; src: url(slow-font.woff) format("woff"); }
+      main p { font-family: CtmSlowFont, serif; }
+      </style>
+      <script>
+      addEventListener('pageshow', () => {
+        const busy = ms => { const start = performance.now(); while (performance.now() - start < ms); };
+        busy(300);
+        setTimeout(() => busy(200), 0);
+      });
+      </script>
+---
+
+${filler(14)}
+
+::: {.panel-tabset}
+
+${Array.from({length: 8}, (_, i) => `## ${i + 1}. En ganske lang fanetittel nummer ${i + 1}
+
+::: {#long-del${i + 1} .ctm-tab-target}
+:::
+
+Innledning til del ${i + 1}.
+
+${i < 3 ? '```{=html}\n<iframe title="Applet" sandbox="allow-scripts" style="width: 600px; height: 300px" srcdoc="<p>Applet</p><script src=&quot;slow-applet.js&quot;></script>"></iframe>\n```\n' : ''}
+${filler(3)}
+
+### Første avsnitt i del ${i + 1}
+
+${filler(8)}
+
+### Andre avsnitt i del ${i + 1}
+
+${filler(8)}
+`).join('\n')}
+:::
+
+${filler(10)}
+`,
   // A page whose load waits for a slow image: the browser jumps to the
   // fragment long before pageshow (uke5#uke5-start, uke8#oversikt-like
   // targets in the first tab; outside tabs; in closed reveals).
@@ -323,6 +374,7 @@ function build() {
   const coi = path.join(ROOT, 'node_modules', 'coi-serviceworker', 'coi-serviceworker.js');
   if (!fs.existsSync(coi)) throw new Error('needs coi-serviceworker: npm install --no-save coi-serviceworker@0.1.7');
   fs.copyFileSync(coi, path.join(dir, 'coi-serviceworker.js'));
+  fs.writeFileSync(path.join(dir, 'slow-applet.js'), 'document.body.dataset.applet = "ready";\n');
   // A 1x1 PNG.
   fs.writeFileSync(path.join(dir, 'slow.png'), Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64'));
   const result = spawnSync(QUARTO, ['render'], {cwd: dir, encoding: 'utf8', timeout: 300000});
@@ -335,6 +387,9 @@ function serve(root) {
   const server = http.createServer((request, response) => {
     // As GitHub Pages: a folder serves its index.html, x serves x.html.
     let file = path.join(root, decodeURIComponent(new URL(request.url, 'http://x').pathname));
+    // long.html's web font: any font will do.
+    const font = file === path.join(root, 'slow-font.woff');
+    if (font) file = path.join(root, 'site_libs', 'bootstrap', 'bootstrap-icons.woff');
     if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, 'index.html');
     else if (!fs.existsSync(file) && fs.existsSync(file + '.html')) file += '.html';
     if (!file.startsWith(root) || !fs.existsSync(file)) { response.writeHead(404); response.end(); return; }
@@ -342,8 +397,8 @@ function serve(root) {
       response.writeHead(200, {'content-type': types[path.extname(file)] || 'application/octet-stream'});
       response.end(fs.readFileSync(file));
     };
-    // The slow image holds the page's load event back.
-    if (file.endsWith('slow.png')) setTimeout(send, 1500);
+    // The slow image, font and applet script hold the page's load event back.
+    if (file.endsWith('slow.png') || font || file.endsWith('slow-applet.js')) setTimeout(send, 1500);
     else send();
   });
   return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve(server)));
@@ -698,6 +753,57 @@ async function slowLoads(browser, base, name) {
   await done(session, name);
 }
 
+// Tab titles of a tabset below the fold on a heavy page (long.qmd; ingmat3a's
+// uke3 and page4): typed, and from another page. From when the script has
+// handled the link, the tab row stays below the header and in view, at
+// every scroll (no jump away and back) and after 2 s; the panel or its first
+// heading has focus.
+const ROWS = `(() => {
+  const rows = window.__rows = [];
+  addEventListener('scroll', () => {
+    const target = document.querySelector('.ctm-tab-target[data-ctm-nav]');
+    if (!target) return;
+    const row = target.closest('.panel-tabset').querySelector(':scope > [role="tablist"]');
+    if (rows.length < 40) rows.push(Math.round(row.getBoundingClientRect().top));
+  }, true);
+})();`;
+async function deepTabs(browser, base, name) {
+  const session = await newPage(browser, base), {page, context} = session;
+  await context.addInitScript(ROWS);
+  const row = id => page.evaluate(id => {
+    const pane = document.getElementById(id).closest('.tab-pane');
+    const rect = pane.closest('.panel-tabset').querySelector(':scope > [role="tablist"]').getBoundingClientRect();
+    return {top: Math.round(rect.top), height: Math.round(rect.height), header: document.getElementById('quarto-header').offsetHeight,
+      active: pane.classList.contains('active'), rows: window.__rows.join(),
+      focused: document.activeElement === pane || (pane.contains(document.activeElement) && /^H[1-6]$/.test(document.activeElement.tagName))};
+  }, id);
+  const check = async (id, where) => {
+    const early = await row(id);
+    await page.waitForTimeout(1500);
+    const late = await row(id), s = await state(page, id);
+    const label = name + ' ' + where + ' #' + id + ' ' + JSON.stringify({early, late, ...s});
+    assert.ok(early.height > 60, label + ': the tab row wraps');
+    assert.equal(s.mark, 'load', label);
+    assert.ok(late.active && late.focused, label);
+    const below = top => top >= early.header - 1 && top < early.header + 60;
+    assert.ok(below(early.top) && below(late.top), label + ': the tab row below the header');
+    assert.ok(late.rows.split(',').filter(Boolean).every(top => below(+top)), label + ': at every scroll');
+    assert.ok(s.focusInView, label);
+  };
+  for (const id of ['long-del2', 'long-del3', 'long-del5']) {
+    await open(page, base + 'long.html#' + id);
+    await check(id, 'typed');
+  }
+  for (const id of ['long-del3', 'long-del5']) {
+    await open(page, base + 'other.html');
+    await page.click('main a[href$="long.html#' + id + '"]');
+    await page.waitForURL(new RegExp('long\\.html#' + id + '$'));
+    await handled(page, id, 'load');
+    await check(id, 'from another page');
+  }
+  await done(session, name);
+}
+
 // A deep link on a learner's first visit to a page with coi-serviceworker,
 // served without COOP/COEP headers: the worker's reload is still the visit's
 // link (its target opened, focused and kept in place below the header), not
@@ -856,7 +962,7 @@ try {
     const browser = await playwright[name].launch(options);
     try {
       // Each check on its own, so that one run reports every failure.
-      for (const check of [loads, inPage, otherPage, withoutTabs, pinned, slowLoads, firstVisit, groups, reveals, colours]) {
+      for (const check of [loads, inPage, otherPage, withoutTabs, pinned, slowLoads, deepTabs, firstVisit, groups, reveals, colours]) {
         try {
           await check(browser, base, name);
           console.log('ok', name, check.name);
