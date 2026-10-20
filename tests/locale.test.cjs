@@ -1,11 +1,14 @@
 // The message catalogues and their browser resolver (locales/ctm-locale.js):
 // the compiled tables give byte-identical texts to math-exercise 0.9 and
 // py-exercise 0.3 for every key, language and sample argument (goldens from
-// scripts/capture-legacy-locales.mjs), and the resolver's language chains.
+// scripts/capture-legacy-locales.mjs), and to pyodide-interaktiv 1.8 (goldens
+// committed as data, goldens/pyodide-interaktiv-locales.json), and the
+// resolver's language chains.
 const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), path = require('node:path'), vm = require('node:vm');
 const {spawnSync} = require('node:child_process');
 const C = require('./helpers/ctm-libs.cjs');
 const golden = require('./goldens/legacy-locales.json');
+const pyodideGolden = require('./goldens/pyodide-interaktiv-locales.json');
 
 const locales = path.join(C.library, 'locales');
 // Values from the vm context have that context's prototypes.
@@ -34,6 +37,33 @@ for (const [namespace, languages] of [['math-exercise', ['en', 'de', 'nb']], ['p
     assert.deepEqual(warnings, []);
   });
 }
+
+test('pyodide-interaktiv: every text of 1.8 is reproduced byte for byte (no and nb are Bokmål)', () => {
+  const {L, warnings} = runtime(['common.js', 'pyodide-interaktiv.js']);
+  assert.deepEqual(plain(L.languages('pyodide-interaktiv')), ['en', 'de', 'sv', 'nb', 'da']);
+  assert.deepEqual(Object.keys(pyodideGolden.js).sort(), ['da', 'de', 'en', 'nb', 'no', 'sv']);
+  for (const [lang, old] of Object.entries(pyodideGolden.js)) {
+    const table = L.table('pyodide-interaktiv', lang);
+    // The catalogue adds noscript (from qpyodide.lua) and nothing else of 1.8's.
+    assert.deepEqual(Object.keys(table).filter(key => !(key in old)).sort(), ['noscript'], lang);
+    for (const [key, value] of Object.entries(old)) {
+      if (value && value.$calls) {
+        assert.equal(typeof table[key], 'function', lang + '.' + key);
+        for (const [args, output] of value.$calls) assert.equal(table[key](...args), output, lang + '.' + key + '(' + JSON.stringify(args).slice(1, -1) + ')');
+      } else {
+        assert.equal(table[key], value, lang + '.' + key);
+      }
+    }
+  }
+  for (const [lang, text] of Object.entries(pyodideGolden.lua.noscriptMessages)) assert.equal(L.t('pyodide-interaktiv', 'noscript', lang), text, lang);
+  // nn shows Bokmål until the catalogue has Nynorsk (step 4); other languages English.
+  assert.equal(L.resolve('pyodide-interaktiv', 'nn'), 'nb');
+  assert.equal(L.resolve('pyodide-interaktiv', 'no'), 'nb');
+  assert.equal(L.resolve('pyodide-interaktiv', 'de-CH'), 'de');
+  assert.equal(L.resolve('pyodide-interaktiv', 'sv-FI'), 'sv');
+  assert.equal(L.resolve('pyodide-interaktiv', 'fr'), 'en');
+  assert.deepEqual(warnings, []);
+});
 
 test('the Lua-rendered labels moved into the catalogues unchanged', () => {
   const {L} = runtime();
