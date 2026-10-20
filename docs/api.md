@@ -230,8 +230,17 @@ reveals, the lecture/reading switch, embedded pages, the tab links'
 dependencies and `markdown-lint`.
 
 ```lua
-ctm.ui.passes()   -- {{Div, Proof, Tabset}, {Pandoc}}: what ctm.filters() runs before ctm.feedback.prepare
+ctm.ui.passes()                       -- {{Div, Proof, Tabset}, {Pandoc}}: what ctm.filters() runs before ctm.feedback.prepare
+ctm.ui.rawHTML(lines)                 -- what markdown-lint names in one file's lines: {{rule, line, text, raw}}, in order;
+                                      -- rule: "details" (a <details>, or a <summary> not right after its <details>),
+                                      -- "anchor" (<div id="…"></div>), "iframe", "switch" (data-learning-mode); once per line
+ctm.ui.defaultTitle(kind, lang)       -- "Gå i dybden" for ("reading-step", "nb"): the title a reveal shows without title=;
+                                      -- kind "reading-step", "hint", "solution" or "details", lang a language of the ui
+                                      -- catalogue (ctm.locale.language("ui", tag)); another kind is an error
 ```
+
+`markdown-lint` names, per rule, the lines `rawHTML` gives for the page and
+each file it includes; reveals without `title=` show `defaultTitle`.
 
 A component that runs after ctm-libs (the package's order) meets a reveal as
 `RawBlock <details class="ctm-reveal <kind>">`, `RawBlock <summary>`, the
@@ -271,9 +280,31 @@ relative to the page, or to the project when they start with `/`.
 ```lua
 ctm.source.pageName()          -- "pages/x.qmd", with " (or a file it includes)" when it includes files
 ctm.source.files()             -- the page and its {{< include >}} files, nested too: {{path, label, lines}}
-ctm.source.scan(visit)         -- visit(text, file, line, raw) outside code, inline code, comments, front matter
+ctm.source.read(lines)         -- one file's lines as markdown-lint reads them: per line {text, raw} for Markdown (text
+                               -- without inline code and comments, blank for a comment alone; raw inside ```{=html}),
+                               -- false for code (fenced or indented), a fence's own lines and front matter
+ctm.source.scan(visit)         -- visit(text, file, line, raw) for each line of files() that read() gives a text
 ctm.source.fences("details")   -- {{where = "file:line", attributes = "{...}"}} of the fenced divs with that class
 ```
+
+### Outside a render: maintainer tools
+
+`ctm.source.read`, `ctm.ui.rawHTML` and `ctm.ui.defaultTitle` need no page,
+so a tool can apply ctm-libs' own reading of a course instead of a copy of it
+(CTM Assessment's `tools/migrate-course-html.py` converts and lints a
+course's raw HTML with them). It runs them with Quarto's Pandoc, which has no
+`quarto` module; `defaultTitle` reads the catalogue with `quarto.json`:
+
+```lua
+-- quarto pandoc lua tool.lua <ctm-libs extension folder>
+quarto = {json = pandoc.json}
+local ctm = dofile(pandoc.path.join({arg[1], "lua", "ctm.lua"}))
+local found = ctm.ui.rawHTML(lines)                  -- lines: a file's lines, {"…", …}
+local title = ctm.ui.defaultTitle("solution", "nb")  -- "Løsningsforslag"
+```
+
+A tool checks that the functions exist (older ctm-libs have none) and names
+the ctm-libs it needs. `tests/markdown-api.test.cjs` runs them this way.
 
 ## Browser: dependencies and globals
 
