@@ -18,7 +18,13 @@
  * Focus: a tab title's target focuses its tab panel, or the panel's first
  * heading when that is in view (the tab row stays visible); a section's
  * heading, a <details>' summary, or else the target itself (tabindex -1 while
- * focused). Each history entry keeps its scroll position and open tabs in
+ * focused). The browser's own jump to the fragment, late in WebKit, runs the
+ * focusing steps of "scroll to the fragment": a target that cannot take focus
+ * (a tab title's .ctm-tab-target, an empty anchor) leaves nothing focused. So
+ * while the page settles (2 s, until the reader scrolls, types, clicks or
+ * touches), focus that falls to the page goes back where the script put it;
+ * so it does when a tab that was switched back is opened again. Each history
+ * entry keeps its scroll position and open tabs in
  * history.state.__quartoTabPosition, as the courses' script did; a reload
  * restores them, unless the entry still showed its link's target: then it
  * handles the link again (coi-serviceworker reloads a first visit).
@@ -240,6 +246,31 @@
     focusIt();
   }
 
+  // Focus that falls to the page (nothing focused) while the page settles goes
+  // back to the target's focus (see the top).
+  var kept = null;
+  function unkeep() {
+    if (!kept) return;
+    document.removeEventListener('focusout', kept.lost, true);
+    clearTimeout(kept.timer);
+    kept = null;
+  }
+  function nothingFocused() {
+    var active = document.activeElement;
+    return !active || active === document.body || active === document.documentElement;
+  }
+  function keepFocus(target, current) {
+    unkeep();
+    var lost = function (event) {
+      if (event.relatedTarget) return;
+      setTimeout(function () {
+        if (kept && kept.lost === lost && !moved && current() && nothingFocused() && target.getClientRects().length) focus(target);
+      }, 0);
+    };
+    kept = {lost: lost, timer: setTimeout(unkeep, PIN_MS)};
+    document.addEventListener('focusout', lost, true);
+  }
+
   function unpin() {
     if (!pinned) return;
     pinned.observer.disconnect();
@@ -293,6 +324,7 @@
         landAt(target, anchor);
         scrollTo(anchor);
         focus(target);
+        keepFocus(target, current);
         target.setAttribute('data-ctm-nav', how);
         pin(anchor);
         showing = target === targetFor(location.hash) ? location.hash : '';
@@ -305,7 +337,12 @@
       // remembered choice): the link wins.
       if (target && !position && !allActive(panes)) {
         return openAll(target, panes).then(frame).then(function () {
-          if (current() && anchor) { landAt(target, anchor); scrollTo(anchor); pin(anchor); }
+          if (!current() || !anchor) return;
+          landAt(target, anchor);
+          scrollTo(anchor);
+          // Its pane was hidden, which took the focus away.
+          if (!moved && nothingFocused()) focus(target);
+          pin(anchor);
         });
       }
       return null;

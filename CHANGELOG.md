@@ -27,8 +27,10 @@
   scrolls the target into view below the header, keeps it there while the
   page settles, and focuses it. The browser's own jump to the fragment, which
   WebKit makes late on a busy page, lands there too, also after the tab row
-  or the header reflows: a tab title's tab row stays in view. A link wins over a grouped tabset's
-  remembered tab without changing it. A reload returns to where the reader
+  or the header reflows: a tab title's tab row stays in view, and the focus
+  stays where the link put it (that jump leaves nothing focused when its
+  target cannot take focus, such as a tab title's). A link wins over a
+  grouped tabset's remembered tab without changing it, and keeps the focus. A reload returns to where the reader
   was, or, before the reader has scrolled, typed, clicked or touched, follows
   the link again: so does the reload with which coi-serviceworker makes a
   learner's first visit cross-origin isolated (hosts without COOP/COEP
