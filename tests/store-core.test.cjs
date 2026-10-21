@@ -151,9 +151,16 @@ function checkStore(source, assert) {
   da1.clear();
   ok(db.store.exportItems()[0].parts.length===1 && db.store.exportItems()[1].parts.length===2,'runtime exercise clear preserves sibling duplicate history across tabs');
   ok(db.events.some(function(event){return event.type==='ctm:store-clear' && event.detail.runtimeId==='r1' && event.detail.component==='code';}),'runtime clear command emits exact runtime and component');
+  var oldOrder=setup({exercises:[{id:'A',runtimeId:'r1',save:true}]},null,null,false,Channel);
+  var newOrder=setup({exercises:[{id:'B',runtimeId:'r1',save:true},{id:'A',runtimeId:'r2',save:true}]},null,null,false,Channel);
+  function ordered(tab,id,runtimeId){return tab.register({id:id,runtimeId:runtimeId,exportItem:function(){return {title:id,parts:[{kind:'answer',text:'answer'}]};}});}
+  var oa=ordered(oldOrder,'A','r1'),nb=ordered(newOrder,'B','r1'),na=ordered(newOrder,'A','r2');
+  oa.result({status:'correct',score:1});nb.result({status:'correct',score:1});na.result({status:'partial',score:.5});oa.clear();
+  ok(newOrder.store.exportItems()[0].parts.length===2 && newOrder.store.exportItems()[1].parts.length===1,'cross-version ordinal collision clears stable label A and preserves unrelated B');
+  ok(newOrder.events.some(function(event){return event.type==='ctm:store-clear' && event.detail.id==='A' && event.detail.runtimeId==='r2';}),'cross-version clear emits receiving entry actual runtime identity');
   return count;
 }
 test('shared store contracts and durable quota recovery',()=>{
  const source=fs.readFileSync(path.join(__dirname,'../_extensions/ctm-libs/ui/ctm-store.js'),'utf8');
- assert.equal(checkStore(source,assert.ok),57);
+ assert.equal(checkStore(source,assert.ok),59);
 });

@@ -123,19 +123,26 @@
   function receiveClear(command) {
     if (!command || command.v !== 1 || !['course', 'page', 'exercise'].includes(command.scope)) return;
     if (command.scope !== 'course' && command.page !== page) return;
+    var componentMatches = function (item) { return !command.component || item.component === command.component; };
+    var declared = (config.exercises || []).filter(function (item) { return item.id === command.id && componentMatches(item); }).length;
+    var mounted = entries.filter(function (entry) { return entry.id === command.id && componentMatches({component: entry.options.component}); }).length;
+    var ambiguous = Math.max(declared, mounted) > 1;
     entries.forEach(function (entry) {
       if (command.scope === 'exercise') {
-        if (command.runtimeId && entry.runtimeExplicit) { if (entry.runtimeId !== command.runtimeId) return; }
-        else if (entry.id !== command.id) return;
-        if (command.component && entry.options.component !== command.component) return;
+        // Author labels survive source-order changes. Runtime ordinals only
+        // disambiguate duplicate labels within that stable label's matches.
+        if (entry.id !== command.id || !componentMatches({component: entry.options.component})) return;
+        if (ambiguous && command.runtimeId && entry.runtimeExplicit && entry.runtimeId !== command.runtimeId) return;
       }
       cancel(entry); entry.lastResult = null; entry.lastChecked = null;
       if (entry.id) { delete memory.localStorage[key(entry.id)]; delete dirty.localStorage[key(entry.id)]; }
+      if (command.scope === 'exercise') emit('ctm:store-clear', {
+        course: course, page: page, id: entry.id, runtimeId: entry.runtimeId, component: entry.options.component
+      });
     });
-    emit('ctm:store-clear', {course: course, page: command.scope === 'course' ? undefined : page,
-      id: command.scope === 'exercise' ? command.id : undefined,
-      runtimeId: command.scope === 'exercise' ? command.runtimeId : undefined,
-      component: command.scope === 'exercise' ? command.component : undefined});
+    if (command.scope !== 'exercise') emit('ctm:store-clear', {
+      course: course, page: command.scope === 'course' ? undefined : page
+    });
   }
   function sendClear(scope, id, runtimeId, component) {
     var command = {v: 1, scope: scope, page: page, id: id, runtimeId: runtimeId, component: component, nonce: Date.now() + ':' + Math.random()};
