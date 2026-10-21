@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const {JSDOM} = require('jsdom');
 const C = require('./helpers/ctm-libs.cjs');
 const source = fs.readFileSync(path.join(C.library, 'assets.js'), 'utf8');
 function resolver(baseURI, mode, bases) {
@@ -71,8 +72,11 @@ test('local assets select nested Lua paths, inline JS config and Quarto MathJax 
     assert.equal(got.url, '../_ctm-assets/pyodide/' + pyVersion + '/');
     assert.equal(got.katex, '../_ctm-assets/' + table.assets.katex.local.replace('{version}', table.assets.katex.version) + 'dist/katex.mjs');
     assert.match(html, /globalThis\.CTM_ASSETS=/);
-    assert.match(html, /id="MathJax-script" async type="text\/javascript"/);
-    assert.match(html, /_ctm-assets\/npm\/mathjax@[^"]+\/es5\/tex-chtml-full\.js/);
+    const mathScript=JSDOM.fragment(html).querySelector('script#MathJax-script');
+    assert.ok(mathScript, 'local MathJax script is present');
+    assert.equal(mathScript.hasAttribute('async'),true);
+    assert.equal(mathScript.getAttribute('type'),'text/javascript');
+    assert.equal(mathScript.getAttribute('src'),'../_ctm-assets/npm/mathjax@'+table.assets.mathjax3.version+'/es5/tex-chtml-full.js');
     assert.doesNotMatch(html, /polyfill\.io|https:\/\/cdn\.jsdelivr\.net\/npm\/mathjax/);
   } finally {fs.rmSync(p.dir, {recursive:true,force:true});}
 });
