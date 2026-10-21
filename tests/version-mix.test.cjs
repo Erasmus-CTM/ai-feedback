@@ -8,12 +8,12 @@ const skip = C.hasQuarto ? false : 'Quarto required';
 function project(otherVersion) {
   const dir = C.tempdir('feedback-mix-');
   C.install(dir);
-  // A second installation (ctm-libs with its alias) under an owner folder.
+  // A second ctm-libs installation under an owner folder.
   const other = C.install(dir, {owner: 'other'});
-  for (const name of ['ctm-libs', 'ai-feedback']) C.setVersion(path.join(other, name), otherVersion);
+  C.setVersion(path.join(other, 'ctm-libs'), otherVersion);
   // A second filter that loads the other installation, as an older component's loader would.
   C.write(dir, {
-    'consumer.lua': 'local api = dofile(pandoc.path.join({pandoc.path.directory(PANDOC_SCRIPT_FILE), "_extensions", "other", "ai-feedback", "feedback-quarto.lua"}))\nreturn {}\n',
+    'consumer.lua': 'local api = dofile(pandoc.path.join({pandoc.path.directory(PANDOC_SCRIPT_FILE), "_extensions", "other", "ctm-libs", "lua", "ctm.lua"}))\nreturn {}\n',
     'page.qmd': '---\ntitle: t\nfilters: [ctm-libs, consumer.lua]\n---\n\n::: {.ai-feedback}\nWrite.\n:::\n',
   });
   return dir;

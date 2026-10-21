@@ -30,13 +30,6 @@ end
 -- no level can turn it back on). Policies are still read and validated, so
 -- both builds fail alike; nothing of AI feedback reaches the HTML.
 local switch = nil
-local pyodideWanted = nil
--- Where the bridge's "pyodide-interaktiv feedback" goes in the message, and
--- the components that asked for feedback themselves (request()): from
--- pyodide-interaktiv 1.9 on, a page's explicit pyodide: feedback: true is
--- its own request, and the bridged item would name Pyodide twice (M11).
-local pyodideBridged = nil
-local requested = {}
 -- One build message per page: its exercises that only AI feedback can
 -- assess, shown as text or removed (ai-feedback: without-ai, lua/policy.lua),
 -- and what it asked for but did not get. Those items are only what is on the
@@ -47,21 +40,12 @@ local requested = {}
 --
 -- The message is printed by flush(), which ctm-libs-end.lua calls after every
 -- component (the CTM Assessment package lists that file last). Where it is not
--- listed (component development builds, filters: [ai-feedback]), the table's
+-- listed (component development builds, filters: [ctm-libs]), the table's
 -- finalizer prints it instead: Pandoc closes the page's Lua state when its
 -- filters have run, and closing runs the finalizers (Lua 5.4). Should a
 -- future Pandoc or Quarto keep the state open, only that fallback is lost.
 local leftOut = {items = {}, seen = {}, reason = ""}
 local function message()
-  if pyodideBridged then
-    local item = "pyodide-interaktiv feedback"
-    if not requested["pyodide-interaktiv"] and not leftOut.seen[item] then
-      leftOut.seen[item] = true
-      leftOut.reason = switch and switch.reason or leftOut.reason
-      table.insert(leftOut.items, math.min(pyodideBridged, #leftOut.items + 1), item)
-    end
-    pyodideBridged = nil
-  end
   local shown = policy.withoutAIMessage()
   if #leftOut.items == 0 and not shown then return nil end
   local parts = {shown}
@@ -130,31 +114,8 @@ end
 function M.request(component, wanted, origin)
   if not wanted then return false end
   if M.enabled() then return true end
-  requested[component] = true
   leaveOut(component .. " feedback" .. (origin and origin ~= "" and (" (" .. origin .. ")") or ""))
   return false
-end
-
--- Meta pass of the ctm-libs filter: with AI feedback off, pyodide-interaktiv
--- 1.8 (which reads pyodide: feedback itself) is switched off too, when this
--- filter runs before it (package order, or filters: [ai-feedback, ...]).
--- Only an explicit pyodide: feedback: true is named in the build message;
--- pyodide-interaktiv's own default is not a request (as math-exercise's auto).
-function M.bridge(meta)
-  if not quarto.doc.is_format("html") or M.enabled() then return meta end
-  local pyodide = meta.pyodide
-  if pyodide == nil then
-    pyodide = pandoc.MetaMap({})
-  elseif pandoc.utils.type(pyodide) ~= "table" then
-    return meta
-  end
-  if pyodideWanted == nil then
-    local current = pyodide.feedback
-    pyodideWanted = current == true or (current ~= nil and pandoc.utils.stringify(current) == "true")
-  end
-  pyodide.feedback = false
-  meta.pyodide = pyodide
-  return meta
 end
 
 local function requireSettings(what)
@@ -400,16 +361,8 @@ function M.prepare(doc)
     end})
     -- Activities that stop the build: the end filter raises the error after
     -- every component; without it (component development builds,
-    -- filters: [ai-feedback]) it comes now.
+    -- filters: [ctm-libs]) it comes now.
     if not rawget(_G, "__ctmLibsEnd") and policy.withoutAIStop() then M.flush() end
-    if pyodideWanted then
-      local cells = false
-      doc.blocks:walk({CodeBlock = function(b)
-        if b.classes:includes("{pyodide-python}") or b.classes:includes("pyodide-python") then cells = true end
-      end})
-      -- Named in the message unless pyodide-interaktiv asks itself (M11).
-      if cells then pyodideBridged = #leftOut.items + 1 end
-    end
     return doc
   end
   for _, key in ipairs({"mode", "storage", "base-url", "model"}) do
