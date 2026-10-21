@@ -100,3 +100,32 @@ test('local preflight rejects missing bundle, wrong versions, missing resources/
     const r=C.render(p.dir);assert.notEqual(r.status,0);assert.match(r.stderr,/version mismatch for katex/);
   } finally {fs.rmSync(p.dir,{recursive:true,force:true});}
 });
+
+test('local worker receives an absolute page URL and loads only subset packages without micropip', async () => {
+  const W = require('./helpers/worker.cjs');
+  const page = W.pageContext();
+  page.CTM_ASSETS = {v:1,mode:'local'};
+  page.CTMAssets = {url: name => {assert.equal(name,'pyodide');return 'https://course.test/_ctm-assets/pyodide/test/';}};
+  const started=page.CTMWorker.start({indexURL:'https://ignored.test/'});
+  const worker=page.workers[0], cfg=worker.posted[0].config;
+  assert.equal(cfg.indexURL,'https://course.test/_ctm-assets/pyodide/test/');
+  assert.equal(cfg.assetsMode,'local');
+  worker.reply({type:'result',id:worker.posted[0].id,value:true});
+  await started;
+  const network=W.fakeNet({packages:{numpy:{imports:['numpy']}}});
+  const calls=[];
+  const local=W.workerContext({globals:{fetch:network.fetch},pyodide:()=>({
+    loadPackage:async names=>calls.push(Array.from(names)),
+    pyimport:()=>{throw new Error('local mode must not call micropip');}
+  })});
+  await local.init({assetsMode:'local',packages:['numpy']});
+  assert.equal(local.result(0).type,'result');
+  assert.deepEqual(calls,[['numpy']]);
+  assert.ok(network.log.every(entry=>entry.file==='pyodide-lock.json'));
+  const missing=W.workerContext({globals:{fetch:network.fetch},pyodide:()=>({
+    loadPackage:async()=>{throw new Error('unknown package must be rejected before loading');}
+  })});
+  await missing.init({assetsMode:'local',packages:['not-installed']});
+  assert.equal(missing.result(0).type,'error');
+  assert.match(missing.result(0).message,/outside the local Pyodide subset/);
+});

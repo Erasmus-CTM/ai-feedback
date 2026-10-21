@@ -133,11 +133,24 @@ async function init(cfg) {
   // import them, so they belong to stage 1.
   if (config.packages && config.packages.length > 0) {
     postStatus(msg.initPackages || "Initialising Python packages ...");
-    await pyodide.loadPackage("micropip");
-    postStatus(msg.extraPackages || "Installing additional packages ...");
-    const micropip = pyodide.pyimport("micropip");
-    await micropip.install(config.packages);
-    micropip.destroy();
+    if (config.assetsMode === "local") {
+      // Explicit packages were checked during the render; recheck against the
+      // served subset before loading. Never ask micropip/PyPI in local mode.
+      await readLock();
+      const names = config.packages.map(canonical);
+      for (const name of names) {
+        if (!Object.prototype.hasOwnProperty.call(lockPackages, name)) {
+          throw new Error("Package is outside the local Pyodide subset: " + name);
+        }
+      }
+      await pyodide.loadPackage(names);
+    } else {
+      await pyodide.loadPackage("micropip");
+      postStatus(msg.extraPackages || "Installing additional packages ...");
+      const micropip = pyodide.pyimport("micropip");
+      await micropip.install(config.packages);
+      micropip.destroy();
+    }
   }
 
   for (const plugin of plugins) {
@@ -565,6 +578,9 @@ self.onmessage = function(event) {
   // loading measurements compare a page with and without it); options.timing
   // shortens stage 2's limits.
   function start(options = {}) {
+    if (root.CTM_ASSETS && root.CTM_ASSETS.mode === "local") {
+      options = {...options, indexURL: root.CTMAssets.url("pyodide"), assetsMode: "local"};
+    }
     const started = bootPyodideWorker(options);
     if (options.publish) publish(started);
     return started;
@@ -736,6 +752,7 @@ self.onmessage = function(event) {
         await rpc("init", {
           config: {
             indexURL: options.indexURL,
+            assetsMode: options.assetsMode,
             env: options.env || {},
             packages: options.packages || [],
             background: globalThis.__ctmWorkerNoBackground === true ? {} : (options.background || {}),
