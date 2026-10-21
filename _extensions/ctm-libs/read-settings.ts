@@ -409,7 +409,7 @@ function localAssets() {
       // File levels retain an override even if a nearer level masks it.
       if (Object.hasOwn(doc.pyodide || {}, key)) errors.push('ctm-assessment: local assets do not support pyodide.' + key + ' (' + origin + '). Remove that override.');
     }
-    for (const key of ['src_jxg', 'src_css', 'src_mjx']) {
+    for (const key of ['src_jxg', 'src_css', 'src_mjx', 'mjx_fonts']) {
       const value = doc.jsxgraph?.[key];
       const suppliedByHook = origin === 'document metadata' && same(value, doc.defaults?.[key]);
       if (http(value) && !suppliedByHook) errors.push('ctm-assessment: local assets do not support an author HTTP jsxgraph.' + key + ' (' + origin + '). Use a local path or remove that override.');

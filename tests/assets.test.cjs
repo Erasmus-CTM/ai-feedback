@@ -17,7 +17,7 @@ test('asset URLs are absolute at root and nested pages, with CDN bases unchanged
     const local = resolver(page, 'local', {pyodide: base + 'pyodide/1/'});
     assert.equal(local.url('pyodide'), 'https://course.test/_ctm-assets/pyodide/1/');
     assert.equal(local.url('pyodide', 'pyodide.js'), 'https://course.test/_ctm-assets/pyodide/1/pyodide.js');
-    for (const bad of ['../escape', '%2e%2e/escape', '//other.test/', 'https://other.test/', '/root', 'a\\b', 'file?x', 'file#x']) {
+    for (const bad of ['../escape', '%2e%2e/escape', '%2e%2e%2fother/file', 'dir%2f..%2fother', 'dir%5C..%5cother', '%2E%2e%2Fother', '//other.test/', 'https://other.test/', '/root', 'a\\b', 'file?x', 'file#x']) {
       assert.throws(() => local.url('pyodide', bad), /inside the selected asset/);
     }
     assert.throws(() => local.url('missing'), /unknown asset/);
@@ -86,6 +86,7 @@ test('local preflight rejects missing bundle, wrong versions, missing resources/
     [{extra:'pyodide:\n  base-url: https://custom.test/\n'}, /pyodide\.base-url/],
     [{front:'pyodide:\n  build-variant: debug\n'}, /pyodide\.build-variant/],
     [{extra:'jsxgraph:\n  src_jxg: https://custom.test/board.js\n'}, /author HTTP jsxgraph\.src_jxg/],
+    [{extra:'jsxgraph:\n  mjx_fonts: https://custom.test/fonts/\n'}, /author HTTP jsxgraph\.mjx_fonts/],
     [{extra:'pyodide:\n  packages: [not-in-bundle]\n'}, /outside the local subset/]
   ];
   for (const [options, message] of cases) {
