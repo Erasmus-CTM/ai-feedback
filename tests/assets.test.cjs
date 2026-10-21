@@ -38,6 +38,7 @@ test('the shared runtime consumes the page-selected Pyodide base and preserves i
 const table = JSON.parse(fs.readFileSync(path.join(C.library, 'assets.json'), 'utf8'));
 const runtime = fs.readFileSync(path.join(C.library, 'runtime', 'pyodide-runtime.js'), 'utf8');
 const pyVersion = runtime.match(/var indexURL = '[^']+\/v([^/]+)\/full\/';/)[1];
+function render(dir) { return C.render(dir, [], {CTM_COMPONENT_DEV: '1'}); }
 function project({local = true, resources = true, theme = true, extra = '', front = '', nested = false, manifest = true} = {}) {
   const dir = C.tempdir('ctm-assets-');
   C.install(dir); C.installProbe(dir);
@@ -46,7 +47,7 @@ function project({local = true, resources = true, theme = true, extra = '', fron
   versions.pyodide = pyVersion;
   C.write(dir, {
     '_quarto.yml': 'project:\n  type: default\n  render: [' + file + ']\n' + (resources ? '  resources: ["_ctm-assets/**"]\n' : '') +
-      'filters: [ctm-libs, probe]\nformat:\n  html:\n' + (theme ? '    theme: [default, offline.scss]\n' : '') +
+      'filters: [ctm-libs, probe]\n' + (theme ? 'format:\n  html:\n    theme: [default, offline.scss]\n' : 'format: html\n') +
       'ctm-assessment:\n  assets: ' + (local ? 'local' : 'cdn') + '\nai-feedback:\n  enabled: false\n' + extra,
     'offline.scss': '/*-- scss:defaults --*/\n$web-font-path: false;\n',
     [file]: '---\ntitle: Asset probe\n' + front + '---\n\n$x^2$\n' + C.probe('asset', 'return {mode=ctm.assets.mode(), url=ctm.assets.url("pyodide"), katex=ctm.assets.url("katex", "dist/katex.mjs")}'),
@@ -62,7 +63,7 @@ test('local assets select nested Lua paths, inline JS config and Quarto MathJax 
     const configFile=path.join(p.dir,'_quarto.yml');
     fs.writeFileSync(configFile,fs.readFileSync(configFile,'utf8').replace('offline.scss','offline-system.scss'));
     fs.appendFileSync(path.join(p.dir,p.file),C.probe('guard', 'return not pcall(ctm.assets.url, "katex", "a/" .. string.char(9) .. "../" .. string.char(9) .. "../escape")'));
-    const result = C.render(p.dir);
+    const result = render(p.dir);
     assert.equal(result.status, 0, result.stderr);
     const html = C.html(p.dir, p.file), got = C.probes(html).asset;
     assert.equal(got.mode, 'local');
@@ -78,7 +79,7 @@ test('local assets select nested Lua paths, inline JS config and Quarto MathJax 
 test('CDN mode preserves normal MathJax and accepts existing URL overrides without a bundle', {skip: !C.hasQuarto}, () => {
   const p = project({local:false,manifest:false,resources:false,theme:false,extra:'pyodide:\n  base-url: https://custom.test/python/\njsxgraph:\n  src_jxg: https://custom.test/board.js\n'});
   try {
-    const result = C.render(p.dir); assert.equal(result.status,0,result.stderr);
+    const result = render(p.dir); assert.equal(result.status,0,result.stderr);
     assert.equal(C.probes(C.html(p.dir,p.file)).asset.mode,'cdn');
     assert.match(C.html(p.dir,p.file), /https:\/\/cdn\.jsdelivr\.net\/npm\/mathjax/);
   } finally {fs.rmSync(p.dir,{recursive:true,force:true});}
@@ -96,14 +97,14 @@ test('local preflight rejects missing bundle, wrong versions, missing resources/
   ];
   for (const [options, message] of cases) {
     const p=project(options);
-    try {const r=C.render(p.dir);assert.notEqual(r.status,0);assert.match(r.stderr,message);}
+    try {const r=render(p.dir);assert.notEqual(r.status,0);assert.match(r.stderr,message);}
     finally {fs.rmSync(p.dir,{recursive:true,force:true});}
   }
   const p=project();
   try {
     p.versions.katex='wrong';
     C.write(p.dir,{'_ctm-assets/manifest.json':JSON.stringify({v:1,versions:p.versions,files:{}})});
-    const r=C.render(p.dir);assert.notEqual(r.status,0);assert.match(r.stderr,/version mismatch for katex/);
+    const r=render(p.dir);assert.notEqual(r.status,0);assert.match(r.stderr,/version mismatch for katex/);
   } finally {fs.rmSync(p.dir,{recursive:true,force:true});}
 });
 
@@ -144,14 +145,14 @@ test('assessment pins supply URLs and required versions even when the author kee
     Object.assign(p.versions,{jsxgraph:'1.2.3',mathjax4:'4.5.6','mathjax-newcm-font':'7.8.9'});
     C.write(p.dir,{'_ctm-assets/manifest.json':JSON.stringify({v:1,versions:p.versions,files:{}})});
     fs.appendFileSync(path.join(p.dir,p.file),C.probe('board','return {url=ctm.assets.url("jsxgraph", "distrib/jsxgraphcore.js"), fonts=ctm.assets.url("mathjax-newcm-font"), own=pandoc.utils.stringify(ctm.settings.meta().jsxgraph.src_jxg)}'));
-    let r=C.render(p.dir);assert.equal(r.status,0,r.stderr);
+    let r=render(p.dir);assert.equal(r.status,0,r.stderr);
     const got=C.probes(C.html(p.dir,p.file)).board;
     assert.equal(got.url,'./_ctm-assets/npm/jsxgraph@1.2.3/distrib/jsxgraphcore.js');
     assert.equal(got.fonts,'./_ctm-assets/npm/@mathjax/mathjax-newcm-font@7.8.9/');
     assert.equal(got.own,'boards/custom.js');
     delete p.versions.jsxgraph;
     C.write(p.dir,{'_ctm-assets/manifest.json':JSON.stringify({v:1,versions:p.versions,files:{}})});
-    r=C.render(p.dir);assert.notEqual(r.status,0);assert.match(r.stderr,/version mismatch for jsxgraph/);
+    r=render(p.dir);assert.notEqual(r.status,0);assert.match(r.stderr,/version mismatch for jsxgraph/);
   } finally {fs.rmSync(p.dir,{recursive:true,force:true});}
 });
 
@@ -161,7 +162,7 @@ test('local preflight catches format-scoped project overrides hidden by nearer s
     const file=path.join(p.dir,'_quarto.yml');
     fs.writeFileSync(file,fs.readFileSync(file,'utf8').replace('ctm-assessment:\n',
       '    pyodide:\n      base-url: https://custom.test/python/\n    jsxgraph:\n      src_jxg: https://custom.test/board.js\n      mjx_fonts: https://custom.test/fonts/\nctm-assessment:\n'));
-    const r=C.render(p.dir);assert.notEqual(r.status,0);
+    const r=render(p.dir);assert.notEqual(r.status,0);
     assert.match(r.stderr,/pyodide\.base-url.*format\.html/);
     assert.match(r.stderr,/author HTTP jsxgraph\.src_jxg.*format\.html/);
     assert.match(r.stderr,/author HTTP jsxgraph\.mjx_fonts.*format\.html/);
