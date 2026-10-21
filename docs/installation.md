@@ -35,11 +35,32 @@ thin `ai-feedback` extension, so older setups keep building:
 - Components released before the consolidation (math-exercise 0.9,
   py-exercise 0.3, pyodide-interaktiv 1.8) load the alias's
   `feedback-quarto.lua`, which hands them ctm-libs' feedback module.
-- An old standalone ai-feedback (0.8) listed next to the package stops the
-  page: a page uses one version. Remove the separately added copy.
+- An old standalone ai-feedback (0.8) listed next to the package or next to
+  pyodide-interaktiv 1.9 stops the page: a page uses one version. Remove
+  `ai-feedback` from `filters:` and delete the old folder.
 
-The alias goes when pyodide-interaktiv ships ctm-libs itself (consolidation
-step 3).
+The alias goes once the package ships pyodide-interaktiv 1.9, which brings
+ctm-libs itself (consolidation step 3).
+
+## pyodide-interaktiv on its own
+
+pyodide-interaktiv also installs without the package (decision 5):
+
+```sh
+quarto add Erasmus-CTM/pyodide-interaktiv
+```
+
+writes `_extensions/Erasmus-CTM/pyodide-interaktiv`, a copy of ctm-libs
+(`_extensions/Erasmus-CTM/ctm-libs`, generated from a ctm-libs commit and
+checked in its CI) and, from 1.9, an `ai-feedback` forwarder that replaces the
+ai-feedback 0.8.1 folder of 1.8 projects (`filters: [ai-feedback]` keeps
+working with one warning). The component calls the bootstrap with
+`{standalone = "quarto add Erasmus-CTM/pyodide-interaktiv"}`: without the
+package it uses the ctm-libs next to it, and when that is missing or too old
+the render names this command. Projects that commit `_extensions/`, or that
+allow only `_extensions/Erasmus-CTM/pyodide-interaktiv` in `.gitignore`, add
+`ctm-libs` too. In the package, the package's ctm-libs serves every
+component, and a page that would combine two ctm-libs versions stops.
 
 ## Component development
 

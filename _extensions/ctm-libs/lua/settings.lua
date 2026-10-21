@@ -1,5 +1,5 @@
 -- CTM settings, key by key (F-79): every CTM section (ai-feedback,
--- ctm-assessment, math-exercise, py-exercise) is read by read-settings.ts
+-- ctm-assessment, math-exercise, py-exercise, pyodide) is read by read-settings.ts
 -- from _quarto.yml, the profiles, _quarto.yml.local, the _metadata.yml files
 -- and the page, plus Quarto's merged metadata, so a page that sets one key of
 -- a section keeps the project's other keys.
@@ -19,7 +19,9 @@
 return function(ctm)
   local M = {}
 
-  M.SECTIONS = {"ai-feedback", "ctm-assessment", "math-exercise", "py-exercise"}
+  -- pyodide: pyodide-interaktiv's options (step 3); it reads them on HTML
+  -- pages only, and `meta.pyodide` as before in other formats.
+  M.SECTIONS = {"ai-feedback", "ctm-assessment", "math-exercise", "py-exercise", "pyodide"}
   local EMPTY_POLICIES = '{"layers":[],"pageLayers":[]}'
 
   local pageMeta = nil
@@ -158,15 +160,25 @@ return function(ctm)
 
   -- true or false (also the strings "true"/"false"). Anything else stops the
   -- render, or with opts.loose warns and uses opts.default (values that
-  -- were accepted loosely before 0.9).
+  -- were accepted loosely before 0.9). opts.digits also takes 1 and 0
+  -- (numbers or strings) and true/false in any case: the values that an
+  -- option written into a page's script, or compared case-insensitively,
+  -- meant before (pyodide-interaktiv's on/off keys).
   local warned = {}
+  local DIGITS = {["true"] = true, ["1"] = true, ["false"] = false, ["0"] = false}
   function M.bool(section, key, opts)
     opts = opts or {}
     local value, origin, where = M.get(section, key, opts)
     if value == true or value == "true" then return true, origin, where end
     if value == false or value == "false" then return false, origin, where end
     if value == nil then return opts.default, origin, where end
-    local message = (where or section) .. ": " .. key .. " must be true or false " .. found(value, origin)
+    if opts.digits then
+      local digit = type(value) == "number" and ((value == 1 and "1") or (value == 0 and "0"))
+        or (type(value) == "string" and value:lower()) or nil
+      if digit ~= nil and DIGITS[digit] ~= nil then return DIGITS[digit], origin, where end
+    end
+    local message = (where or section) .. ": " .. key .. " must be true or false"
+      .. (opts.digits and " (or 1 or 0) " or " ") .. found(value, origin)
     if not opts.loose then ctm.fail(message) end
     if not warned[section .. "." .. key] then
       warned[section .. "." .. key] = true

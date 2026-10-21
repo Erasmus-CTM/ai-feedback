@@ -21,6 +21,8 @@ return function(ctm)
     ["ai-feedback"] = {namespace = "feedback", section = "ai-feedback", key = "ui-language"},
     -- Reveals' titles and the lecture/reading switch (lua/ui.lua).
     ui = {namespace = "ui", section = "ctm-assessment", key = "lang"},
+    -- pyodide-interaktiv's cells and status line: pyodide: lang.
+    ["pyodide-interaktiv"] = {namespace = "pyodide-interaktiv", section = "pyodide", key = "lang"},
   }
 
   local function catalogue(namespace)

@@ -117,6 +117,16 @@ test('Pyodide pages are named only under an explicit pyodide: feedback: true', {
   }
 }));
 
+// M11: pyodide-interaktiv 1.9 makes its own request for an explicit
+// pyodide: feedback: true; the bridge's item then gives way, so the message
+// names Pyodide once.
+test('pyodide-interaktiv\'s own request replaces the bridged item (named once)', {skip}, () => withProject(dir => {
+  fs.appendFileSync(path.join(dir, 'pyodide-asks.qmd'), C.probe('asked', 'return ctm.feedback.request("pyodide-interaktiv", true, "pyodide: feedback: true in pyodide-asks.qmd")'));
+  const r = C.render(dir, ['pyodide-asks.qmd'], {CTM_FEEDBACK: 'off'});
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(messages(r.stderr).map(m => m.items), ['pyodide-interaktiv feedback (pyodide: feedback: true in pyodide-asks.qmd)']);
+}));
+
 // Only what is on the page is a request: a project-wide or folder-wide
 // enabled: true is configuration, and pages without AI content stay quiet.
 function withSite(run) {

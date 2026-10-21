@@ -11,14 +11,16 @@ local cfg = {}
 -- (feedback-loader.lua, through the ai-feedback alias) and ctm-libs register
 -- the installation they load here (filters share Lua globals); a page that
 -- would combine two different versions, such as an old standalone
--- ai-feedback 0.8 next to the package, stops instead of mixing them.
+-- ai-feedback 0.8 next to the package, stops instead of mixing them. The
+-- check stays after the alias (step-3 design §18.4, §18.6): projects of
+-- pyodide-interaktiv 1.8 keep their ai-feedback 0.8.1 folder after updating.
 do
   local here = ctm.path("lua", "feedback.lua")
   local loaded = _G.__ctmAiFeedbackInstallation
   if loaded and pandoc.path.normalize(loaded.path) ~= pandoc.path.normalize(here) and loaded.version ~= ctm.version then
     ctm.fail("This page combines filters that use different ai-feedback versions: " .. loaded.path .. " ("
-      .. loaded.version .. ") and " .. here .. " (" .. ctm.version .. "). List the filters of one installation "
-      .. "(for example only ctm-assessment), or install the same ai-feedback version.")
+      .. loaded.version .. ") and " .. here .. " (" .. ctm.version .. "). AI feedback is part of CTM Assessment "
+      .. "and of pyodide-interaktiv 1.9: remove ai-feedback from filters: and delete the old folder.")
   end
   _G.__ctmAiFeedbackInstallation = loaded or {path = here, version = ctm.version}
 end
@@ -29,6 +31,12 @@ end
 -- both builds fail alike; nothing of AI feedback reaches the HTML.
 local switch = nil
 local pyodideWanted = nil
+-- Where the bridge's "pyodide-interaktiv feedback" goes in the message, and
+-- the components that asked for feedback themselves (request()): from
+-- pyodide-interaktiv 1.9 on, a page's explicit pyodide: feedback: true is
+-- its own request, and the bridged item would name Pyodide twice (M11).
+local pyodideBridged = nil
+local requested = {}
 -- One build message per page: its exercises that only AI feedback can
 -- assess, shown as text or removed (ai-feedback: without-ai, lua/policy.lua),
 -- and what it asked for but did not get. Those items are only what is on the
@@ -45,6 +53,15 @@ local pyodideWanted = nil
 -- future Pandoc or Quarto keep the state open, only that fallback is lost.
 local leftOut = {items = {}, seen = {}, reason = ""}
 local function message()
+  if pyodideBridged then
+    local item = "pyodide-interaktiv feedback"
+    if not requested["pyodide-interaktiv"] and not leftOut.seen[item] then
+      leftOut.seen[item] = true
+      leftOut.reason = switch and switch.reason or leftOut.reason
+      table.insert(leftOut.items, math.min(pyodideBridged, #leftOut.items + 1), item)
+    end
+    pyodideBridged = nil
+  end
   local shown = policy.withoutAIMessage()
   if #leftOut.items == 0 and not shown then return nil end
   local parts = {shown}
@@ -113,6 +130,7 @@ end
 function M.request(component, wanted, origin)
   if not wanted then return false end
   if M.enabled() then return true end
+  requested[component] = true
   leaveOut(component .. " feedback" .. (origin and origin ~= "" and (" (" .. origin .. ")") or ""))
   return false
 end
@@ -389,7 +407,8 @@ function M.prepare(doc)
       doc.blocks:walk({CodeBlock = function(b)
         if b.classes:includes("{pyodide-python}") or b.classes:includes("pyodide-python") then cells = true end
       end})
-      if cells then leaveOut("pyodide-interaktiv feedback") end
+      -- Named in the message unless pyodide-interaktiv asks itself (M11).
+      if cells then pyodideBridged = #leftOut.items + 1 end
     end
     return doc
   end

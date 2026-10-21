@@ -10,3 +10,5 @@ __pycache__/
 **/*.quarto_ipynb
 /_ctm-checkers-source/
 /_ci/
+/.pyodide-cache/
+/.worker-profile-*/

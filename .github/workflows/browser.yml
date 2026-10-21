@@ -3,7 +3,10 @@ name: Runtime in a browser
 # and SymPy results under the runtime's Pyodide equal those of the previous one.
 # The page's interface (reveals, the lecture/reading switch, links into tabs,
 # also under coi-serviceworker) on a rendered site in Chromium, Firefox and
-# WebKit.
+# WebKit. CTMWorker (the Python worker) in Chromium with real Pyodide from a
+# local server like jsDelivr: the browser cache, a check during stage 2 on a
+# slow line, no starvation, a stalled download, a restart, input() and Stop
+# through coi-serviceworker.js, and a project that pins Pyodide 0.27.2.
 on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
@@ -21,6 +24,19 @@ jobs:
         run: node tests/browser/runtime-smoke.mjs
       - name: SymPy results equal those of the previous Pyodide
         run: node tests/browser/sympy-parity.mjs
+  worker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --ignore-scripts playwright@1.55.1
+      - run: npx playwright install --with-deps chromium
+      - name: CTMWorker in Chromium
+        env:
+          PYODIDE_OLD: '0.27.2'
+        run: node tests/browser/worker.mjs
   ui:
     runs-on: ubuntu-latest
     strategy:

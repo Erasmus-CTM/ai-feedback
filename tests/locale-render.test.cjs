@@ -112,3 +112,19 @@ test('activities: the interface language goes through the chain, feedback keeps 
   assert.deepEqual(pick('shared.qmd'), [['de', 'de-AT']]);
   assert.deepEqual(pick('attribute.qmd'), [['de', 'en'], ['en', 'es']]);
 }));
+
+test('pyodide-interaktiv: pyodide: lang, then ctm-assessment: lang, then lang; nn shows Bokmål; Lua texts equal the browser\'s', {skip}, () => withProject({
+  '_quarto.yml': project(['own.qmd', 'shared.qmd', 'quarto.qmd']),
+  'own.qmd': page('lang: de\nctm-assessment:\n  lang: en\npyodide:\n  lang: sv\n', resolve('pyodide', 'pyodide-interaktiv')),
+  'shared.qmd': page('lang: de\nctm-assessment:\n  lang: nn\n', resolve('pyodide', 'pyodide-interaktiv'),
+    C.probe('noscript', 'return {ctm.locale.text("pyodide-interaktiv", "noscript", "nb"), ctm.locale.text("pyodide-interaktiv", "engineFailed", "de", "x")}')),
+  'quarto.qmd': page('lang: no\n', resolve('pyodide', 'pyodide-interaktiv')),
+}, dir => {
+  const r = C.render(dir);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(C.probes(C.html(dir, 'own.qmd')).pyodide, ['sv', 'sv', 'own.qmd']);
+  const shared = C.probes(C.html(dir, 'shared.qmd'));
+  assert.deepEqual(shared.pyodide, ['nb', 'nn', 'shared.qmd']);
+  assert.deepEqual(shared.noscript, ['Slå på JavaScript for å kunne bruke de interaktive kodecellene på denne siden.', '🔴 Python konnte nicht geladen werden: x']);
+  assert.deepEqual(C.probes(C.html(dir, 'quarto.qmd')).pyodide, ['nb', 'no', 'lang']);
+}));
