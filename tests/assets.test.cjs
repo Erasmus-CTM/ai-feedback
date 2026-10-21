@@ -151,3 +151,16 @@ test('assessment pins supply URLs and required versions even when the author kee
     r=C.render(p.dir);assert.notEqual(r.status,0);assert.match(r.stderr,/version mismatch for jsxgraph/);
   } finally {fs.rmSync(p.dir,{recursive:true,force:true});}
 });
+
+test('local preflight catches format-scoped project overrides hidden by nearer section maps', {skip: !C.hasQuarto}, () => {
+  const p=project({front:'pyodide:\n  packages: [numpy]\njsxgraph:\n  src_css: boards/custom.css\n'});
+  try {
+    const file=path.join(p.dir,'_quarto.yml');
+    fs.writeFileSync(file,fs.readFileSync(file,'utf8').replace('ctm-assessment:\n',
+      '    pyodide:\n      base-url: https://custom.test/python/\n    jsxgraph:\n      src_jxg: https://custom.test/board.js\n      mjx_fonts: https://custom.test/fonts/\nctm-assessment:\n'));
+    const r=C.render(p.dir);assert.notEqual(r.status,0);
+    assert.match(r.stderr,/pyodide\.base-url.*format\.html/);
+    assert.match(r.stderr,/author HTTP jsxgraph\.src_jxg.*format\.html/);
+    assert.match(r.stderr,/author HTTP jsxgraph\.mjx_fonts.*format\.html/);
+  } finally {fs.rmSync(p.dir,{recursive:true,force:true});}
+});

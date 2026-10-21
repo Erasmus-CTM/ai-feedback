@@ -405,14 +405,18 @@ function localAssets() {
   for (const {doc, origin} of docs) {
     resources ||= paths(doc.project?.resources).includes('_ctm-assets/**');
     theme ||= [...paths(doc.theme), ...paths(doc.format?.html?.theme)].some(p => /(?:^|\/)offline\.scss$/.test(p));
-    for (const key of ['base-url', 'build-variant']) {
-      // File levels retain an override even if a nearer level masks it.
-      if (Object.hasOwn(doc.pyodide || {}, key)) errors.push('ctm-assessment: local assets do not support pyodide.' + key + ' (' + origin + '). Remove that override.');
-    }
-    for (const key of ['src_jxg', 'src_css', 'src_mjx', 'mjx_fonts']) {
-      const value = doc.jsxgraph?.[key];
-      const suppliedByHook = origin === 'document metadata' && same(value, doc.defaults?.[key]);
-      if (http(value) && !suppliedByHook) errors.push('ctm-assessment: local assets do not support an author HTTP jsxgraph.' + key + ' (' + origin + '). Use a local path or remove that override.');
+    // Format-scoped project options may be hidden by a nearer section map in
+    // Quarto's merged metadata. Validate both raw scopes before that merge.
+    for (const [scope, where] of [[doc, origin], [doc.format?.html, origin + ' (format.html)']] as [any, string][]) {
+      if (!isMap(scope)) continue;
+      for (const key of ['base-url', 'build-variant']) {
+        if (Object.hasOwn(scope.pyodide || {}, key)) errors.push('ctm-assessment: local assets do not support pyodide.' + key + ' (' + where + '). Remove that override.');
+      }
+      for (const key of ['src_jxg', 'src_css', 'src_mjx', 'mjx_fonts']) {
+        const value = scope.jsxgraph?.[key];
+        const suppliedByHook = scope === doc && origin === 'document metadata' && same(value, doc.defaults?.[key]);
+        if (http(value) && !suppliedByHook) errors.push('ctm-assessment: local assets do not support an author HTTP jsxgraph.' + key + ' (' + where + '). Use a local path or remove that override.');
+      }
     }
   }
   // The resolved pyodide map also covers metadata-files and format scope.
