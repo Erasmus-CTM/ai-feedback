@@ -97,3 +97,43 @@ test('every block carries source-order identity and an explicit quiz scope even 
     {order:'2',runtime:'ctm-block-2',quiz:false}
   ]);
 });
+
+test('production end filter strips private annotations on pages with only ordinary code', {skip}, () => {
+  const {result,html}=render('~~~{.python #ordinary data-keep="kept"}\nprint(1)\n~~~\n','return true',true);
+  assert.equal(result.status,0,result.stderr);
+  assert.doesNotMatch(html,/data-__ctm-/);
+  assert.match(html,/data-keep="kept"/);
+});
+test('end cleanup preserves registered component counts, source order, quiz and public data attributes', {skip}, () => {
+  const body='## Quiz {quiz=q}\n~~~{.python #ordinary data-keep="kept" data-ctm-example="public"}\nprint(1)\n~~~\n'
+    + '~~~{.math-registration #math-one}\nquestion\n~~~\n'
+    + '~~~{.py-registration #py-one}\npass\n~~~\n'
+    + '## Outside\n~~~{.math-registration}\nother question\n~~~\n';
+  const code=[
+    'local out={}',
+    'doc.blocks:walk({CodeBlock=function(b)',
+    ' local component=b.classes:includes("math-registration") and "math-exercise"',
+    '   or b.classes:includes("py-registration") and "py-exercise"',
+    ' if component then',
+    '  local registered=ctm.ui.exercise({component=component,id=b.identifier,',
+    '   source=pandoc.utils.sha1(b.text):sub(1,16),block=b})',
+    '  out[#out+1]=registered.attributes',
+    ' end',
+    'end})',
+    'return out'
+  ].join('\n');
+  const {result,html}=render(body,code,true);
+  assert.equal(result.status,0,result.stderr);
+  assert.doesNotMatch(html,/data-__ctm-/);
+  assert.match(html,/data-keep="kept"/);
+  assert.match(html,/data-ctm-example="public"/);
+  const manifest=JSON.parse(html.match(/id="ctm-store-manifest">([\s\S]*?)<\/script>/)[1]);
+  assert.equal(manifest.exercises.length,3);
+  assert.deepEqual(manifest.exercises.map(e=>e.component),['math-exercise','py-exercise','math-exercise']);
+  assert.deepEqual(manifest.exercises.map(e=>e.id),['math-one','py-one','']);
+  assert.deepEqual(manifest.exercises.map(e=>e.order),[2,3,4]);
+  assert.deepEqual(manifest.exercises.map(e=>e.runtimeId),['ctm-block-2','ctm-block-3','ctm-block-4']);
+  assert.deepEqual(manifest.exercises.map(e=>e.quiz||null),['q','q',null]);
+  assert.deepEqual(manifest.quizzes.map(q=>q.id),['q']);
+  assert.deepEqual(C.probes(html).scope.map(a=>a['data-ctm-runtime-id']),['ctm-block-2','ctm-block-3','ctm-block-4']);
+});

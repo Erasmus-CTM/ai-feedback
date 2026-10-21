@@ -128,6 +128,17 @@ return function(ctm)
     if membership[id] ~= nil then return membership[id] or nil end
     return sourceMembership[source] or nil
   end
+  -- Registration has copied these private prepass facts into the manifest.
+  -- Run only at the package end, after every component has consumed them.
+  function M.cleanup(doc)
+    doc.blocks = doc.blocks:walk({CodeBlock = function(block)
+      block.attributes["__ctm-order"] = nil
+      block.attributes["__ctm-quiz"] = nil
+      block.attributes["__ctm-runtime-id"] = nil
+      return block
+    end})
+    return doc
+  end
   function M.finalize(exercises)
     local counts = {}
     for _, e in ipairs(exercises) do

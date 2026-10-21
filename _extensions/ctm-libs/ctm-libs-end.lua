@@ -15,7 +15,10 @@ return {
     local ctm = rawget(_G, "__ctmLibs")
     local feedback = ctm and rawget(ctm, "feedback")
     if feedback then feedback.flush() end
-    if ctm then return ctm.ui.finalize(doc) end
+    if ctm then
+      doc = ctm.ui.finalize(doc)
+      return ctm.progress.cleanup(doc)
+    end
     return doc
   end},
 }
