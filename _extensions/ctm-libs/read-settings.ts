@@ -42,7 +42,7 @@ function plain(value: unknown): unknown {
   return value;
 }
 
-type Level = {origin: string, page: boolean, sections: Record<string, Record<string, unknown>>};
+type Level = {origin: string, page: boolean, sections: Record<string, Record<string, unknown>>, assets: Record<string, unknown>};
 const levels: Level[] = [];
 
 function readLevel(file: string, page = false) {
@@ -62,7 +62,7 @@ function readLevel(file: string, page = false) {
     errors.push('Cannot read the metadata of ' + origin + ': ' + (error as Error).message);
     return;
   }
-  const level: Level = {origin, page, sections: {}};
+  const level: Level = {origin, page, sections: {}, assets: isMap(document) ? plain(document) as Record<string, unknown> : {}};
   for (const section of sections) {
     if (!has(document, section)) continue;
     const value = (document as Record<string, unknown>)[section];
@@ -366,7 +366,7 @@ function policies() {
 // level. ctm-assessment's own options, with the kind of value they take:
 // the page's interface (lua/ui.lua).
 const SHARED_KEYS = ['stop-after', 'lang', 'save'];
-const OWN_KEYS: Record<string, 'boolean' | 'string'> = {'tab-links': 'boolean', 'modes': 'boolean', 'markdown-lint': 'boolean', 'progress': 'boolean', 'storage-key': 'string', 'export': 'boolean'};
+const OWN_KEYS: Record<string, 'boolean' | 'string' | 'assets'> = {'tab-links': 'boolean', 'modes': 'boolean', 'markdown-lint': 'boolean', 'progress': 'boolean', 'storage-key': 'string', 'export': 'boolean', assets: 'assets'};
 const show = (value: unknown) => typeof value === 'object' ? JSON.stringify(value) : String(value);
 function sectionSettings(section: string) {
   const out: Record<string, Entry> = {};
@@ -389,9 +389,49 @@ function sectionSettings(section: string) {
       errors.push('ctm-assessment: ' + key + ' must be true or false (found ' + show(entry.value) + ' in ' + entry.origin + ')');
       continue;
     }
+    if (section === 'ctm-assessment' && key === 'assets' && !['cdn', 'local'].includes(entry.value as string)) {
+      errors.push('ctm-assessment: assets must be cdn or local (found ' + show(entry.value) + ' in ' + entry.origin + ')');
+      continue;
+    }
     out[key] = entry;
   }
   return out;
+}
+
+// Build configuration is read alongside the settings levels. Quarto merges
+// resource/theme arrays additively; only the relevant paths are inspected.
+function localAssets() {
+  if (settings['ctm-assessment']?.assets?.value !== 'local') return;
+  const list = (value: unknown): unknown[] => Array.isArray(value) ? value : value == null ? [] : [value];
+  const paths = (value: unknown): string[] => list(value).filter((v): v is string => typeof v === 'string').map(v => v.replace(/\\/g, '/'));
+  const docs = [...levels.map(l => ({doc: l.assets as any, origin: l.origin})),
+    {doc: input.assetsMeta || {}, origin: 'document metadata'}];
+  let resources = false, theme = false;
+  const http = (value: unknown) => typeof value === 'string' && /^(?:https?:)?\/\//i.test(value);
+  for (const {doc, origin} of docs) {
+    resources ||= paths(doc.project?.resources).includes('_ctm-assets/**');
+    theme ||= [...paths(doc.theme), ...paths(doc.format?.html?.theme)].some(p => /(?:^|\/)offline(?:-system)?\.scss$/.test(p));
+    // Format-scoped project options may be hidden by a nearer section map in
+    // Quarto's merged metadata. Validate both raw scopes before that merge.
+    for (const [scope, where] of [[doc, origin], [doc.format?.html, origin + ' (format.html)']] as [any, string][]) {
+      if (!isMap(scope)) continue;
+      for (const key of ['base-url', 'build-variant']) {
+        if (Object.hasOwn(scope.pyodide || {}, key)) errors.push('ctm-assessment: local assets do not support pyodide.' + key + ' (' + where + '). Remove that override.');
+      }
+      for (const key of ['src_jxg', 'src_css', 'src_mjx', 'mjx_fonts']) {
+        const value = scope.jsxgraph?.[key];
+        const suppliedByHook = scope === doc && origin === 'document metadata' && same(value, doc.defaults?.[key]);
+        if (http(value) && !suppliedByHook) errors.push('ctm-assessment: local assets do not support an author HTTP jsxgraph.' + key + ' (' + where + '). Use a local path or remove that override.');
+      }
+    }
+  }
+  // The resolved pyodide map also covers metadata-files and format scope.
+  for (const key of ['base-url', 'build-variant']) if (settings.pyodide?.[key]) {
+    const origin = settings.pyodide[key].origin;
+    if (!errors.some(e => e.includes('pyodide.' + key + ' (' + origin + ')'))) errors.push('ctm-assessment: local assets do not support pyodide.' + key + ' (' + origin + '). Remove that override.');
+  }
+  if (!resources) errors.push('ctm-assessment: local assets require project.resources to include "_ctm-assets/**". Run the CTM Assessment installer with --assets local.');
+  if (!theme) errors.push('ctm-assessment: local assets require the offline.scss or offline-system.scss theme. Run the CTM Assessment installer with --assets local.');
 }
 
 let policyResult = {config: {layers: [], pageLayers: []} as Record<string, unknown>, names: [] as string[]};
@@ -399,6 +439,7 @@ try {
   credentials();
   for (const section of sections) settings[section] = section === 'ai-feedback' ? feedbackSettings() : sectionSettings(section);
   if (sections.includes('ai-feedback')) policyResult = policies();
+  localAssets();
 } catch (error) {
   errors.push('ctm-libs settings: ' + ((error as Error).message || String(error)));
 }
