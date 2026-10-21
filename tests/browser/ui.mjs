@@ -306,7 +306,7 @@ ${filler(4)}
 Allerede åpen.
 :::
 
-${filler(12)}
+${filler(30)}
 `,
   // A page whose load waits for a slow image: the browser jumps to the
   // fragment long before pageshow (uke5#uke5-start, uke8#oversikt-like
