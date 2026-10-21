@@ -16,42 +16,55 @@ async function load({progress = true, early = []} = {}) {
   for (const [type,detail] of early) w.document.dispatchEvent(new w.CustomEvent(type,{detail}));
   if (w.document.readyState === 'loading') await new Promise(resolve => w.document.addEventListener('DOMContentLoaded',resolve));
   const send = (type, detail) => w.document.dispatchEvent(new w.CustomEvent(type,{detail}));
-  return {w,send,buttons:() => [...w.document.querySelectorAll('.ctm-progress button')]};
+  const quiz = () => w.document.querySelector('[data-ctm-quiz="q"] .ctm-progress');
+  const page = () => w.document.querySelector('.ctm-progress-page .ctm-progress');
+  return {w,send,quiz,page,buttons:(scope = w.document) => [...scope.querySelectorAll('button')]};
+
 }
 test('manifest panels precede Python, use ordered accessible buttons and exclude cells', async () => {
-  const {w,buttons} = await load();
+  const {w,buttons,quiz,page} = await load();
   assert.equal(buttons().length,3);
   assert.equal(w.document.querySelectorAll('.ctm-progress ol').length,2);
-  assert.equal(w.document.querySelector('.ctm-progress-title').textContent,'Quiz <one>');
-  assert.equal(w.document.querySelector('.ctm-progress-title').children.length,0);
+  assert.equal(quiz().querySelector('.ctm-progress-title').textContent,'Quiz <one>');
+  assert.equal(page().querySelector('.ctm-progress-title').textContent,'Page progress');
+  assert.equal(buttons(quiz()).length,2);
+  assert.equal(buttons(page()).length,1);
+  assert.equal(quiz().querySelector('.ctm-progress-total').textContent,'0 av 2');
+  assert.equal(page().querySelector('.ctm-progress-total').textContent,'0 av 1');
+  assert.equal(quiz().querySelector('.ctm-progress-title').children.length,0);
   for (const b of buttons()) { assert.equal(b.type,'button'); assert.match(b.getAttribute('aria-label'),/Exercise \d: not attempted/); }
   assert.equal(w.document.querySelector('[aria-live]'),null);
   assert.equal(w.MathExerciseRuntime,undefined);
   w.close();
 });
 test('fractional results, invalid and unrelated events do not change valid progress', async () => {
-  const {w,send,buttons} = await load();
+  const {w,send,buttons,quiz,page} = await load();
   send('ctm:result',{component:'math-exercise',id:'a',score:0.5,status:'partial'});
-  assert.equal(w.document.querySelector('.ctm-progress-total').textContent,'0,5 av 2');
-  assert.match(buttons()[0].textContent,/½ partly correct/);
+  assert.equal(quiz().querySelector('.ctm-progress-total').textContent,'0,5 av 2');
+  assert.match(buttons(quiz())[0].textContent,/½ partly correct/);
+  assert.match(buttons(quiz())[1].textContent,/not attempted/);
+  assert.equal(page().querySelector('.ctm-progress-total').textContent,'0 av 1');
+  assert.match(buttons(page())[0].textContent,/not attempted/);
   for (const detail of [
     {component:'math-exercise',id:'a',score:0,status:'invalid'},
     {component:'math-exercise',id:'a',score:2,status:'correct'},
     {component:'py-exercise',id:'a',score:1,status:'correct'},
     {component:'math-exercise',id:'a',score:'1',status:'correct'}
   ]) send('ctm:result',detail);
-  assert.equal(w.document.querySelector('.ctm-progress-total').textContent,'0,5 av 2');
+  assert.equal(quiz().querySelector('.ctm-progress-total').textContent,'0,5 av 2');
   w.close();
 });
 test('early restore is buffered; outdated results remain visible and do not earn current credit', async () => {
-  const {w,send,buttons} = await load({early:[['ctm:store-restore',{component:'math-exercise',id:'a',state:'changed',outdated:true,result:{score:1,status:'correct'}}]]});
-  assert.match(buttons()[0].getAttribute('aria-label'),/outdated/);
-  assert.equal(w.document.querySelector('.ctm-progress-total').textContent,'0 av 2');
+  const {w,send,buttons,quiz,page} = await load({early:[['ctm:store-restore',{component:'math-exercise',id:'a',state:'changed',outdated:true,result:{score:1,status:'correct'}}]]});
+  assert.match(buttons(quiz())[0].getAttribute('aria-label'),/outdated/);
+  assert.equal(quiz().querySelector('.ctm-progress-total').textContent,'0 av 2');
   send('ctm:result',{component:'math-exercise',id:'a',score:1,status:'correct'});
-  assert.doesNotMatch(buttons()[0].getAttribute('aria-label'),/outdated/);
-  assert.equal(w.document.querySelector('.ctm-progress-total').textContent,'1 av 2');
+  assert.doesNotMatch(buttons(quiz())[0].getAttribute('aria-label'),/outdated/);
+  assert.equal(quiz().querySelector('.ctm-progress-total').textContent,'1 av 2');
+  assert.match(buttons(quiz())[1].textContent,/not attempted/);
+  assert.equal(page().querySelector('.ctm-progress-total').textContent,'0 av 1');
   send('ctm:store-clear',{});
-  assert.match(buttons()[0].textContent,/not attempted/);
+  assert.match(buttons(quiz())[0].textContent,/not attempted/);
   w.close();
 });
 test('tiles call CTMNav with the exact exercise target; quiz works without page progress', async () => {
@@ -63,5 +76,34 @@ test('tiles call CTMNav with the exact exercise target; quiz works without page 
   assert.equal(buttons().length,2);
   assert.equal(target,w.document.getElementById('a'));
   assert.equal(w.document.activeElement,target);
+  w.close();
+});
+
+test('one exercise reset preserves other quiz and page tiles; page and course clears reset their scope', async () => {
+  const {w,send,buttons,quiz,page} = await load();
+  w.CTMStore = {course:'course',page:'page'};
+  const a = {component:'math-exercise',id:'a',score:1,status:'correct'};
+  const b = {component:'py-exercise',id:'b',score:0.5,status:'partial'};
+  const outside = {component:'math-exercise',id:'outside',score:1,status:'correct'};
+  const check = (q,p) => {
+    assert.equal(quiz().querySelector('.ctm-progress-total').textContent,q);
+    assert.equal(page().querySelector('.ctm-progress-total').textContent,p);
+  };
+  for (const e of [a,b,outside]) send('ctm:result',e);
+  check('1,5 av 2','1 av 1');
+  send('ctm:store-clear',{course:'course',page:'page',id:'a'});
+  check('0,5 av 2','1 av 1');
+  assert.match(buttons(quiz())[0].textContent,/not attempted/);
+  assert.match(buttons(quiz())[1].textContent,/partly correct/);
+  assert.match(buttons(page())[0].textContent,/correct/);
+  for (const detail of [
+    {course:'other',page:'page'}, {course:'course',page:'other'},
+    {course:'course',page:'page',id:'absent'}
+  ]) {send('ctm:store-clear',detail);check('0,5 av 2','1 av 1');}
+  send('ctm:store-clear',{course:'course',page:'page'});
+  check('0 av 2','0 av 1');
+  for (const e of [a,b,outside]) send('ctm:result',e);
+  send('ctm:store-clear',{course:'course'});
+  check('0 av 2','0 av 1');
   w.close();
 });

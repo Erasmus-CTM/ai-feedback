@@ -48,3 +48,26 @@ for (const [name,body,code,message] of [
   assert.notEqual(result.status,0);
   assert.match(result.stderr,message);
 });
+
+test('component source hash resolves quoted labels without another YAML parser', {skip}, () => {
+  const body = '## Quiz {quiz=q}\n\n~~~python\n#| label: "quoted-label"\nprint("quoted-body")\n~~~\n';
+  const code = [
+    'local found',
+    'doc.blocks:walk({CodeBlock=function(b)',
+    '  if b.text:find("quoted%-body") and not b.classes:includes("ctm-probe") then',
+    '    found = ctm.progress.quizFor("component-parsed-label",pandoc.utils.sha1(b.text):sub(1,16))',
+    '  end',
+    'end})',
+    'return found'
+  ].join('\n');
+  const {result,html} = render(body,code);
+  assert.equal(result.status,0,result.stderr);
+  assert.equal(C.probes(html).scope,'q');
+});
+test('identical source in different quiz scopes has no source-only association', {skip}, () => {
+  const body = '## Quiz {quiz=q}\n' + cell('inside') + '\n## Outside\n' + cell('outside');
+  const code = 'return ctm.progress.quizFor("unknown",pandoc.utils.sha1("print(1)"):sub(1,16)) or false';
+  const {result,html} = render(body,code);
+  assert.equal(result.status,0,result.stderr);
+  assert.equal(C.probes(html).scope,false);
+});

@@ -81,7 +81,7 @@
     if (manifest.progress) {
       const slot = document.createElement("div");
       slot.className = "ctm-progress-page";
-      const bar = document.querySelector(".ctm-pagebar");
+      const bar = document.querySelector(".ctm-save-bar");
       if (bar) bar.after(slot);
       else (document.querySelector("main") || document.body).prepend(slot);
       panel(entries.filter(e => !e.quiz), text("progressTitle", "Page progress"), slot);
@@ -103,10 +103,17 @@
         else { states.delete(key(e)); update(); }
         return;
       }
-      const page = window.CTMStore && window.CTMStore.page;
+      const store = window.CTMStore;
+      if (e && e.course && store && store.course && e.course !== store.course) return;
+      const page = store && store.page;
       const current = typeof page === "function" ? page() : page;
       if (e && e.page && current && e.page !== current) return;
-      states.clear(); update();
+      if (e && typeof e.id === "string") {
+        for (const entry of entries) {
+          if (entry.id === e.id && (!e.component || entry.component === e.component)) states.delete(key(entry));
+        }
+      } else states.clear();
+      update();
     };
     for (const event of pending.splice(0)) dispatch(event);
     update(); // No live region on load; tiles are available before Python starts.

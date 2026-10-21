@@ -1,7 +1,7 @@
 -- Quiz scopes use the same section walker as feedback (AGPL-3.0-or-later).
 return function(ctm)
   local M = {}
-  local quizzes, byId, membership = {}, {}, {}
+  local quizzes, byId, membership, sourceMembership = {}, {}, {}, {}
   local prepared = false
   local function clone(list)
     local out = {}
@@ -70,6 +70,11 @@ return function(ctm)
     end
     hooks.block = function(b, state, walk)
       if b.t == "CodeBlock" then
+        local source = pandoc.utils.sha1(b.text):sub(1, 16)
+        local scope = state.quiz or false
+        if sourceMembership[source] ~= nil and sourceMembership[source] ~= scope then
+          sourceMembership[source] = false
+        else sourceMembership[source] = scope end
         local id = label(b)
         if id and id ~= "" then
           -- Duplicate labels are dealt with by the store; never silently choose
@@ -108,7 +113,12 @@ return function(ctm)
     end})
     return doc
   end
-  function M.quizFor(id) return membership[id] or nil end
+  function M.quizFor(id, source)
+    -- Components parse their own labels; use their unchanged block hash when
+    -- Quarto has not materialized a quoted YAML label on the CodeBlock.
+    if membership[id] ~= nil then return membership[id] or nil end
+    return sourceMembership[source] or nil
+  end
   function M.finalize(exercises)
     local counts = {}
     for _, e in ipairs(exercises) do
