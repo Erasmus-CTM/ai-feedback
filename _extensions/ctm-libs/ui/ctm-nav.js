@@ -92,8 +92,8 @@
   // A collapsible Quarto callout keeps its content in a `.callout-collapse`
   // (Bootstrap's `collapse`, `show` once open); its header is the trigger.
   function shut(node) {
-    return !!node.classList && node.classList.contains('callout-collapse') && node.classList.contains('collapse')
-      && !node.classList.contains('show');
+    return !!node.classList && node.classList.contains('callout-collapse')
+      && (node.classList.contains('collapsing') || !node.classList.contains('show'));
   }
   // What hides an element until it is opened, outer first (a tab pane, the
   // content of a collapsible callout: in DOM order they open in turn, so
@@ -162,7 +162,9 @@
   // Bootstrap, or when it does not finish, the content and header are marked
   // open by hand.
   function expand(body) {
-    body.classList.add('show');
+    body.classList.remove('collapsing');
+    body.classList.add('collapse', 'show');
+    body.style[body.classList.contains('collapse-horizontal') ? 'width' : 'height'] = '';
     var header = body.parentElement && body.parentElement.querySelector(':scope > .callout-header');
     if (header) {
       header.classList.remove('collapsed');
@@ -177,17 +179,34 @@
       return Promise.resolve();
     }
     return new Promise(function (resolve) {
+      var finished = false;
       var done = function (event) {
         // A callout inside this one reports to it too.
         if (event && event.target !== body) return;
+        if (finished) return;
+        finished = true;
         clearTimeout(timer);
         body.removeEventListener('shown.bs.collapse', done);
+        body.removeEventListener('hidden.bs.collapse', done);
         resolve();
       };
-      var timer = setTimeout(done, 600);
+      var timer = setTimeout(function () {
+        // Complete Bootstrap's own queued transition first, just as its
+        // transition-end emulation does. Its completion owns the instance's
+        // transition state, classes and inline size; changing just the DOM
+        // would leave its next show/hide stuck or let a late hide close us.
+        if (body.classList.contains('collapsing')) body.dispatchEvent(new Event('transitionend'));
+        if (!finished) {
+          expand(body);
+          done();
+        }
+      }, 600);
       body.addEventListener('shown.bs.collapse', done);
-      Collapse.getOrCreateInstance(body, {toggle: false}).show();
-    }).then(function () { if (shut(body)) expand(body); });
+      body.addEventListener('hidden.bs.collapse', done);
+      // show() ignores an in-flight hide (and an in-flight show). Wait for
+      // either transition to settle, then open again if it was a hide.
+      if (!body.classList.contains('collapsing')) Collapse.getOrCreateInstance(body, {toggle: false}).show();
+    }).then(function () { if (shut(body)) return openCallout(body); });
   }
   function isOpen(layer) {
     return layer.classList.contains('tab-pane') ? layer.classList.contains('active') : !shut(layer);
@@ -470,3 +489,4 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
   else start();
 })();
+

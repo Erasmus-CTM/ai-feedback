@@ -306,6 +306,127 @@ function loadCallouts(hash, before) {
   return w;
 }
 
+// Bootstrap's transition contract: show/hide are ignored while transitioning;
+// collapse/show are absent during either transition; transitionend completes
+// it once, clears its state/size, and emits the matching bubbling event.
+// `stalled` omits the usual transition-end emulation so ctm-nav's watchdog
+// must complete the same queued callback, rather than only change classes.
+function collapseBootstrap(w, {stalled = false, log = []} = {}) {
+  const instances = new WeakMap();
+  const Collapse = {getOrCreateInstance(body) {
+    if (instances.has(body)) return instances.get(body);
+    let transitioning = false;
+    const dimension = body.classList.contains('collapse-horizontal') ? 'width' : 'height';
+    function transition(open) {
+      if (transitioning || body.classList.contains('show') === open) return;
+      log.push((open ? 'show ' : 'hide ') + body.id);
+      transitioning = true;
+      body.classList.remove('collapse', 'show');
+      body.classList.add('collapsing');
+      body.style[dimension] = open ? '120px' : '';
+      const header = body.parentElement.querySelector(':scope > .callout-header');
+      header.classList.toggle('collapsed', !open);
+      header.setAttribute('aria-expanded', String(open));
+      let timer;
+      const complete = event => {
+        if (event.target !== body) return;
+        body.removeEventListener('transitionend', complete);
+        w.clearTimeout(timer);
+        transitioning = false;
+        body.classList.remove('collapsing');
+        body.classList.add('collapse');
+        body.classList.toggle('show', open);
+        body.style[dimension] = '';
+        log.push((open ? 'shown ' : 'hidden ') + body.id);
+        body.dispatchEvent(new w.Event((open ? 'shown' : 'hidden') + '.bs.collapse', {bubbles: true}));
+      };
+      body.addEventListener('transitionend', complete);
+      if (!stalled) timer = w.setTimeout(() => body.dispatchEvent(new w.Event('transitionend')), 200);
+    }
+    const instance = {show() { transition(true); }, hide() { transition(false); }};
+    instances.set(body, instance);
+    return instance;
+  }};
+  w.bootstrap = {Collapse};
+  return Collapse;
+}
+
+function assertCalloutOpen(w, id) {
+  const body = w.document.getElementById(id + '-body');
+  assert.equal(body.classList.contains('collapse'), true);
+  assert.equal(body.classList.contains('show'), true);
+  assert.equal(body.classList.contains('collapsing'), false);
+  assert.equal(body.style[body.classList.contains('collapse-horizontal') ? 'width' : 'height'], '');
+  assert.equal(headerOf(w, id).getAttribute('aria-expanded'), 'true');
+  assert.equal(headerOf(w, id).classList.contains('collapsed'), false);
+}
+
+test('ctm-nav: a link during a callout hide waits for hidden, then opens it through Bootstrap', async () => {
+  const log = [], w = loadCallouts('', w => collapseBootstrap(w, {log}));
+  await shown(w);
+  const body = w.document.getElementById('c-open-body');
+  const instance = w.bootstrap.Collapse.getOrCreateInstance(body);
+  instance.hide();
+  assert.equal(body.classList.contains('collapsing'), true);
+  await w.CTMNav.reveal(w.document.getElementById('in-open'));
+  assertCalloutOpen(w, 'c-open');
+  assert.deepEqual(log, ['hide c-open-body', 'hidden c-open-body', 'show c-open-body', 'shown c-open-body']);
+  // The same public instance still works after navigation; no stale hide can
+  // close the target and no transition-state flag was left stuck.
+  await wait(80);
+  assertCalloutOpen(w, 'c-open');
+  instance.hide();
+  await wait(250);
+  assert.equal(body.classList.contains('show'), false);
+  instance.show();
+  await wait(250);
+  assertCalloutOpen(w, 'c-open');
+  w.close();
+});
+
+test('ctm-nav: a link during a callout show waits for its completion', async () => {
+  const log = [], w = loadCallouts('', w => collapseBootstrap(w, {log}));
+  await shown(w);
+  const body = w.document.getElementById('c-plain-body');
+  w.bootstrap.Collapse.getOrCreateInstance(body).show();
+  await w.CTMNav.reveal(w.document.getElementById('in-plain'));
+  assertCalloutOpen(w, 'c-plain');
+  assert.deepEqual(log, ['show c-plain-body', 'shown c-plain-body']);
+  w.close();
+});
+
+test('ctm-nav: the watchdog completes Bootstrap opening and closing transitions, including horizontal sizes', async () => {
+  for (const hiding of [false, true]) {
+    const log = [], w = loadCallouts('', w => collapseBootstrap(w, {stalled: true, log}));
+    await shown(w);
+    const id = hiding ? 'c-open' : 'c-plain', target = hiding ? 'in-open' : 'in-plain';
+    const body = w.document.getElementById(id + '-body');
+    body.classList.add('collapse-horizontal');
+    const instance = w.bootstrap.Collapse.getOrCreateInstance(body);
+    if (hiding) instance.hide();
+    const pending = w.CTMNav.reveal(w.document.getElementById(target));
+    await wait(200);
+    assert.equal(body.classList.contains('collapsing'), true, 'still waiting for Bootstrap');
+    await pending;
+    assertCalloutOpen(w, id);
+    assert.deepEqual(log, hiding
+      ? ['hide c-open-body', 'hidden c-open-body', 'show c-open-body', 'shown c-open-body']
+      : ['show c-plain-body', 'shown c-plain-body']);
+    // Completing through Bootstrap releases its instance too. A subsequent
+    // hide and show must run and normalize their own size/classes.
+    instance.hide();
+    assert.equal(body.classList.contains('collapsing'), true);
+    body.dispatchEvent(new w.Event('transitionend'));
+    assert.equal(body.classList.contains('show'), false);
+    instance.show();
+    body.dispatchEvent(new w.Event('transitionend'));
+    assertCalloutOpen(w, id);
+    await wait(80);
+    assertCalloutOpen(w, id);
+    w.close();
+  }
+});
+
 test('ctm-nav: a link opens every collapsed callout around its target, in any nesting, and sets its header', async () => {
   let w = loadCallouts('#in-plain');
   await shown(w);
@@ -396,3 +517,4 @@ test('ctm-nav: CTMNav.reveal opens the callouts around an element', async () => 
   assert.equal(w.location.hash, '');
   w.close();
 });
+
