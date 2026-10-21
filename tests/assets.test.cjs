@@ -17,7 +17,7 @@ test('asset URLs are absolute at root and nested pages, with CDN bases unchanged
     const local = resolver(page, 'local', {pyodide: base + 'pyodide/1/'});
     assert.equal(local.url('pyodide'), 'https://course.test/_ctm-assets/pyodide/1/');
     assert.equal(local.url('pyodide', 'pyodide.js'), 'https://course.test/_ctm-assets/pyodide/1/pyodide.js');
-    for (const bad of ['../escape', '%2e%2e/escape', '%2e%2e%2fother/file', 'dir%2f..%2fother', 'dir%5C..%5cother', '%2E%2e%2Fother', '//other.test/', 'https://other.test/', '/root', 'a\\b', 'file?x', 'file#x']) {
+    for (const bad of ['../escape', 'a/\t../\t../escape', 'file\nname', 'file\rname', 'file\x00name', '%2e%2e/escape', '%2e%2e%2fother/file', 'dir%2f..%2fother', 'dir%5C..%5cother', '%2E%2e%2Fother', '//other.test/', 'https://other.test/', '/root', 'a\\b', 'file?x', 'file#x']) {
       assert.throws(() => local.url('pyodide', bad), /inside the selected asset/);
     }
     assert.throws(() => local.url('missing'), /unknown asset/);
@@ -58,10 +58,12 @@ function project({local = true, resources = true, theme = true, extra = '', fron
 test('local assets select nested Lua paths, inline JS config and Quarto MathJax without a polyfill', {skip: !C.hasQuarto}, () => {
   const p = project({nested: true});
   try {
+    fs.appendFileSync(path.join(p.dir,p.file),C.probe('guard', 'return not pcall(ctm.assets.url, "katex", "a/" .. string.char(9) .. "../" .. string.char(9) .. "../escape")'));
     const result = C.render(p.dir);
     assert.equal(result.status, 0, result.stderr);
     const html = C.html(p.dir, p.file), got = C.probes(html).asset;
     assert.equal(got.mode, 'local');
+    assert.equal(C.probes(html).guard, true);
     assert.equal(got.url, '../_ctm-assets/pyodide/' + pyVersion + '/');
     assert.equal(got.katex, '../_ctm-assets/' + table.assets.katex.local.replace('{version}', table.assets.katex.version) + 'dist/katex.mjs');
     assert.match(html, /globalThis\.CTM_ASSETS=/);

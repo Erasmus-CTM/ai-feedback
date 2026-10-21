@@ -10,7 +10,7 @@
       }
       path = path == null ? '' : path;
       if (typeof path !== 'string' || /^(?:[a-z][a-z0-9+.-]*:|\/|\\)/i.test(path) ||
-          /(?:^|[\/\\])\.\.(?:[\/\\]|$)/.test(path) || /[?#\\]/.test(path) || /%(?:2e|2f|5c)/i.test(path)) {
+          /(?:^|[\/\\])\.\.(?:[\/\\]|$)/.test(path) || /[?#\\\x00-\x1f\x7f]/.test(path) || /%(?:2e|2f|5c)/i.test(path)) {
         throw new Error('CTM assets: path must stay inside the selected asset');
       }
       var base = new URL(config.bases[name], document.baseURI).href;

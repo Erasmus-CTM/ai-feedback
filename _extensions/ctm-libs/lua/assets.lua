@@ -102,6 +102,9 @@ return function(ctm)
     if not base then ctm.fail("ctm-libs: unknown asset " .. tostring(name)) end
     path = path or ""
     if type(path) ~= "string" then ctm.fail("ctm-libs: asset paths must be strings.") end
+    if path:match("[%z\1-\31\127]") then
+      ctm.fail("ctm-libs: asset paths must not contain ASCII controls.")
+    end
     local encoded = path:lower()
     if encoded:find("%%2e") or encoded:find("%%2f") or encoded:find("%%5c") then
       ctm.fail("ctm-libs: asset paths must stay inside the selected asset.")
