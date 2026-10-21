@@ -25,7 +25,7 @@ const browsers = process.argv.slice(2).length ? process.argv.slice(2) : ['chromi
 // --- the site ---------------------------------------------------------------
 const filler = n => Array.from({length: n}, (_, i) => `Avsnitt ${i + 1} med litt tekst, slik at siden blir lang nok til å rulle.`).join('\n\n');
 const SITE = {
-  '_quarto.yml': 'project:\n  type: website\n  resources: [coi-serviceworker.js, slow-applet.js]\nwebsite:\n  title: UI\n  navbar:\n    left: [index.qmd, other.qmd, group.qmd, plain.qmd, slow.qmd, dark.qmd, long.qmd]\n'
+  '_quarto.yml': 'project:\n  type: website\n  resources: [coi-serviceworker.js, slow-applet.js]\nwebsite:\n  title: UI\n  navbar:\n    left: [index.qmd, other.qmd, group.qmd, plain.qmd, slow.qmd, dark.qmd, long.qmd, callouts.qmd]\n'
     + 'format:\n  html:\n    theme: cosmo\nfilters: [ctm-libs]\nlang: nb\n',
   'index.qmd': `---
 title: Faner og lenker
@@ -122,7 +122,9 @@ ${filler(12)}
 `,
   'other.qmd': '---\ntitle: En annen side\n---\n\n[Eksempel 3](index.qmd#eks-3), [det dype](index.qmd#deep-head), [fane B](index.qmd#tab-b).\n\n'
     + '[Første fane](slow.qmd#first-start), [løsningen](slow.qmd#sol-1), [utenfor faner](slow.qmd#outside).\n\n'
-    + '[Del 2](long.qmd#long-del2), [del 3](long.qmd#long-del3), [del 5](long.qmd#long-del5).\n',
+    + '[Del 2](long.qmd#long-del2), [del 3](long.qmd#long-del3), [del 5](long.qmd#long-del5).\n\n'
+    + '[Callout](callouts.qmd#call-plain), [i en fane](callouts.qmd#call-in-tab), [i et steg](callouts.qmd#call-in-step), '
+    + '[hint i callout](callouts.qmd#hint-in-call), [alt](callouts.qmd#call-all).\n',
   // A heavy page, as ingmat3a's uke3 and page4: a tabset below the fold
   // whose tab row wraps over several lines, applets (frames whose scripts
   // load slowly) in some panes, a web font still loading (a monospace one, in
@@ -173,6 +175,138 @@ ${filler(8)}
 :::
 
 ${filler(10)}
+`,
+  // Quarto's collapsible callouts (collapse="true"; a Bootstrap collapse
+  // whose header is the trigger) around a link's target, alone and nested in
+  // every order with tabs and reveals: a callout in a tab, in a reveal and in
+  // a callout, a reveal in a callout, and all of them in one. (No ctm-nav
+  // opened a callout before: the target stayed hidden.)
+  'callouts.qmd': `---
+title: Utbrettbare bokser
+---
+
+Innledning. ${[['call-plain', 'i en boks'], ['call-self', 'selve boksen'], ['call-anchor', 'ankeret'], ['call-in-tab', 'i en fane'], ['call-in-step', 'i et steg'],
+  ['hint-in-call', 'et hint i en boks'], ['call-in-call', 'i to bokser'], ['call-all', 'i alt'], ['call-open', 'i en åpen boks']]
+  .map(([id, text]) => `[${text}](#${id})`).join(', ')}.
+
+${filler(6)}
+
+::: {.callout-note collapse="true" #call-self}
+## Skjult boks
+
+Tekst i boksen.
+
+#### Overskrift i boksen {#call-plain}
+
+Mer tekst.
+
+::: {#call-anchor}
+:::
+:::
+
+${filler(4)}
+
+::: {.panel-tabset}
+
+## Første
+
+Tekst.
+
+## Andre
+
+::: {.callout-tip collapse="true"}
+## Boks i en fane
+
+Tekst.
+
+##### I fane {#call-in-tab}
+
+Mer.
+:::
+
+:::
+
+${filler(4)}
+
+::: {.reading-step title="Gå i dybden: boks"}
+Før boksen.
+
+::: {.callout-warning collapse="true"}
+## Boks i et steg
+
+Tekst.
+
+##### I steg {#call-in-step}
+
+Mer.
+:::
+:::
+
+${filler(4)}
+
+::: {.callout-note collapse="true"}
+## Boks med hint
+
+::: {.hint title="Hint i boksen"}
+Hintet.
+
+##### I hintet {#hint-in-call}
+
+Mer.
+:::
+:::
+
+${filler(4)}
+
+::: {.callout-note collapse="true"}
+## Ytre boks
+
+::: {.callout-tip collapse="true"}
+## Indre boks
+
+##### I to bokser {#call-in-call}
+
+Mer.
+:::
+:::
+
+${filler(4)}
+
+::: {.callout-important collapse="true"}
+## Alt i ett
+
+::: {.panel-tabset}
+
+## Ett
+
+Ett.
+
+## To
+
+::: {.reading-step title="Gå i dybden: alt"}
+::: {.callout-caution collapse="true"}
+## Innerst
+
+##### I alt {#call-all}
+
+Mer.
+:::
+:::
+
+:::
+:::
+
+${filler(4)}
+
+::: {.callout-note collapse="false"}
+## Åpen boks
+
+##### I en åpen boks {#call-open}
+
+Allerede åpen.
+:::
+
+${filler(12)}
 `,
   // A page whose load waits for a slow image: the browser jumps to the
   // fragment long before pageshow (uke5#uke5-start, uke8#oversikt-like
@@ -426,6 +560,13 @@ async function state(page, id) {
     for (let node = target; node; node = node.parentElement) if (node.classList && node.classList.contains('tab-pane')) panes.push(node.classList.contains('active'));
     const details = [];
     for (let node = target; node; node = node.parentElement) if (node.tagName === 'DETAILS') details.push(node.open);
+    // Collapsible callouts: their content (a callout target's own first), inside out, and the headers that toggle them.
+    const bodies = [];
+    const own = target.classList.contains('callout') ? target.querySelector(':scope > .callout-collapse') : null;
+    if (own) bodies.push(own);
+    for (let node = target; node; node = node.parentElement) if (node.classList && node.classList.contains('callout-collapse')) bodies.push(node);
+    const callouts = bodies.map(body => body.classList.contains('show'));
+    const headers = bodies.map(body => { const header = body.parentElement.querySelector(':scope > .callout-header'); return header.getAttribute('aria-expanded') + (header.classList.contains('collapsed') ? ' collapsed' : ''); });
     const focused = document.activeElement;
     const rect = focused ? focused.getBoundingClientRect() : null;
     return {
@@ -433,7 +574,7 @@ async function state(page, id) {
       // A section's heading: Quarto stretches a :target section upwards.
       top: Math.round((target.tagName === 'SECTION' && /^H[1-6]$/.test(target.firstElementChild?.tagName || '') ? target.firstElementChild : target).getBoundingClientRect().top),
       headerBottom,
-      panes, details, mark: target.getAttribute('data-ctm-nav'), hash: location.hash,
+      panes, details, callouts, headers, mark: target.getAttribute('data-ctm-nav'), hash: location.hash,
       focus: focused === document.body ? 'BODY' : (focused.tagName + (focused.id ? '#' + focused.id : '') + (focused.getAttribute('role') ? '[' + focused.getAttribute('role') + ']' : '')),
       focusInView: !!rect && rect.height > 0 && rect.top >= headerBottom - 1 && rect.top < innerHeight,
       // An empty anchor has no height: its top must be in view.
@@ -689,6 +830,85 @@ async function groups(browser, base, name) {
   await done(session, name);
 }
 
+// Quarto's collapsible callouts around a target (callouts.qmd), alone and in
+// every nesting with tabs and reveals: on load, by a click in the page and
+// from another page, every callout around the target is open and so are its
+// tabs and reveals; the header says so (aria-expanded, no `collapsed`); the
+// target is below the header and focused, and the browser's own jump to the
+// fragment lands where the script put it. A callout that was open stays so.
+// Expectations run inside out, as `panes` and `details` do.
+async function callouts(browser, base, name) {
+  const session = await newPage(browser, base), {page} = session;
+  const expectations = {
+    'call-plain': {callouts: [true], panes: [], details: [], focus: 'H4'},
+    'call-self': {callouts: [true], panes: [], details: [], focus: 'DIV#call-self'},
+    'call-anchor': {callouts: [true], panes: [], details: [], focus: 'DIV#call-anchor'},
+    'call-in-tab': {callouts: [true], panes: [true], details: [], focus: 'H5'},
+    'call-in-step': {callouts: [true], panes: [], details: [true], focus: 'H5'},
+    'hint-in-call': {callouts: [true], panes: [], details: [true], focus: 'H5'},
+    'call-in-call': {callouts: [true, true], panes: [], details: [], focus: 'H5'},
+    'call-all': {callouts: [true, true], panes: [true], details: [true], focus: 'H5'},
+    'call-open': {callouts: [true], panes: [], details: [], focus: 'H5'},
+  };
+  const check = (id, s, how, where) => {
+    const expected = expectations[id], label = name + ' ' + where + ' #' + id + ' ' + JSON.stringify(s);
+    assert.equal(s.visible, true, label);
+    assert.deepEqual(s.callouts, expected.callouts, label + ': the callouts are open');
+    assert.deepEqual(s.headers, expected.callouts.map(() => 'true'), label + ': their headers say so');
+    assert.deepEqual(s.panes, expected.panes, label);
+    assert.deepEqual(s.details, expected.details, label);
+    assert.equal(s.mark, how, label);
+    assert.equal(s.focus, expected.focus, label);
+    assert.ok(s.focusTopInView, label);
+    assert.ok(s.top >= s.headerBottom && s.top < s.headerBottom + 60, label + ': below the header');
+  };
+  // Typed (a full load). Then once more after the opening has settled: the
+  // callout's animation does not move the target.
+  for (const id of Object.keys(expectations)) {
+    await open(page, base + 'callouts.html#' + id);
+    const early = await state(page, id);
+    check(id, early, 'load', 'typed');
+    await page.waitForTimeout(900);
+    const late = await state(page, id);
+    check(id, late, 'load', 'typed, later');
+    assert.ok(Math.abs(late.top - early.top) <= 2, name + ' #' + id + ' stays in place ' + JSON.stringify({early: early.top, late: late.top}));
+    lands(await jump(page, id), name + ' #' + id);
+  }
+  // A click on a link in the page: pushState, no navigation.
+  await open(page, base + 'callouts.html');
+  await page.evaluate(() => { window.__hashchanges = 0; addEventListener('hashchange', () => window.__hashchanges++); });
+  for (const id of Object.keys(expectations)) {
+    await page.evaluate(() => scrollTo(0, 0));
+    await page.click('main a[href$="#' + id + '"] >> nth=0');
+    await handled(page, id, 'link');
+    const s = await state(page, id);
+    check(id, s, 'link', 'click');
+    assert.equal(s.hash, '#' + id, name + ': the address shows the id');
+  }
+  assert.equal(await page.evaluate(() => window.__hashchanges), 0, name + ': handled by the script, not by navigation');
+  // The header still toggles what the script opened (Bootstrap's own state is consistent).
+  await page.click('#call-plain >> xpath=ancestor::div[contains(@class, "callout-collapse")][1] >> xpath=preceding-sibling::div[contains(@class, "callout-header")][1]');
+  await page.waitForFunction(() => !document.getElementById('call-plain').closest('.callout-collapse').classList.contains('show'), null, {timeout: 5000});
+  assert.equal(await page.evaluate(() => document.getElementById('call-plain').closest('.callout').querySelector(':scope > .callout-header').getAttribute('aria-expanded')), 'false', name + ': the header closes it again');
+  // From another page.
+  for (const id of ['call-plain', 'call-in-tab', 'call-in-step', 'hint-in-call', 'call-all']) {
+    await open(page, base + 'other.html');
+    await page.click('main a[href$="callouts.html#' + id + '"]');
+    await page.waitForURL(new RegExp('callouts\\.html#' + id + '$'));
+    await handled(page, id, 'load');
+    check(id, await state(page, id), 'load', 'from another page');
+  }
+  // Back and Forward restore the position; a target in a callout is shown again.
+  await open(page, base + 'callouts.html#call-in-call');
+  await page.goto(base + 'other.html');
+  await page.goBack();
+  await settle(page);
+  const back = await state(page, 'call-in-call');
+  assert.equal(back.visible, true, name + ' Back ' + JSON.stringify(back));
+  assert.deepEqual(back.callouts, [true, true], name + ' Back');
+  await done(session, name);
+}
+
 async function reveals(browser, base, name) {
   const session = await newPage(browser, base), {page, context} = session;
   await page.goto(base + 'index.html');
@@ -798,7 +1018,7 @@ function jumpAndFocus(page, id) {
 }
 async function jumpFocus(browser, base, name) {
   const session = await newPage(browser, base), {page} = session;
-  for (const [url, id] of [['long.html#long-del3', 'long-del3'], ['index.html#eks-3', 'eks-3'], ['index.html#anchor-b', 'anchor-b']]) {
+  for (const [url, id] of [['long.html#long-del3', 'long-del3'], ['index.html#eks-3', 'eks-3'], ['index.html#anchor-b', 'anchor-b'], ['callouts.html#call-anchor', 'call-anchor']]) {
     await open(page, base + url);
     const before = await state(page, id);
     await jumpAndFocus(page, id);
@@ -1041,7 +1261,7 @@ try {
     const browser = await playwright[name].launch(options);
     try {
       // Each check on its own, so that one run reports every failure.
-      for (const check of [loads, inPage, otherPage, withoutTabs, pinned, slowLoads, deepTabs, jumpFocus, firstVisit, groups, reveals, colours]) {
+      for (const check of [loads, inPage, otherPage, withoutTabs, pinned, slowLoads, deepTabs, jumpFocus, firstVisit, groups, callouts, reveals, colours]) {
         try {
           await check(browser, base, name);
           console.log('ok', name, check.name);
