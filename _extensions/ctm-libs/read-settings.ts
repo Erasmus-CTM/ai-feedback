@@ -365,8 +365,8 @@ function policies() {
 // Shared options: every component reads them, its own spelling winning at any
 // level. ctm-assessment's own options, with the kind of value they take:
 // the page's interface (lua/ui.lua).
-const SHARED_KEYS = ['stop-after', 'lang'];
-const OWN_KEYS: Record<string, 'boolean'> = {'tab-links': 'boolean', 'modes': 'boolean', 'markdown-lint': 'boolean'};
+const SHARED_KEYS = ['stop-after', 'lang', 'save'];
+const OWN_KEYS: Record<string, 'boolean' | 'string'> = {'tab-links': 'boolean', 'modes': 'boolean', 'markdown-lint': 'boolean', 'progress': 'boolean', 'storage-key': 'string', 'export': 'boolean'};
 const show = (value: unknown) => typeof value === 'object' ? JSON.stringify(value) : String(value);
 function sectionSettings(section: string) {
   const out: Record<string, Entry> = {};
@@ -379,6 +379,12 @@ function sectionSettings(section: string) {
     }
     const entry = resolveKey(section, key);
     if (!entry || entry.value === null || entry.value === undefined) continue;
+    if (key === 'save' && !['answers', 'none'].includes(entry.value as string)) {
+      errors.push(section + ': save must be answers or none (found ' + show(entry.value) + ' in ' + entry.origin + ')');
+    }
+    if (section === 'ctm-assessment' && OWN_KEYS[key] === 'string' && (typeof entry.value !== 'string' || !entry.value.trim())) {
+      errors.push('ctm-assessment: ' + key + ' must be a non-empty string (found ' + show(entry.value) + ' in ' + entry.origin + ')');
+    }
     if (section === 'ctm-assessment' && OWN_KEYS[key] === 'boolean' && ![true, false, 'true', 'false'].includes(entry.value as never)) {
       errors.push('ctm-assessment: ' + key + ' must be true or false (found ' + show(entry.value) + ' in ' + entry.origin + ')');
       continue;

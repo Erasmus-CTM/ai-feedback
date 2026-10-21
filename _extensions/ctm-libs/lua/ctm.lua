@@ -37,7 +37,8 @@ end
 -- against its API or the component's opts.api). 2: the Python worker
 -- (CTMWorker, ctm.runtime.worker, ctm.runtime.indexURL), the pyodide settings
 -- section and settings.bool's digits option, the pyodide-interaktiv catalogue.
-local ctm = {dir = dir, version = manifestVersion(dir), api = 2}
+-- 3: saved-answer registration, manifest, progress and shared copy.
+local ctm = {dir = dir, version = manifestVersion(dir), api = 3}
 ctm.fail = fail
 
 -- Absolute path of a file of this installation.
@@ -61,14 +62,13 @@ end})
 -- links: lua/ui.lua), then AI feedback's preparation, which sees reveals as
 -- the <details> scopes they become.
 function ctm.filters()
-  local ui = ctm.ui.passes()
-  return {
+  local filters = {
     {Meta = function(meta) ctm.settings.load(meta); return ctm.feedback.bridge(meta) end},
     {Callout = function(c) return ctm.feedback.markCallout(c) end},
-    ui[1],
-    ui[2],
-    {Pandoc = function(doc) return ctm.feedback.prepare(doc) end},
   }
+  for _, pass in ipairs(ctm.ui.passes()) do filters[#filters + 1] = pass end
+  filters[#filters + 1] = {Pandoc = function(doc) return ctm.feedback.prepare(doc) end}
+  return filters
 end
 
 _G.__ctmLibs = ctm

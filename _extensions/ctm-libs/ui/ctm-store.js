@@ -1,0 +1,253 @@
+/* CTM Assessment: browser-only saved answers. AGPL-3.0-or-later. */
+(function () {
+  'use strict';
+  if (window.CTMStore) return;
+  var config, course, page, prefix, pagePrefix, prefsKey, seedKey, prefs;
+  var entries = [], memory = {localStorage: {}, sessionStorage: {}}, failed = {}, messages = {};
+  var LIMIT = 64 * 1024, delay = 250;
+  function emit(type, detail) { document.dispatchEvent(new CustomEvent(type, {detail: detail})); }
+  function text(key, fallback) { return config && config.messages && config.messages[key] || fallback; }
+  function announce(key, fallback) {
+    if (messages[key]) return;
+    messages[key] = text(key, fallback);
+    var node = document.querySelector('.ctm-save-status');
+    if (node) node.textContent = messages[key];
+    emit('ctm:store-message', {key: key, text: messages[key]});
+  }
+  // Keep a memory mirror. A failed durable write must never delete legacy data.
+  function storage(kind, action, key, value) {
+    var map = memory[kind];
+    if (failed[kind]) {
+      if (action === 'get') return Object.prototype.hasOwnProperty.call(map, key) ? map[key] : null;
+      if (action === 'keys') return Object.keys(map);
+      if (action === 'set') map[key] = value;
+      if (action === 'remove') delete map[key];
+      return false;
+    }
+    try {
+      var target = window[kind], result;
+      if (action === 'get') {
+        result = target.getItem(key);
+        if (result === null) delete map[key]; else map[key] = result;
+        return result;
+      }
+      if (action === 'keys') {
+        result = [];
+        for (var i = 0; i < target.length; i++) result.push(target.key(i));
+        return result;
+      }
+      if (action === 'set') { map[key] = value; target.setItem(key, value); }
+      if (action === 'remove') { delete map[key]; target.removeItem(key); }
+      return true;
+    } catch (error) {
+      failed[kind] = true;
+      announce('storageUnavailable', 'Saving is unavailable. Your answers are kept in memory for this page only.');
+      return storage(kind, action, key, value);
+    }
+  }
+  function get(key) { return storage('localStorage', 'get', key); }
+  function put(key, value) { return storage('localStorage', 'set', key, value); }
+  function remove(key) { return storage('localStorage', 'remove', key); }
+  function parse(value) { try { return JSON.parse(value); } catch (error) { return null; } }
+  function clone(value) { return JSON.parse(JSON.stringify(value)); }
+  function configure() {
+    if (config) return;
+    var node = document.getElementById('ctm-store-manifest');
+    config = parse(node && node.textContent) || {};
+    var offset = document.querySelector('meta[name="quarto:offset"]');
+    var root = new URL(offset ? offset.content || './' : './', location.href).pathname;
+    if (!root.endsWith('/')) root += '/';
+    course = config.course || root;
+    page = location.pathname.startsWith(root) ? location.pathname.slice(root.length) : location.pathname.replace(/^\//, '');
+    page = page.replace(/\.html$/, '');
+    if (!page || page.endsWith('/')) page += 'index';
+    prefix = 'ctm|1|' + encodeURIComponent(course) + '|';
+    pagePrefix = prefix + encodeURIComponent(page) + '|';
+    prefsKey = prefix + '~prefs'; seedKey = prefix + '~seed';
+    prefs = parse(get(prefsKey));
+    // Old opt-out is read once per course, without deleting old answers.
+    if (!prefs && get('qpyodide:local-storage-user-disabled') === '1') {
+      prefs = {v: 1, save: false}; put(prefsKey, JSON.stringify(prefs));
+    }
+  }
+  function enabled() { configure(); return !(prefs && prefs.save === false); }
+  function key(id) { configure(); return pagePrefix + encodeURIComponent(id); }
+  function future(record) { return record && Number.isInteger(record.v) && record.v > 1; }
+  function cancel(entry) { clearTimeout(entry.timer); entry.timer = null; }
+  function resetEntries() {
+    entries.forEach(function (entry) {
+      cancel(entry); entry.lastResult = null;
+      if (entry.options.clear) entry.options.clear();
+    });
+  }
+  function erase(where) {
+    storage('localStorage', 'keys').forEach(function (name) { if (name.startsWith(where)) remove(name); });
+  }
+  function clearPage() {
+    configure(); erase(pagePrefix); resetEntries();
+    emit('ctm:store-clear', {course: course, page: page});
+  }
+  function clearCourse() {
+    configure();
+    storage('localStorage', 'keys').forEach(function (name) {
+      if (name.startsWith(prefix) && name !== prefsKey && name !== prefix + '~mode') remove(name);
+    });
+    storage('sessionStorage', 'remove', seedKey);
+    resetEntries(); emit('ctm:store-clear', {course: course});
+  }
+  function seed() {
+    configure();
+    var kind = enabled() ? 'localStorage' : 'sessionStorage', found = storage(kind, 'get', seedKey);
+    if (found) return found;
+    var bytes = new Uint8Array(16); window.crypto.getRandomValues(bytes);
+    found = Array.prototype.map.call(bytes, function (n) { return n.toString(16).padStart(2, '0'); }).join('');
+    storage(kind, 'set', seedKey, found);
+    return found;
+  }
+  function setEnabled(value) {
+    configure(); value = !!value;
+    if (!value) clearCourse();
+    prefs = {v: 1, save: value}; put(prefsKey, JSON.stringify(prefs));
+    if (value) {
+      var temporary = storage('sessionStorage', 'get', seedKey);
+      if (temporary) { put(seedKey, temporary); storage('sessionStorage', 'remove', seedKey); }
+    } else { remove(seedKey); seed(); }
+    updateBar(); emit('ctm:store-enabled', {enabled: value}); return value;
+  }
+  function current(entry) { return entry.options.variant ? entry.options.variant() : null; }
+  function writable(entry) {
+    if (!enabled() || entry.options.save === false || entry.duplicate || !entry.options.id) return false;
+    return !(config.exercises || []).some(function (item) { return item.id === entry.options.id && item.save === false; });
+  }
+  function save(entry, inputs) {
+    if (!writable(entry)) return false;
+    var name = key(entry.options.id), previous = parse(get(name));
+    if (future(previous)) return false;
+    if (inputs === null || inputs === undefined) { entry.lastResult = null; return remove(name); }
+    var record = {v: 1, component: entry.options.component, saved: new Date().toISOString(), inputs: inputs};
+    var variant = current(entry);
+    if (variant) {
+      record.variant = {n: variant.n, id: variant.id, hash: variant.hash};
+      record.seen = Array.from(new Set([].concat(previous && previous.seen || [], entry.options.seen ? entry.options.seen() : [],
+        variant.n === undefined ? [] : [variant.n])));
+    } else record.source = entry.options.source;
+    if (entry.lastResult) record.result = entry.lastResult;
+    var serialized;
+    try { serialized = JSON.stringify(record); } catch (error) { return false; }
+    if (new TextEncoder().encode(serialized).length > LIMIT) {
+      announce('recordTooLarge', 'This answer is too large to save. Copy it before leaving the page.');
+      return false;
+    }
+    return put(name, serialized);
+  }
+  function valid(record, component) {
+    return record && record.v === 1 && record.component === component && record.inputs &&
+      typeof record.inputs === 'object' && !Array.isArray(record.inputs);
+  }
+  function register(options) {
+    configure();
+    if (!options || !options.component || typeof options.read !== 'function' || typeof options.write !== 'function') {
+      throw new TypeError('CTMStore.register needs component, read and write.');
+    }
+    var entry = {options: options, timer: null, lastResult: null, duplicate: false};
+    entries.forEach(function (other) { if (options.id && other.options.id === options.id) entry.duplicate = other.duplicate = true; });
+    entries.push(entry);
+    function restore() {
+      cancel(entry);
+      if (!writable(entry)) return {state: 'disabled'};
+      var record = parse(get(key(options.id)));
+      if (!future(record)) {
+        (options.legacy || []).some(function (adapter) {
+          var candidate = adapter.read();
+          if (!candidate || !Object.prototype.hasOwnProperty.call(candidate, 'inputs')) return false;
+          entry.lastResult = null;
+          if (save(entry, candidate.inputs)) {
+            if (adapter.remove) adapter.remove(candidate);
+            else (candidate.keys || []).forEach(remove);
+          }
+          record = candidate.inputs === null ? null : {v: 1, component: options.component, source: options.source, inputs: candidate.inputs};
+          return true;
+        });
+      }
+      if (!valid(record, options.component)) return {state: 'empty'};
+      entry.lastResult = record.result || null;
+      var state = 'restored', selected = null;
+      if (record.variant) {
+        var variants = options.variants ? options.variants() : [current(entry)].filter(Boolean);
+        selected = variants.find(function (variant) { return variant.hash && variant.hash === record.variant.hash; });
+        if (!selected) {
+          selected = variants.find(function (variant) { return record.variant.n !== undefined && variant.n === record.variant.n; }) ||
+            variants.find(function (variant) { return record.variant.id !== undefined && variant.id === record.variant.id; });
+          state = selected ? 'changed' : 'withdrawn';
+        }
+      } else if (current(entry) || record.source !== options.source) state = 'changed';
+      var outcome = {state: state, record: clone(record), variant: selected, outdated: state !== 'restored'};
+      if (state === 'restored') options.write(clone(record.inputs), outcome);
+      emit('ctm:store-restore', {component: options.component, id: options.id, state: state, result: record.result || null, outdated: outcome.outdated});
+      return outcome;
+    }
+    function flush() { cancel(entry); return save(entry, options.read()); }
+    function changed() { cancel(entry); entry.lastResult = null; if (writable(entry)) entry.timer = setTimeout(flush, delay); }
+    function result(detail) {
+      detail = detail || {};
+      if (!['correct', 'partial', 'wrong', 'invalid'].includes(detail.status) ||
+        !Number.isFinite(detail.score) || detail.score < 0 || detail.score > 1) {
+        throw new TypeError('ctm:result needs status and score from 0 to 1.');
+      }
+      cancel(entry);
+      if (detail.status !== 'invalid') {
+        entry.lastResult = {score: detail.score, status: detail.status, at: new Date().toISOString()};
+        save(entry, options.read());
+      }
+      emit('ctm:result', {component: options.component, id: options.id, score: detail.score, status: detail.status, variant: detail.variant || current(entry)});
+    }
+    function clear() {
+      cancel(entry); entry.lastResult = null;
+      if (options.id) remove(key(options.id));
+      if (options.clear) options.clear();
+      emit('ctm:store-clear', {course: course, page: page, id: options.id});
+    }
+    entry.flush = flush;
+    return {restore: restore, changed: changed, result: result, clear: clear};
+  }
+  function cleanup() {
+    if (!enabled() || !Array.isArray(config.exercises)) return;
+    var live = config.exercises.filter(function (item) { return !!item.id; }).map(function (item) { return key(item.id); });
+    storage('localStorage', 'keys').forEach(function (name) {
+      if (name.startsWith(pagePrefix) && !live.includes(name) && !future(parse(get(name)))) remove(name);
+    });
+  }
+  function updateBar() {
+    var button = document.querySelector('[data-ctm-save-toggle]');
+    if (button) button.textContent = enabled() ? text('saveOff', 'Do not save on this device') : text('saveOn', 'Save again');
+  }
+  function start() {
+    configure(); cleanup(); updateBar();
+    var status = document.querySelector('.ctm-save-status'), keys = Object.keys(messages);
+    if (status && keys.length) status.textContent = messages[keys[keys.length - 1]];
+    var bar = document.querySelector('.ctm-save-bar');
+    if (bar) {
+      bar.hidden = false;
+      bar.addEventListener('click', function (event) {
+        var button = event.target.closest('button');
+        if (!button) return;
+        if (button.hasAttribute('data-ctm-clear-page')) clearPage();
+        if (button.hasAttribute('data-ctm-clear-course') && window.confirm(text('confirmClearCourse', 'Delete all your saved answers in this course?'))) clearCourse();
+        if (button.hasAttribute('data-ctm-save-toggle') && (!enabled() ||
+          window.confirm(text('confirmSaveOff', 'This deletes all saved answers in this course and stops saving.')))) setEnabled(!enabled());
+      });
+    }
+  }
+  window.addEventListener('pagehide', function () { entries.forEach(function (entry) { if (entry.timer) entry.flush(); }); });
+  window.CTMStore = {
+    version: 1, register: register, enabled: enabled, setEnabled: setEnabled, clearPage: clearPage, clearCourse: clearCourse, seed: seed, key: key,
+    exportItems: function () {
+      return entries.filter(function (entry) { return typeof entry.options.exportItem === 'function'; }).sort(function (a, b) {
+        if (!a.options.element || !b.options.element) return 0;
+        return a.options.element.compareDocumentPosition(b.options.element) & 2 ? 1 : -1;
+      }).map(function (entry) { return entry.options.exportItem(); }).filter(Boolean);
+    }
+  };
+  Object.defineProperties(window.CTMStore, {course: {get: function () { configure(); return course; }}, page: {get: function () { configure(); return page; }}});
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+})();
