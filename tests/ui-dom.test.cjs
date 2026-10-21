@@ -264,3 +264,257 @@ test('ctm-nav: a reload of an entry that still shows its link\'s target handles 
     w.close();
   }
 });
+
+// Collapsible Quarto callouts: the content is a `.callout-collapse.collapse`
+// (`show` once open) and the header toggles it (aria-expanded, `collapsed`).
+// One outer callout holds a tabset whose second tab holds a reading step that
+// holds an inner callout; a hint holds a callout's section the other way round.
+const callout = (id, inner, {open = false, kind = 'note'} = {}) => '<div id="' + id + '" class="callout callout-style-default callout-' + kind + ' callout-titled">'
+  + '<div class="callout-header d-flex align-content-center' + (open ? '' : ' collapsed') + '" data-bs-toggle="collapse" data-bs-target=".' + id + '-contents" aria-controls="' + id + '-body" aria-expanded="' + open + '">'
+  + '<div class="callout-title-container flex-fill">Boks</div><div class="callout-btn-toggle"><i class="callout-toggle"></i></div></div>'
+  + '<div id="' + id + '-body" class="' + id + '-contents callout-collapse collapse' + (open ? ' show' : '') + '"><div class="callout-body-container callout-body">' + inner + '</div></div></div>';
+const CALLOUTS = '<header id="quarto-header"></header><main>'
+  + callout('c-plain', '<section id="in-plain"><h4>Plain</h4></section>')
+  + callout('c-open', '<section id="in-open"><h4>Open</h4></section>', {open: true})
+  + callout('c-outer', '<div class="panel-tabset"><ul class="nav nav-tabs" role="tablist">'
+    + '<li><a class="nav-link active" id="k1-tab" role="tab" aria-selected="true" href="">A</a></li>'
+    + '<li><a class="nav-link" id="k2-tab" role="tab" aria-selected="false" href="">B</a></li></ul>'
+    + '<div class="tab-content"><div id="k1" class="tab-pane active" role="tabpanel" aria-labelledby="k1-tab">A.</div>'
+    + '<div id="k2" class="tab-pane" role="tabpanel" aria-labelledby="k2-tab">' + step('reading', callout('c-inner', '<section id="in-all"><h4>All</h4></section>', {kind: 'tip'}))
+    + '</div></div></div>')
+  + callout('c-hinted', '<details class="ctm-reveal hint" id="hinted"><summary>Hint</summary><div class="ctm-reveal-body"><section id="in-hint"><h4>Hint</h4></section></div></details>')
+  + '<div class="callout callout-style-default callout-note"><div class="callout-body-container"><section id="in-simple"><h4>Simple</h4></section></div></div></main>';
+const shownCallouts = w => [...w.document.querySelectorAll('.callout-collapse')].filter(c => c.classList.contains('show')).map(c => c.id.replace(/-body$/, '')).sort();
+const headerOf = (w, id) => w.document.getElementById(id).querySelector(':scope > .callout-header');
+// jsdom lays nothing out: an element has a box unless an inactive tab or a
+// closed callout hides it. (Its frames come late: a navigation takes some 300 ms.)
+const layout = w => {
+  w.Element.prototype.getClientRects = function () {
+    for (let node = this; node; node = node.parentElement) {
+      if (node.classList.contains('tab-pane') && !node.classList.contains('active')) return [];
+      if (node.classList.contains('callout-collapse') && !node.classList.contains('show')) return [];
+    }
+    return [this.getBoundingClientRect()];
+  };
+};
+function loadCallouts(hash, before) {
+  const w = new JSDOM('<!doctype html><html><head></head><body>' + CALLOUTS + '</body></html>', {url: 'https://example.invalid/c/p.html' + hash, runScripts: 'outside-only', pretendToBeVisual: true}).window;
+  w.scrollTo = () => {};
+  layout(w);
+  if (before) before(w);
+  w.eval(script('ctm-nav.js'));
+  return w;
+}
+
+// Bootstrap's transition contract: show/hide are ignored while transitioning;
+// collapse/show are absent during either transition; transitionend completes
+// it once, clears its state/size, and emits the matching bubbling event.
+// `stalled` omits the usual transition-end emulation so ctm-nav's watchdog
+// must complete the same queued callback, rather than only change classes.
+function collapseBootstrap(w, {stalled = false, log = []} = {}) {
+  const instances = new WeakMap();
+  const Collapse = {getOrCreateInstance(body) {
+    if (instances.has(body)) return instances.get(body);
+    let transitioning = false;
+    const dimension = body.classList.contains('collapse-horizontal') ? 'width' : 'height';
+    function transition(open) {
+      if (transitioning || body.classList.contains('show') === open) return;
+      log.push((open ? 'show ' : 'hide ') + body.id);
+      transitioning = true;
+      body.classList.remove('collapse', 'show');
+      body.classList.add('collapsing');
+      body.style[dimension] = open ? '120px' : '';
+      const header = body.parentElement.querySelector(':scope > .callout-header');
+      header.classList.toggle('collapsed', !open);
+      header.setAttribute('aria-expanded', String(open));
+      let timer;
+      const complete = event => {
+        if (event.target !== body) return;
+        body.removeEventListener('transitionend', complete);
+        w.clearTimeout(timer);
+        transitioning = false;
+        body.classList.remove('collapsing');
+        body.classList.add('collapse');
+        body.classList.toggle('show', open);
+        body.style[dimension] = '';
+        log.push((open ? 'shown ' : 'hidden ') + body.id);
+        body.dispatchEvent(new w.Event((open ? 'shown' : 'hidden') + '.bs.collapse', {bubbles: true}));
+      };
+      body.addEventListener('transitionend', complete);
+      if (!stalled) timer = w.setTimeout(() => body.dispatchEvent(new w.Event('transitionend')), 200);
+    }
+    const instance = {show() { transition(true); }, hide() { transition(false); }};
+    instances.set(body, instance);
+    return instance;
+  }};
+  w.bootstrap = {Collapse};
+  return Collapse;
+}
+
+function assertCalloutOpen(w, id) {
+  const body = w.document.getElementById(id + '-body');
+  assert.equal(body.classList.contains('collapse'), true);
+  assert.equal(body.classList.contains('show'), true);
+  assert.equal(body.classList.contains('collapsing'), false);
+  assert.equal(body.style[body.classList.contains('collapse-horizontal') ? 'width' : 'height'], '');
+  assert.equal(headerOf(w, id).getAttribute('aria-expanded'), 'true');
+  assert.equal(headerOf(w, id).classList.contains('collapsed'), false);
+}
+
+test('ctm-nav: a link during a callout hide waits for hidden, then opens it through Bootstrap', async () => {
+  const log = [], w = loadCallouts('', w => collapseBootstrap(w, {log}));
+  await shown(w);
+  const body = w.document.getElementById('c-open-body');
+  const instance = w.bootstrap.Collapse.getOrCreateInstance(body);
+  instance.hide();
+  assert.equal(body.classList.contains('collapsing'), true);
+  await w.CTMNav.reveal(w.document.getElementById('in-open'));
+  assertCalloutOpen(w, 'c-open');
+  assert.deepEqual(log, ['hide c-open-body', 'hidden c-open-body', 'show c-open-body', 'shown c-open-body']);
+  // The same public instance still works after navigation; no stale hide can
+  // close the target and no transition-state flag was left stuck.
+  await wait(80);
+  assertCalloutOpen(w, 'c-open');
+  instance.hide();
+  await wait(250);
+  assert.equal(body.classList.contains('show'), false);
+  instance.show();
+  await wait(250);
+  assertCalloutOpen(w, 'c-open');
+  w.close();
+});
+
+test('ctm-nav: a link during a callout show waits for its completion', async () => {
+  const log = [], w = loadCallouts('', w => collapseBootstrap(w, {log}));
+  await shown(w);
+  const body = w.document.getElementById('c-plain-body');
+  w.bootstrap.Collapse.getOrCreateInstance(body).show();
+  await w.CTMNav.reveal(w.document.getElementById('in-plain'));
+  assertCalloutOpen(w, 'c-plain');
+  assert.deepEqual(log, ['show c-plain-body', 'shown c-plain-body']);
+  w.close();
+});
+
+test('ctm-nav: the watchdog completes Bootstrap opening and closing transitions, including horizontal sizes', async () => {
+  for (const hiding of [false, true]) {
+    const log = [], w = loadCallouts('', w => collapseBootstrap(w, {stalled: true, log}));
+    await shown(w);
+    const id = hiding ? 'c-open' : 'c-plain', target = hiding ? 'in-open' : 'in-plain';
+    const body = w.document.getElementById(id + '-body');
+    body.classList.add('collapse-horizontal');
+    const instance = w.bootstrap.Collapse.getOrCreateInstance(body);
+    if (hiding) instance.hide();
+    const pending = w.CTMNav.reveal(w.document.getElementById(target));
+    await wait(200);
+    assert.equal(body.classList.contains('collapsing'), true, 'still waiting for Bootstrap');
+    await pending;
+    assertCalloutOpen(w, id);
+    assert.deepEqual(log, hiding
+      ? ['hide c-open-body', 'hidden c-open-body', 'show c-open-body', 'shown c-open-body']
+      : ['show c-plain-body', 'shown c-plain-body']);
+    // Completing through Bootstrap releases its instance too. A subsequent
+    // hide and show must run and normalize their own size/classes.
+    instance.hide();
+    assert.equal(body.classList.contains('collapsing'), true);
+    body.dispatchEvent(new w.Event('transitionend'));
+    assert.equal(body.classList.contains('show'), false);
+    instance.show();
+    body.dispatchEvent(new w.Event('transitionend'));
+    assertCalloutOpen(w, id);
+    await wait(80);
+    assertCalloutOpen(w, id);
+    w.close();
+  }
+});
+
+test('ctm-nav: a link opens every collapsed callout around its target, in any nesting, and sets its header', async () => {
+  let w = loadCallouts('#in-plain');
+  await shown(w);
+  await wait(600);
+  assert.deepEqual(shownCallouts(w), ['c-open', 'c-plain'], 'only the one around the target (the open one stays)');
+  assert.equal(headerOf(w, 'c-plain').getAttribute('aria-expanded'), 'true');
+  assert.equal(headerOf(w, 'c-plain').classList.contains('collapsed'), false);
+  assert.equal(headerOf(w, 'c-hinted').getAttribute('aria-expanded'), 'false', 'the others are left alone');
+  assert.equal(w.document.getElementById('in-plain').getAttribute('data-ctm-nav'), 'load');
+  w.close();
+  // A callout inside a reveal inside a tab inside a callout: all of them, in turn.
+  w = loadCallouts('#in-all');
+  await shown(w);
+  await wait(600);
+  assert.deepEqual(shownCallouts(w), ['c-inner', 'c-open', 'c-outer']);
+  assert.deepEqual(active(w), ['k2']);
+  assert.equal(w.document.getElementById('reading').open, true);
+  for (const id of ['c-outer', 'c-inner']) assert.equal(headerOf(w, id).getAttribute('aria-expanded'), 'true', id);
+  w.close();
+  // A reveal inside a callout.
+  w = loadCallouts('#in-hint');
+  await shown(w);
+  await wait(600);
+  assert.deepEqual(shownCallouts(w), ['c-hinted', 'c-open']);
+  assert.equal(w.document.getElementById('hinted').open, true);
+  w.close();
+  // A link to the callout itself shows what it holds, as a link to a <details> does.
+  w = loadCallouts('#c-plain');
+  await shown(w);
+  await wait(600);
+  assert.deepEqual(shownCallouts(w), ['c-open', 'c-plain']);
+  w.close();
+  // A callout that cannot collapse, and one that is open, are no business of the script.
+  for (const id of ['in-simple', 'in-open']) {
+    w = loadCallouts('#' + id);
+    await shown(w);
+    await wait(600);
+    assert.deepEqual(shownCallouts(w), ['c-open'], id);
+    assert.equal(w.document.getElementById(id).getAttribute('data-ctm-nav'), 'load');
+    w.close();
+  }
+});
+
+test('ctm-nav: with Bootstrap a callout opens through Collapse, outer first, and the script waits for each', async () => {
+  const log = [];
+  const stub = w => {
+    w.bootstrap = {Collapse: {getOrCreateInstance(element, config) {
+      return {show() {
+        log.push('show ' + element.id + (config && config.toggle === false ? '' : ' (toggles)'));
+        // Bootstrap: a transition, then `show` and the event, which bubbles.
+        setTimeout(() => {
+          element.classList.add('show');
+          const header = element.parentElement.querySelector(':scope > .callout-header');
+          header.classList.remove('collapsed');
+          header.setAttribute('aria-expanded', 'true');
+          log.push('shown ' + element.id);
+          element.dispatchEvent(new w.Event('shown.bs.collapse', {bubbles: true}));
+        }, 40);
+      }};
+    }}};
+  };
+  const w = loadCallouts('#in-all', stub);
+  await shown(w);
+  await wait(900);
+  assert.deepEqual(log, ['show c-outer-body', 'shown c-outer-body', 'show c-inner-body', 'shown c-inner-body'], 'the inner one starts when the outer one is shown');
+  assert.deepEqual(shownCallouts(w), ['c-inner', 'c-open', 'c-outer']);
+  assert.equal(w.document.getElementById('in-all').getAttribute('data-ctm-nav'), 'load');
+  w.close();
+});
+
+test('ctm-nav: a callout that Bootstrap does not finish opening is marked open after 0.6 s', async () => {
+  const w = loadCallouts('#in-plain', w => { w.bootstrap = {Collapse: {getOrCreateInstance() { return {show() {}}; }}}; });
+  await shown(w);
+  await wait(300);
+  assert.deepEqual(shownCallouts(w), ['c-open'], 'still waiting');
+  await wait(900);
+  assert.deepEqual(shownCallouts(w), ['c-open', 'c-plain']);
+  assert.equal(headerOf(w, 'c-plain').getAttribute('aria-expanded'), 'true');
+  assert.equal(w.document.getElementById('in-plain').getAttribute('data-ctm-nav'), 'load');
+  w.close();
+});
+
+test('ctm-nav: CTMNav.reveal opens the callouts around an element', async () => {
+  const w = loadCallouts('');
+  await shown(w);
+  await w.CTMNav.reveal(w.document.getElementById('in-all'));
+  assert.deepEqual(shownCallouts(w), ['c-inner', 'c-open', 'c-outer']);
+  assert.equal(w.location.hash, '');
+  w.close();
+});
+

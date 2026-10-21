@@ -55,6 +55,17 @@
   learner's first visit cross-origin isolated (hosts without COOP/COEP
   headers, such as GitHub Pages). Links to a tab's own heading need CTM
   Assessment's `tab-ids.lua` pre-ast filter.
+- **Links into collapsed callouts.** A link to an id inside a collapsible
+  Quarto callout (`::: {.callout-note collapse="true"}`) opens the callout
+  too, alone or in any nesting with tabs and reveals (a callout inside a tab
+  or a reveal, a reveal inside a callout, a callout inside a callout), and a
+  link to the callout itself opens it, as a link to a reveal does. It opens
+  through Bootstrap's own collapse, so the header's arrow and `aria-expanded`
+  follow, and the rest of the link's behaviour (scroll below the header, focus,
+  the late jump of WebKit) is unchanged. Before, the target stayed hidden and
+  nothing was focused. As before, the script is loaded on pages with a
+  tabset or a reveal; a page that has only a collapsible callout does not
+  load it.
 - **`ctm-assessment: markdown-lint: true`** warns at render time about raw
   HTML that has a Markdown form (`<details>`, `<summary>`, `<div id>`
   anchors, `<iframe>`, a hand-written switch), about tabsets without the
