@@ -30,10 +30,11 @@ const scenarios = process.argv.slice(2).length ? process.argv.slice(2) : all;
 
 // --- The CDN: /<version>/<file> ---------------------------------------------
 function cdnServer() {
-  // encoding: as jsDelivr serves the wheels (measured in CI, 21 Oct): gzip
-  // when the request accepts it, byte ranges of the encoded bytes, a weak
-  // ETag, Vary: Accept-Encoding and no Accept-Ranges.
-  const state = {rate: 0, latency: 0, log: [], stall: null, encoding: false};
+  // jsdelivr: every wheel response as jsDelivr sends it (set review, 21 Oct):
+  // a weak ETag, Vary: Accept-Encoding and no Accept-Ranges; a full request
+  // that accepts gzip gets the wheel gzip-encoded (Chromium asks for
+  // identity on byte ranges, so ranges stay plain).
+  const state = {rate: 0, latency: 0, log: [], stall: null, jsdelivr: false};
   const encoded = new Map();
   const active = new Set();
   setInterval(() => {
@@ -65,11 +66,14 @@ function cdnServer() {
     const headers = {...cors, 'Content-Type': types[path.extname(where)] || 'application/octet-stream', 'Cross-Origin-Resource-Policy': 'cross-origin',
       'Cache-Control': 'public, max-age=31536000, immutable', 'ETag': `"${stat.size}-${Math.floor(stat.mtimeMs)}"`,
       'Last-Modified': stat.mtime.toUTCString(), 'Accept-Ranges': 'bytes'};
-    if (state.encoding && name.endsWith('.whl') && new RegExp(process.env.CDN_ENCODING === 'br' ? 'br' : 'gzip').test(req.headers['accept-encoding'] || '')) {
-      if (!encoded.has(where)) encoded.set(where, process.env.CDN_ENCODING === 'br' ? zlib.brotliCompressSync(body) : zlib.gzipSync(body));
-      body = encoded.get(where);
+    if (state.jsdelivr && name.endsWith('.whl')) {
       delete headers['Accept-Ranges'];
-      Object.assign(headers, {'Content-Encoding': process.env.CDN_ENCODING === 'br' ? 'br' : 'gzip', 'Vary': 'Accept-Encoding', 'ETag': `W/"${stat.size}-${Math.floor(stat.mtimeMs)}"`});
+      Object.assign(headers, {'Vary': 'Accept-Encoding', 'ETag': `W/"${stat.size}-${Math.floor(stat.mtimeMs)}"`});
+      if (!req.headers.range && /gzip/.test(req.headers['accept-encoding'] || '')) {
+        if (!encoded.has(where)) encoded.set(where, zlib.gzipSync(body));
+        body = encoded.get(where);
+        headers['Content-Encoding'] = 'gzip';
+      }
     }
     let start = 0, end = body.length - 1, status = 200;
     const range = /^bytes=(\d+)-(\d*)$/.exec(req.headers.range || '');
@@ -195,12 +199,13 @@ async function cacheScenario(mode, version, variant = 'full/') {
 }
 
 async function cdnScenario(mode) {
-  // jsDelivr's encoding (state.encoding): stage 2 completes, and afterwards
-  // the browser's HTTP cache serves a full request with integrity, as a
-  // check's loadPackage makes it (the cache is not left with a broken entry);
-  // a second visit takes the wheels from the worker's own cache.
-  cdn.state.encoding = true;
+  // jsDelivr's wheel responses (state.jsdelivr): stage 2 installs without a
+  // single full wheel request, and a second visit requests no wheel at all
+  // (the worker's own cache). The worker before the fix re-downloaded every
+  // wheel inside Pyodide's lock here (50 wheel requests, then 51).
+  cdn.state.jsdelivr = true;
   const packages = await lock(VERSION);
+  const files = closure(packages, ['pyodide-http', 'micropip', 'matplotlib']);
   try {
     await withPage(mode, async page => {
       const mark = cdn.state.log.length;
@@ -209,22 +214,20 @@ async function cdnScenario(mode) {
       assert.equal(done.error, undefined, done.error);
       const installed = await page.evaluate(() => window.__w.proxy.runPythonAsync('import importlib.util, json\njson.dumps([importlib.util.find_spec(m) is not None for m in ("matplotlib", "pyodide_http", "micropip", "packaging")])'));
       assert.deepEqual(JSON.parse(installed), [true, true, true, true]);
-      const integrity = await page.evaluate(async ({url, hex}) => {
-        const sri = 'sha256-' + btoa(String.fromCharCode(...hex.match(/../g).map(h => parseInt(h, 16))));
-        try { const r = await fetch(url, {integrity: sri}); return r.status + ' ' + (await r.arrayBuffer()).byteLength; } catch (e) { return String(e); }
-      }, {url: index(VERSION) + packages.packaging.file_name, hex: packages.packaging.sha256});
-      assert.match(integrity, /^200 /, 'a full request with integrity after stage 2: ' + integrity);
-      const first = wheels(mark).length;
+      const first = wheels(mark);
+      assert.deepEqual(first.filter(entry => !entry.range).map(entry => entry.file), [], 'no full wheel request: every install took the verified bytes');
+      assert.deepEqual([...new Set(first.map(entry => entry.file))].sort(), [...files].sort());
       await page.reload();
       if (mode === 's') await page.waitForFunction(() => globalThis.crossOriginIsolated === true, null, {timeout: 30000});
       const again = cdn.state.log.length;
       await start(page, {indexURL: index(VERSION), background: BACKGROUND});
       const second = await waitSetup(page);
       assert.equal(second.error, undefined, second.error);
-      report.push(`cdn ${mode} (gzip, ranges of encoded bytes, weak ETag): stage 2 ${Math.round(done.setup)} ms with ${first} wheel requests; a full request with integrity afterwards: ${integrity}; second visit ${Math.round(second.setup)} ms with ${wheels(again).length} wheel requests`);
+      assert.deepEqual(wheels(again).map(entry => entry.file), [], 'a second visit requests no wheel');
+      report.push(`cdn ${mode} (jsDelivr's headers: weak ETag, Vary, no Accept-Ranges): stage 2 ${Math.round(done.setup)} ms with ${first.length} range requests, 0 full; second visit ${Math.round(second.setup)} ms with 0 wheel requests`);
     });
   } finally {
-    cdn.state.encoding = false;
+    cdn.state.jsdelivr = false;
   }
 }
 

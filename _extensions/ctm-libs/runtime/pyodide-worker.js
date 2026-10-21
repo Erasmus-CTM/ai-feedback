@@ -94,8 +94,8 @@ function registerPlugin(factory) {
 // checks run. Stage 2 (setup): the background packages (pyodide-interaktiv:
 // pyodide_http, micropip, matplotlib) without ever making a check wait for
 // their downloads: they are fetched in byte ranges outside Pyodide's package
-// lock, paused while a command downloads, and installed one at a time from
-// the browser's cache while nothing else runs.
+// lock, paused while a command downloads, and installed one at a time, from
+// the verified bytes (below), while nothing else runs.
 let config = null;
 async function init(cfg) {
   config = cfg;
@@ -265,12 +265,16 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 // The wheels of stage 2 are installed from the bytes the prefetch received,
 // once their SHA-256 equals the lock file's: the worker answers loadPackage's
 // request for such a URL itself, so an install never downloads and never
-// depends on how the browser's HTTP cache keeps byte ranges (jsDelivr serves
-// small wheels compressed, with ranges of the compressed bytes, and Chromium
-// then kept entries that failed loadPackage's integrity check: "Failed to
-// fetch"). The prefetch therefore bypasses the HTTP cache, and the Cache
-// Storage "ctm-pyodide-wheels" keeps verified wheels for the next page.
-// A wheel that does not verify is fetched by loadPackage as usual.
+// depends on whether the browser's HTTP cache serves a full request from
+// cached byte ranges. With jsDelivr's wheel responses (a weak ETag,
+// Vary: Accept-Encoding, no Accept-Ranges) Chromium did not: installs
+// downloaded inside Pyodide's lock again, and in CI they failed with
+// "Failed to fetch". Where the bytes can be verified and kept (crypto.subtle
+// and the Cache Storage, i.e. a secure context) the prefetch bypasses the
+// HTTP cache, and the Cache Storage "ctm-pyodide-wheels" keeps verified
+// wheels for the next page; elsewhere (a plain-HTTP origin) the prefetch
+// fills the HTTP cache, as before. A wheel that does not verify is fetched
+// by loadPackage as usual.
 const WHEEL_CACHE = "ctm-pyodide-wheels";
 const verified = new Map();   // URL -> Uint8Array, until installed
 const networkFetch = globalThis.fetch;
@@ -280,6 +284,10 @@ globalThis.fetch = function(input, init) {
   if (bytes) return Promise.resolve(new Response(bytes, { status: 200, headers: { "Content-Type": "application/octet-stream" } }));
   return networkFetch(input, init);
 };
+// Verified bytes can be kept for the next page (secure contexts).
+function keepsWheels() {
+  return !!(globalThis.crypto && crypto.subtle && globalThis.caches);
+}
 async function sha256Hex(bytes) {
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, "0")).join("");
@@ -323,7 +331,7 @@ async function fetchRange(url, start) {
   const arm = () => { clearTimeout(timer); timer = setTimeout(() => { stalled = true; controller.abort(); }, STALL); };
   arm();
   try {
-    const response = await networkFetch(url, { headers: { Range: "bytes=" + start + "-" + (start + RANGE - 1) }, cache: "no-store", signal: controller.signal });
+    const response = await networkFetch(url, { headers: { Range: "bytes=" + start + "-" + (start + RANGE - 1) }, ...(keepsWheels() ? { cache: "no-store" } : {}), signal: controller.signal });
     if (response.status === 416) return { received: 0, total: start, chunks: [] };
     if (response.status !== 206 && response.status !== 200) throw new Error("HTTP " + response.status);
     const reader = response.body.getReader();
@@ -380,8 +388,7 @@ async function prefetch(names) {
     file.next = got.received;
     file.total = got.total;
     file.chunks.push(...got.chunks);
-    // A whole file (200), or the server's total reached: a compressed small
-    // wheel arrives decoded, longer than the encoded total it names.
+    // A whole file (200), or the server's total reached (a small wheel).
     if (got.whole || (file.total !== null && file.next >= file.total)) await finish(file);
     else open.push(file);
   }

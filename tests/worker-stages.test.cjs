@@ -388,6 +388,8 @@ test('installs take the verified prefetched bytes (no request); a wheel that doe
   }
   s.w.context.Response = Response;
   s.w.context.crypto = globalThis.crypto;
+  const kept = new Map();
+  s.w.context.caches = {open: async () => ({match: async url => kept.get(url), put: async (url, response) => { kept.set(url, response); }})};
   s.w.ctx.fetch = (...args) => s.w.context.fetch(...args);
   await s.init();
   await W.waitFor(s.setupMessage, 5000, 'setup');
@@ -396,4 +398,14 @@ test('installs take the verified prefetched bytes (no request); a wheel that doe
   assert.deepEqual(full, ['matplotlib-1.0-py3-none-any.whl'], 'only the wheel that did not verify was requested again');
   assert.ok(s.events.includes('install numpy 2600'), s.events.join(', '));
   assert.ok(s.network.log.filter(entry => entry.range).every(entry => entry.cache === 'no-store'), 'the prefetch bypasses the HTTP cache');
+  assert.equal(kept.size, 5, 'the five verified wheels of the closure are kept for the next page');
+});
+
+test('S2 (set review): without crypto.subtle or the Cache Storage (a plain-HTTP origin) the prefetch fills the HTTP cache, as before', async () => {
+  const s = stages();
+  await s.init();
+  await W.waitFor(s.setupMessage, 5000, 'setup');
+  assert.equal(s.setupMessage().ok, true);
+  const ranges = s.network.log.filter(entry => entry.range);
+  assert.ok(ranges.length > 0 && ranges.every(entry => entry.cache === undefined), 'no cache: no-store');
 });

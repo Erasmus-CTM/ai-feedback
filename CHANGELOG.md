@@ -193,8 +193,10 @@
   take the prefetched bytes once their SHA-256 is the lock file's (the
   worker answers loadPackage's request itself), and the Cache Storage
   `ctm-pyodide-wheels` keeps them for the next page: the browser's HTTP
-  cache is not involved (with jsDelivr's compressed ranges it held entries
-  that failed the integrity check). An install that Pyodide reports as
+  cache is not involved (with jsDelivr's weak ETag and no Accept-Ranges,
+  Chromium did not serve the full request from cached ranges). On a
+  plain-HTTP origin (no crypto.subtle, no Cache Storage) the prefetch fills
+  the HTTP cache as before. An install that Pyodide reports as
   failed ends stage 2 with its reason.
   `ctm.runtime.worker()` also writes
   `coi-serviceworker.js` (1.8's file, byte for byte) to the output root and

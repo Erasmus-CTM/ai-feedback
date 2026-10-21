@@ -544,9 +544,12 @@ their SHA-256 is the lock file's: the worker answers `loadPackage`'s
 request for that URL itself, so an install never downloads (a wheel that
 does not verify is fetched by `loadPackage` as usual). The Cache Storage
 `ctm-pyodide-wheels` keeps verified wheels, so the next page fetches none of
-them. (jsDelivr serves small wheels compressed, with byte ranges of the
-compressed bytes; Chromium's HTTP cache then held entries that failed
-`loadPackage`'s integrity check.) Commands that never pause for 300 ms cannot hold an
+them; the prefetch then bypasses the HTTP cache. (With jsDelivr's wheel
+responses, a weak ETag, `Vary: Accept-Encoding` and no `Accept-Ranges`,
+Chromium did not serve `loadPackage`'s full request from the cached ranges.)
+On a plain-HTTP origin, without `crypto.subtle` and the Cache Storage, the
+prefetch fills the HTTP cache and `loadPackage` fetches the wheels as
+before. Commands that never pause for 300 ms cannot hold an
 install off for longer than 5 s: after waiting that long, it takes the next
 moment nothing is queued or running. Each install's 5 s count from the end
 of the one before, so installs under a stream of commands are at least 5 s
