@@ -14,23 +14,29 @@
     const messages = manifest.messages || {};
     const text = (key, fallback) => typeof messages[key] === "string" ? messages[key] : fallback;
     const states = new Map(), tiles = new Map(), panels = [];
-    const key = e => JSON.stringify([e.component, e.id]);
+    const identity = e => typeof e.runtimeId === "string" && e.runtimeId ? e.runtimeId : e.id;
+    const key = e => JSON.stringify([e.component, identity(e)]);
     const exercises = (manifest.exercises || []).filter(e =>
-      (e.component === "math-exercise" || e.component === "py-exercise") && typeof e.id === "string" && e.id);
+      (e.component === "math-exercise" || e.component === "py-exercise") && typeof identity(e) === "string" && identity(e));
     const duplicates = new Set(), seen = new Set();
     // Labels are page-wide DOM identities, including across components.
     for (const e of manifest.exercises || []) {
-      if (typeof e.id !== "string" || !e.id) continue;
+      if (e.runtimeId || typeof e.id !== "string" || !e.id) continue;
       if (seen.has(e.id)) duplicates.add(e.id);
       seen.add(e.id);
     }
-    const findTarget = e => [...document.querySelectorAll("[data-ctm-id]")].find(element =>
+    const findTarget = e => {
+      if (e.runtimeId) return [...document.querySelectorAll("[data-ctm-runtime-id]")].find(element =>
+        element.getAttribute("data-ctm-runtime-id") === e.runtimeId &&
+        element.getAttribute("data-ctm-component") === e.component);
+      return [...document.querySelectorAll("[data-ctm-id]")].find(element =>
       element.getAttribute("data-ctm-id") === e.id &&
       element.getAttribute("data-ctm-component") === e.component) || document.getElementById(e.id);
+    };
     // Component filters register in batches. Restore author order from the
     // already-rendered roots before numbering tiles; Python is not involved.
-    const rootOrder = new Map([...document.querySelectorAll("[data-ctm-id], [id]")].map((node, i) => [node, i]));
-    const entries = exercises.filter(e => !duplicates.has(e.id)).map((entry, i) => ({
+    const rootOrder = new Map([...document.querySelectorAll("[data-ctm-runtime-id], [data-ctm-id], [id]")].map((node, i) => [node, i]));
+    const entries = exercises.filter(e => e.runtimeId || !duplicates.has(e.id)).map((entry, i) => ({
       entry, order: rootOrder.get(findTarget(entry)) ?? rootOrder.size + i
     })).sort((a, b) => a.order - b.order).map(row => row.entry);
     const number = n => {
@@ -114,7 +120,7 @@
       if (event.type === "ctm:result") { if (e) result(e, false); return; }
       if (event.type === "ctm:store-restore") {
         if (!e) return;
-        if (e.result) result({component: e.component, id: e.id, ...e.result},
+        if (e.result) result({component: e.component, id: e.id, runtimeId: e.runtimeId, ...e.result},
           e.outdated || e.state === "changed" || e.state === "withdrawn");
         else { states.delete(key(e)); update(); }
         return;
@@ -124,7 +130,11 @@
       const page = store && store.page;
       const current = typeof page === "function" ? page() : page;
       if (e && e.page && current && e.page !== current) return;
-      if (e && typeof e.id === "string") {
+      if (e && e.runtimeId) {
+        for (const entry of entries) {
+          if (entry.runtimeId === e.runtimeId && (!e.component || entry.component === e.component)) states.delete(key(entry));
+        }
+      } else if (e && typeof e.id === "string") {
         for (const entry of entries) {
           if (entry.id === e.id && (!e.component || entry.component === e.component)) states.delete(key(entry));
         }

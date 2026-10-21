@@ -77,3 +77,23 @@ test('production package end filter rejects an empty quiz without registered com
   assert.notEqual(result.status,0);
   assert.match(result.stderr,/has no exercises/);
 });
+
+test('every block carries source-order identity and an explicit quiz scope even for identical text', {skip}, () => {
+  const body='## Quiz {quiz=q}\n'+cell('inside')+'\n## Outside\n'+cell('outside');
+  const code=[
+    'local out = {}',
+    'doc.blocks:walk({CodeBlock=function(b)',
+    ' if not b.classes:includes("ctm-probe") then out[#out+1]={',
+    '  order=b.attributes["__ctm-order"],runtime=b.attributes["__ctm-runtime-id"],',
+    '  quiz=ctm.progress.quizFor("same",pandoc.utils.sha1(b.text):sub(1,16),b) or false}',
+    ' end',
+    'end})',
+    'return out'
+  ].join('\n');
+  const {result,html}=render(body,code);
+  assert.equal(result.status,0,result.stderr);
+  assert.deepEqual(C.probes(html).scope,[
+    {order:'1',runtime:'ctm-block-1',quiz:'q'},
+    {order:'2',runtime:'ctm-block-2',quiz:false}
+  ]);
+});

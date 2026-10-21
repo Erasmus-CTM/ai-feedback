@@ -2,7 +2,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 function checkStore(source, assert) {
   var count = 0;
   function ok(value, reason) { assert(value, reason); count++; }
-  function setup(config, existing, quota, blocked) {
+  function setup(config, existing, quota, blocked, Channel) {
     var local = Object.assign({}, existing), session = {}, events = [], windowEvents = {}, timers = [], status = {textContent: ''};
     function storage(map) { return {
       get length() { return Object.keys(map).length; }, key: function(i) { return Object.keys(map)[i]; },
@@ -15,13 +15,14 @@ function checkStore(source, assert) {
       addEventListener:function(){}, dispatchEvent:function(event){events.push(event);}};
     var window = {localStorage:storage(local),sessionStorage:storage(session),addEventListener:function(type,fn){(windowEvents[type] || (windowEvents[type]=[])).push(fn);},
       crypto:{getRandomValues:function(bytes){for(var i=0;i<bytes.length;i++)bytes[i]=i+1;}}};
+    if(Channel)window.BroadcastChannel=Channel;
     if(blocked)Object.defineProperty(window,'localStorage',{get:function(){throw Error('SecurityError');}});
     function URL(){this.pathname='/course/';}
     function CustomEvent(type,opts){this.type=type;this.detail=opts.detail;}
     function Encoder(){}
     Encoder.prototype.encode=function(text){return new Uint8Array(unescape(encodeURIComponent(text)).length);};
     new Function('window','document','location','URL','CustomEvent','TextEncoder','setTimeout','clearTimeout',source)(window,document,
-      {pathname:'/course/chapter/x.html',href:'https://example.test/course/chapter/x.html'},URL,CustomEvent,Encoder,function(fn){var token={fn:fn,canceled:false};timers.push(token);return token;},function(token){if(token)token.canceled=true;});
+      {pathname:config && config.testPath || '/course/chapter/x.html',href:'https://example.test/course/chapter/x.html'},URL,CustomEvent,Encoder,function(fn){var token={fn:fn,canceled:false};timers.push(token);return token;},function(token){if(token)token.canceled=true;});
     var input={code:'answer'},writes=[],clears=0;
     function register(extra){return window.CTMStore.register(Object.assign({component:'code',id:'ex',source:'0123456789abcdef',
       read:function(){return input;},write:function(value,meta){writes.push({value:value,meta:meta});},clear:function(){clears++;}},extra));}
@@ -102,9 +103,46 @@ function checkStore(source, assert) {
   removedTab.fire({key:null,newValue:null});removedTab.runTimers();
   ok(!removedTab.local[rtkey] && removedTab.store.exportItems()[0].parts.length===1,'external browser clear cancels and invalidates history');
   ok(bh.clear()===false,'individual clear exposes durable failure');
+  var oldGrade={score:1,status:'correct',at:'2026-10-20T10:30:12Z'};
+  var stale=setup(),sk=stale.store.key('ex'),sh=stale.register();
+  stale.local[sk]=JSON.stringify(record({source:'fedcba9876543210',result:oldGrade}));
+  ok(sh.restore().state==='changed','graded source mismatch marked changed');
+  sh.result({status:'invalid',score:0});
+  ok(!JSON.parse(stale.local[sk]).result,'invalid check never promotes old source grade');
+  var staleVariant=setup(),svk=staleVariant.store.key('ex'),svh=staleVariant.register({variant:function(){return {n:1,id:'same',hash:'new'};}});
+  staleVariant.local[svk]=JSON.stringify(record({variant:{n:1,id:'same',hash:'old'},seen:[1],result:oldGrade}));
+  ok(svh.restore().state==='changed','graded variant mismatch marked changed');
+  svh.result({status:'invalid',score:0});
+  ok(!JSON.parse(staleVariant.local[svk]).result,'invalid check never promotes old variant grade');
+  var matched=setup(),mk=matched.store.key('ex'),mth=matched.register();
+  matched.local[mk]=JSON.stringify(record({result:oldGrade}));mth.restore();mth.result({status:'invalid',score:0});
+  ok(JSON.parse(matched.local[mk]).result.score===1,'invalid check retains same-source historical grade');
+  var ports=[];
+  function Channel(name){this.name=name;ports.push(this);}
+  Channel.prototype.postMessage=function(value){var self=this;ports.forEach(function(port){if(port!==self && port.name===self.name && port.onmessage)port.onmessage({data:value});});};
+  var a=setup({},null,null,false,Channel),b=setup({},null,null,false,Channel),bh2=b.register();
+  bh2.changed();a.store.clearPage();b.runTimers();
+  ok(!b.local[b.store.key('ex')],'page clear command cancels never-persisted record in another tab');
+  bh2.changed();a.store.clearCourse();b.runTimers();
+  ok(!b.local[b.store.key('ex')],'course clear command cancels never-persisted record in another tab');
+  var separate=setup({testPath:'/course/chapter/other.html'},null,null,false,Channel),sep=separate.register();
+  sep.changed();a.store.clearPage();separate.runTimers();
+  ok(!!separate.local[separate.store.key('ex')],'page clear command does not cancel another page');
+  sep.changed();delete separate.local[separate.store.key('ex')];a.store.clearCourse();separate.runTimers();
+  ok(!separate.local[separate.store.key('ex')],'course clear command cancels pending record on other page');
+  var transient=setup();transient.store.clearCourse();
+  ok(!Object.keys(transient.local).some(function(name){return name.endsWith('~clear');}),'storage fallback clear command leaves no persistent marker');
+  var runtime=setup({exercises:[{id:'',runtimeId:'one',save:false},{id:'dup',runtimeId:'two',save:false},{id:'dup',runtimeId:'three',save:false}]});
+  function element(id){return {getAttribute:function(name){return name==='data-ctm-runtime-id'?id:null;}};}
+  var unlabelled=runtime.register({id:'',element:element('one')});unlabelled.result({status:'correct',score:1});
+  ok(runtime.events.some(function(event){return event.type==='ctm:result' && event.detail.runtimeId==='one';}),'unlabelled result carries unique runtime identity');
+  var firstDuplicate=runtime.register({id:'dup',element:element('two')});firstDuplicate.result({status:'partial',score:.5});
+  ok(!runtime.local[runtime.store.key('dup')],'manifest prevents first duplicate saving before second registration');
+  var secondDuplicate=runtime.register({id:'dup',element:element('three')});secondDuplicate.result({status:'wrong',score:0});
+  ok(runtime.events.filter(function(event){return event.type==='ctm:result' && ['two','three'].includes(event.detail.runtimeId);}).length===2,'duplicate results keep distinct runtime identities');
   return count;
 }
 test('shared store contracts and durable quota recovery',()=>{
  const source=fs.readFileSync(path.join(__dirname,'../_extensions/ctm-libs/ui/ctm-store.js'),'utf8');
- assert.equal(checkStore(source,assert.ok),41);
+ assert.equal(checkStore(source,assert.ok),54);
 });

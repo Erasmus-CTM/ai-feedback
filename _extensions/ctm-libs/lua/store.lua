@@ -1,7 +1,7 @@
 -- Shared saved-answer manifest and page bar. Components own their inputs.
 return function(ctm)
   local M = {}
-  local exercises, finalized, warned = {}, false, false
+  local exercises, finalized, warned, runtimeSeen = {}, false, false, {}
   local function escape(value)
     return tostring(value or ""):gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;"):gsub('"', "&quot;")
   end
@@ -30,7 +30,12 @@ return function(ctm)
     assert(source:match("^[%da-fA-F]+$") and #source == 16, "ctm.ui.exercise source must be the first 16 hex digits of the block's SHA-1")
     local save = saving(spec) and isHTML()
     local entry = {component = spec.component, id = id, source = source, save = save and id ~= "", title = spec.title}
-    entry.quiz = ctm.progress.quizFor(id, source)
+    local attrs = spec.block and spec.block.attributes or {}
+    local runtime = attrs["__ctm-runtime-id"] or ("ctm-runtime-" .. tostring(#exercises + 1))
+    runtimeSeen[runtime] = (runtimeSeen[runtime] or 0) + 1
+    entry.runtimeId = runtime .. (runtimeSeen[runtime] > 1 and ("-" .. runtimeSeen[runtime]) or "")
+    entry.order = tonumber(attrs["__ctm-order"]) or (#exercises + 1)
+    entry.quiz = ctm.progress.quizFor(id, source, spec.block)
     exercises[#exercises + 1] = entry
     if id ~= "" then
       for _, other in ipairs(exercises) do
@@ -40,6 +45,7 @@ return function(ctm)
     dependencies()
     return {save = entry.save, attributes = {
       ["data-ctm-component"] = spec.component, ["data-ctm-id"] = id,
+      ["data-ctm-runtime-id"] = entry.runtimeId,
       ["data-ctm-source"] = source, ["data-ctm-save"] = tostring(entry.save)
     }}
   end
@@ -95,6 +101,7 @@ return function(ctm)
     end
     local saving = false
     for _, entry in ipairs(exercises) do saving = saving or entry.save end
+    table.sort(exercises, function(a, b) return a.order < b.order end)
     local manifest = {v = 1, course = ctm.settings.string("ctm-assessment", "storage-key"),
       save = saving, export = export, progress = progress, exercises = exercises, quizzes = quizzes, messages = messages()}
     -- JSON is data, never executable script. Escape '<' so author text cannot

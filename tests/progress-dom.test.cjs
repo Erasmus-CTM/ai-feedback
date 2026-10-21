@@ -13,7 +13,7 @@ async function load({progress = true, early = [], extraExercises = [], messages 
     {component:'pyodide-interaktiv', id:'cell'}, ...extraExercises
   ], messages:{locale:'nb',total:'{score} av {count}',...messages}};
   const w = new JSDOM('<!doctype html><html lang="en"><body><main><div class="ctm-progress-slot" data-ctm-quiz="q"></div><details><summary>Closed</summary><div id="a"></div></details><div id="b"></div><div id="outside"></div></main><script id="ctm-store-manifest" type="application/json"></script></body></html>', {runScripts:'outside-only',pretendToBeVisual:true}).window;
-  configure(manifest);
+  configure(manifest,w);
   w.document.getElementById('ctm-store-manifest').textContent = JSON.stringify(manifest);
   w.eval(source);
   for (const [type,detail] of early) w.document.dispatchEvent(new w.CustomEvent(type,{detail}));
@@ -173,5 +173,56 @@ test('mixed component registration batches produce tiles in source DOM order', a
   for (const button of buttons(quiz())) {button.click();await Promise.resolve();}
   assert.deepEqual(revealed,['a','b','outside']);
   assert.equal(quiz().querySelector('.ctm-progress-total').textContent,'1,5 av 3');
+  w.close();
+});
+
+test('unsaved unlabelled and duplicate-labelled exercises each have independent runtime progress', async () => {
+  const {w,quiz,page,buttons,send} = await load({configure:(manifest,w) => {
+    for (const [i,e] of manifest.exercises.entries()) {
+      const root=w.document.getElementById(['a','b','outside','cell'][i]);
+      e.runtimeId='ctm-block-'+(i+1);
+      e.save=false;
+      e.id=i===0?'':'repeated';
+      if (root) {
+        root.setAttribute('data-ctm-runtime-id',e.runtimeId);
+        root.setAttribute('data-ctm-id',e.id);
+        root.setAttribute('data-ctm-component',e.component);
+      }
+    }
+  }});
+  w.CTMStore={course:'course',page:'page'};
+  assert.equal(buttons(quiz()).length,2);
+  assert.equal(buttons(page()).length,1);
+  assert.equal(quiz().querySelector('.ctm-progress-total').textContent,'0 av 2');
+  send('ctm:result',{component:'math-exercise',id:'',runtimeId:'ctm-block-1',score:1,status:'correct'});
+  send('ctm:result',{component:'py-exercise',id:'repeated',runtimeId:'ctm-block-2',score:0.5,status:'partial'});
+  send('ctm:result',{component:'math-exercise',id:'repeated',runtimeId:'ctm-block-3',score:1,status:'correct'});
+  assert.equal(quiz().querySelector('.ctm-progress-total').textContent,'1,5 av 2');
+  assert.equal(page().querySelector('.ctm-progress-total').textContent,'1 av 1');
+  send('ctm:store-clear',{course:'course',page:'page',id:'',runtimeId:'ctm-block-1'});
+  assert.equal(quiz().querySelector('.ctm-progress-total').textContent,'0,5 av 2');
+  assert.equal(page().querySelector('.ctm-progress-total').textContent,'1 av 1');
+  let target;
+  w.CTMNav={reveal:async element=>{target=element;}};
+  buttons(quiz())[0].click();await Promise.resolve();
+  assert.equal(target,w.document.getElementById('a'));
+  assert.equal(w.MathExerciseRuntime,undefined);
+  w.close();
+});
+test('duplicate author labels in the same component do not merge runtime result state', async () => {
+  const {w,quiz,buttons,send}=await load({configure:(manifest,w)=>{
+    for (const [i,e] of manifest.exercises.entries()) {
+      const root=w.document.getElementById(['a','b','outside','cell'][i]);
+      if (e.component==='pyodide-interaktiv') continue;
+      e.runtimeId='ctm-block-'+i;e.id='same';e.save=false;e.quiz='q';
+      if(root){root.setAttribute('data-ctm-runtime-id',e.runtimeId);root.setAttribute('data-ctm-component',e.component);}
+    }
+  }});
+  assert.equal(buttons(quiz()).length,3);
+  send('ctm:result',{component:'math-exercise',id:'same',runtimeId:'ctm-block-0',score:1,status:'correct'});
+  send('ctm:result',{component:'math-exercise',id:'same',runtimeId:'ctm-block-2',score:0,status:'wrong'});
+  assert.deepEqual(buttons(quiz()).map(b=>b.dataset.status),['correct','unattempted','wrong']);
+  send('ctm:store-restore',{component:'math-exercise',id:'same',runtimeId:'ctm-block-2',state:'restored',result:{score:0.5,status:'partial'}});
+  assert.deepEqual(buttons(quiz()).map(b=>b.dataset.status),['correct','unattempted','partial']);
   w.close();
 });

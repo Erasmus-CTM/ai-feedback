@@ -40,6 +40,7 @@ return function(ctm)
     prepared = true
     local s = {heads = {}, quiz = nil, title = "", reveal = 0}
     local scopes = {}
+    local ordinal = 0
     local hooks = {}
     hooks.open = function(state, kind)
       local t = snapshot(state)
@@ -70,6 +71,10 @@ return function(ctm)
     end
     hooks.block = function(b, state, walk)
       if b.t == "CodeBlock" then
+        ordinal = ordinal + 1
+        b.attributes["__ctm-order"] = tostring(ordinal)
+        b.attributes["__ctm-quiz"] = state.quiz or ""
+        b.attributes["__ctm-runtime-id"] = "ctm-block-" .. ordinal
         local source = pandoc.utils.sha1(b.text):sub(1, 16)
         local scope = state.quiz or false
         if sourceMembership[source] ~= nil and sourceMembership[source] ~= scope then
@@ -113,7 +118,11 @@ return function(ctm)
     end})
     return doc
   end
-  function M.quizFor(id, source)
+  function M.quizFor(id, source, block)
+    if block and block.attributes["__ctm-quiz"] ~= nil then
+      local quiz = block.attributes["__ctm-quiz"]
+      return quiz ~= "" and quiz or nil
+    end
     -- Components parse their own labels; use their unchanged block hash when
     -- Quarto has not materialized a quoted YAML label on the CodeBlock.
     if membership[id] ~= nil then return membership[id] or nil end
