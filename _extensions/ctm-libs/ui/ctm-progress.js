@@ -18,17 +18,31 @@
     const exercises = (manifest.exercises || []).filter(e =>
       (e.component === "math-exercise" || e.component === "py-exercise") && typeof e.id === "string" && e.id);
     const duplicates = new Set(), seen = new Set();
-    for (const e of exercises) { if (seen.has(key(e))) duplicates.add(key(e)); seen.add(key(e)); }
-    const entries = exercises.filter(e => !duplicates.has(key(e)));
+    // Labels are page-wide DOM identities, including across components.
+    for (const e of manifest.exercises || []) {
+      if (typeof e.id !== "string" || !e.id) continue;
+      if (seen.has(e.id)) duplicates.add(e.id);
+      seen.add(e.id);
+    }
+    const findTarget = e => [...document.querySelectorAll("[data-ctm-id]")].find(element =>
+      element.getAttribute("data-ctm-id") === e.id &&
+      element.getAttribute("data-ctm-component") === e.component) || document.getElementById(e.id);
+    // Component filters register in batches. Restore author order from the
+    // already-rendered roots before numbering tiles; Python is not involved.
+    const rootOrder = new Map([...document.querySelectorAll("[data-ctm-id], [id]")].map((node, i) => [node, i]));
+    const entries = exercises.filter(e => !duplicates.has(e.id)).map((entry, i) => ({
+      entry, order: rootOrder.get(findTarget(entry)) ?? rootOrder.size + i
+    })).sort((a, b) => a.order - b.order).map(row => row.entry);
     const number = n => {
       try { return new Intl.NumberFormat(text("locale", document.documentElement.lang || "en"), {maximumFractionDigits: 3}).format(n); }
       catch (_) { return String(n); }
     };
+    const statusText = (key, fallback) => text(key, fallback).replace(/^\s*[✓½✗–]\s*/, "");
     const words = {
-      correct: ["✓", text("correct", "correct")],
-      partial: ["½", text("partial", "partly correct")],
-      wrong: ["✗", text("wrong", "wrong")],
-      unattempted: ["–", text("unattempted", "not attempted")]
+      correct: ["✓", statusText("correct", "correct")],
+      partial: ["½", statusText("partial", "partly correct")],
+      wrong: ["✗", statusText("wrong", "wrong")],
+      unattempted: ["–", statusText("unattempted", "not attempted")]
     };
     function update() {
       for (const panel of panels) {
@@ -62,7 +76,9 @@
         const li = document.createElement("li"), button = document.createElement("button");
         button.type = "button";
         button.addEventListener("click", async () => {
-          const target = document.getElementById(e.id);
+          // Component roots may have generated DOM ids. Match the shared
+          // registration attributes as data, without interpolating a selector.
+          const target = findTarget(e);
           if (!target || !window.CTMNav || typeof window.CTMNav.reveal !== "function") return;
           await window.CTMNav.reveal(target);
           // CTMNav owns scrolling and focus, including nested tabs and reveals.

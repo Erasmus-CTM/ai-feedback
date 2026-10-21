@@ -2,11 +2,11 @@ const test = require('node:test'), assert = require('node:assert/strict'), fs = 
 const C = require('./helpers/ctm-libs.cjs');
 const skip = C.hasQuarto ? false : 'Quarto required';
 const cell = id => '\n~~~{.python #' + id + '}\nprint(1)\n~~~\n';
-function render(body, code) {
+function render(body, code, endFilter = false) {
   const dir = C.tempdir('ctm-progress-');
   try {
     C.installPackage(dir); C.install(dir); C.installProbe(dir);
-    C.write(dir, {'page.qmd':'---\ntitle: t\nfilters: [ctm-libs, probe]\n---\n' + body + C.probe('scope',code)});
+    C.write(dir, {'page.qmd':'---\ntitle: t\nfilters: [ctm-libs, probe' + (endFilter ? ', _extensions/ctm-libs/ctm-libs-end.lua' : '') + ']\n---\n' + body + C.probe('scope',code)});
     const result = C.render(dir,['page.qmd']);
     return {result,html:result.status === 0 ? C.html(dir,'page.qmd') : ''};
   } finally {fs.rmSync(dir,{recursive:true,force:true});}
@@ -70,4 +70,10 @@ test('identical source in different quiz scopes has no source-only association',
   const {result,html} = render(body,code);
   assert.equal(result.status,0,result.stderr);
   assert.equal(C.probes(html).scope,false);
+});
+
+test('production package end filter rejects an empty quiz without registered components', {skip}, () => {
+  const {result} = render('## Empty {quiz=q}','return true',true);
+  assert.notEqual(result.status,0);
+  assert.match(result.stderr,/has no exercises/);
 });

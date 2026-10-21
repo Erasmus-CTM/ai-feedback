@@ -3,7 +3,7 @@
   'use strict';
   if (window.CTMStore) return;
   var config, course, page, prefix, pagePrefix, prefsKey, seedKey, prefs;
-  var entries = [], memory = {localStorage: {}, sessionStorage: {}}, failed = {}, messages = {};
+  var entries = [], memory = {localStorage: {}, sessionStorage: {}}, dirty = {localStorage: {}, sessionStorage: {}}, failed = {}, messages = {};
   var LIMIT = 64 * 1024, delay = 250;
   function emit(type, detail) { document.dispatchEvent(new CustomEvent(type, {detail: detail})); }
   function text(key, fallback) { return config && config.messages && config.messages[key] || fallback; }
@@ -18,19 +18,28 @@
   function storage(kind, action, key, value) {
     var map = memory[kind];
     if (failed[kind]) {
-      if (action === 'get') return Object.prototype.hasOwnProperty.call(map, key) ? map[key] : null;
+      if (action === 'get') {
+        if (!dirty[kind][key]) {
+          try {
+            var durableValue = window[kind].getItem(key);
+            if (durableValue === null) delete map[key]; else map[key] = durableValue;
+            return durableValue;
+          } catch (error) { /* inaccessible: retain the page mirror */ }
+        }
+        return Object.prototype.hasOwnProperty.call(map, key) ? map[key] : null;
+      }
       if (action === 'keys') {
         var known = Object.keys(map);
         try { for (var j = 0; j < window[kind].length; j++) if (!known.includes(window[kind].key(j))) known.push(window[kind].key(j)); } catch (error) { /* inaccessible storage */ }
         return known;
       }
       if (action === 'set') {
-        map[key] = value;
-        try { window[kind].setItem(key, value); return true; } catch (error) { /* memory only */ }
+        map[key] = value; dirty[kind][key] = true;
+        try { window[kind].setItem(key, value); delete dirty[kind][key]; return true; } catch (error) { /* memory only */ }
       }
       if (action === 'remove') {
-        delete map[key];
-        try { window[kind].removeItem(key); return true; } catch (error) { /* memory only */ }
+        delete map[key]; dirty[kind][key] = true;
+        try { window[kind].removeItem(key); delete dirty[kind][key]; return true; } catch (error) { /* memory only */ }
       }
       return false;
     }
@@ -86,7 +95,7 @@
   function cancel(entry) { clearTimeout(entry.timer); entry.timer = null; }
   function resetEntries() {
     entries.forEach(function (entry) {
-      cancel(entry); entry.lastResult = null;
+      cancel(entry); entry.lastResult = null; entry.lastChecked = null;
       if (entry.options.clear) entry.options.clear();
     });
   }
@@ -176,7 +185,7 @@
     if (!options || !options.component || typeof options.read !== 'function' || typeof options.write !== 'function') {
       throw new TypeError('CTMStore.register needs component, read and write.');
     }
-    var entry = {options: options, timer: null, lastResult: null, duplicate: false};
+    var entry = {options: options, timer: null, lastResult: null, lastChecked: null, outdated: false, duplicate: false};
     entries.forEach(function (other) { if (options.id && other.options.id === options.id) entry.duplicate = other.duplicate = true; });
     entries.push(entry);
     function restore() {
@@ -197,7 +206,7 @@
         });
       }
       if (!valid(record, options.component)) return {state: 'empty'};
-      entry.lastResult = record.result || null;
+      entry.lastResult = record.result || null; entry.lastChecked = entry.lastResult;
       var state = 'restored', selected = null;
       if (record.variant) {
         var variants = options.variants ? options.variants() : [current(entry)].filter(Boolean);
@@ -208,13 +217,14 @@
           state = selected ? 'changed' : 'withdrawn';
         }
       } else if (current(entry) || record.source !== options.source) state = 'changed';
-      var outcome = {state: state, record: clone(record), variant: selected, outdated: state !== 'restored'};
+      entry.outdated = state !== 'restored';
+      var outcome = {state: state, record: clone(record), variant: selected, outdated: entry.outdated};
       if (state === 'restored') options.write(clone(record.inputs), outcome);
       emit('ctm:store-restore', {component: options.component, id: options.id, state: state, result: record.result || null, outdated: outcome.outdated});
       return outcome;
     }
     function flush() { cancel(entry); return save(entry, options.read()); }
-    function changed() { cancel(entry); entry.lastResult = null; if (writable(entry)) entry.timer = setTimeout(flush, delay); }
+    function changed() { cancel(entry); entry.lastResult = null; entry.outdated = !!entry.lastChecked; if (writable(entry)) entry.timer = setTimeout(flush, delay); }
     function result(detail) {
       detail = detail || {};
       if (!['correct', 'partial', 'wrong', 'invalid'].includes(detail.status) ||
@@ -223,16 +233,20 @@
       }
       cancel(entry);
       if (detail.status !== 'invalid') {
+        entry.outdated = false;
         entry.lastResult = {score: detail.score, status: detail.status, at: new Date().toISOString()};
+        entry.lastChecked = entry.lastResult;
       }
       save(entry, options.read());
       emit('ctm:result', {component: options.component, id: options.id, score: detail.score, status: detail.status, variant: detail.variant || current(entry)});
     }
     function clear() {
-      cancel(entry); entry.lastResult = null;
-      if (options.id) remove(key(options.id));
+      cancel(entry); entry.lastResult = null; entry.lastChecked = null;
+      var durable = options.id ? remove(key(options.id)) : true;
       if (options.clear) options.clear();
-      emit('ctm:store-clear', {course: course, page: page, id: options.id});
+      if (!durable) clearFailure();
+      emit('ctm:store-clear', {course: course, page: page, id: options.id, durable: durable});
+      return durable;
     }
     entry.flush = flush;
     return {restore: restore, changed: changed, result: result, clear: clear, flush: flush, cancel: function () { cancel(entry); }};
@@ -270,9 +284,25 @@
   }
   window.addEventListener('storage', function (event) {
     configure();
+    if (event.key === null) {
+      memory.localStorage = {}; dirty.localStorage = {};
+      entries.forEach(function (entry) { cancel(entry); entry.lastResult = null; entry.lastChecked = null; });
+      updateBar(); emit('ctm:store-clear', {course: course}); return;
+    }
+    if (event.key.startsWith(prefix)) {
+      if (event.newValue === null) delete memory.localStorage[event.key];
+      else memory.localStorage[event.key] = event.newValue;
+      delete dirty.localStorage[event.key];
+      if (event.newValue === null && event.key.startsWith(pagePrefix)) {
+        entries.forEach(function (entry) {
+          if (entry.options.id && key(entry.options.id) === event.key) {
+            cancel(entry); entry.lastResult = null; entry.lastChecked = null;
+            emit('ctm:store-clear', {course: course, page: page, id: entry.options.id});
+          }
+        });
+      }
+    }
     if (event.key !== prefsKey) return;
-    if (event.newValue === null) delete memory.localStorage[prefsKey];
-    else memory.localStorage[prefsKey] = event.newValue;
     prefs = parse(event.newValue);
     if (prefs && prefs.save === false) entries.forEach(cancel);
     updateBar(); emit('ctm:store-enabled', {enabled: !(prefs && prefs.save === false)});
@@ -284,7 +314,24 @@
       return entries.filter(function (entry) { return typeof entry.options.exportItem === 'function'; }).sort(function (a, b) {
         if (!a.options.element || !b.options.element) return 0;
         return a.options.element.compareDocumentPosition(b.options.element) & 2 ? 1 : -1;
-      }).map(function (entry) { var item = entry.options.exportItem(); return item ? Object.assign({element: entry.options.element}, item) : null; }).filter(Boolean);
+      }).map(function (entry) {
+        var item = entry.options.exportItem();
+        if (!item) return null;
+        var exported = Object.assign({element: entry.options.element}, item), result = entry.lastChecked || entry.lastResult;
+        exported.parts = (item.parts || []).slice();
+        if (result) {
+          var locale = config.messages && config.messages.locale || 'en';
+          var date = new Date(result.at).toLocaleDateString(locale), percent = (result.score * 100).toLocaleString(locale);
+          var status = text({correct: 'statusCorrect', partial: 'statusPartial', wrong: 'statusWrong'}[result.status], result.status);
+          var description = 'Last checked ' + date + ': ' + status + ' (' + percent + ' %)';
+          if (window.CTMLocales) {
+            try { description = window.CTMLocales.t('ui', 'lastChecked', locale, date, status, percent); } catch (error) { /* standalone fallback */ }
+          }
+          if (entry.outdated) description = text('outdated', 'Outdated') + ': ' + description;
+          exported.parts.push({kind: 'answer', label: text('lastResult', 'Last result'), text: description});
+        }
+        return exported;
+      }).filter(Boolean);
     }
   };
   Object.defineProperties(window.CTMStore, {course: {get: function () { configure(); return course; }}, page: {get: function () { configure(); return page; }}});

@@ -47,7 +47,7 @@ return function(ctm)
   local function messages()
     local out = {}
     for _, key in ipairs({"savingNotice", "savingDisabled", "savingOffNotice", "clearFailed", "storageUnavailable", "recordTooLarge", "saveOff", "saveOn", "confirmSaveOff", "confirmClearCourse",
-      "sourceChanged", "showSaved", "outdated", "variantChanged", "variantWithdrawn", "statusCorrect", "statusPartial",
+      "lastResult", "sourceChanged", "showSaved", "outdated", "variantChanged", "variantWithdrawn", "statusCorrect", "statusPartial",
       "statusWrong", "statusInvalid", "confirmNewVariant", "progressTitle", "exercise", "correct", "partial", "wrong",
       "unattempted", "total", "exportTitle", "copyAll", "downloadMarkdown", "downloadHTML", "exportClose"}) do
       out[key] = text(key)
@@ -70,9 +70,10 @@ return function(ctm)
     -- The umbrella knows every component has finished. Standalone components
     -- call again after their own CodeBlocks; replace our previous output.
     if rawget(_G, "__ctmLibsEnd") and not rawget(_G, "__ctmLibsEndRan") then return doc end
-    if not isHTML() or #exercises == 0 then return doc end
-    dependencies()
+    if not isHTML() then return doc end
     local quizzes = ctm.progress.finalize(exercises)
+    if #exercises == 0 then return doc end
+    dependencies()
     local progress = ctm.settings.bool("ctm-assessment", "progress", {default = false})
     local export = ctm.settings.bool("ctm-assessment", "export", {default = true})
     if export then ctm.deps.html({name = "ctm-export", scripts = {"ui/ctm-export.js"}}) end

@@ -73,7 +73,16 @@ CTMLocales.add("ui",
     "exportClose": "Close",
     "savingDisabled": "Saving is off for this page.",
     "savingOffNotice": "Saving is off on this device for this course.",
-    "clearFailed": "Browser storage could not be cleared or updated. Use your browser settings to remove this course data."
+    "clearFailed": "Browser storage could not be cleared or updated. Use your browser settings to remove this course data.",
+    "lastResult": "Last result",
+    "copyOutput": "Copy output",
+    "downloadPlot": "Download figure (PNG)",
+    "figureLabel": {
+      "$args": [
+        "n"
+      ],
+      "$t": "Figure {n}"
+    }
   },
   "de": {
     "readingStep": "Vertiefung",
@@ -138,7 +147,16 @@ CTMLocales.add("ui",
     "exportClose": "Schließen",
     "savingDisabled": "Speichern ist für diese Seite ausgeschaltet.",
     "savingOffNotice": "Speichern ist auf diesem Gerät für diesen Kurs ausgeschaltet.",
-    "clearFailed": "Der Browserspeicher konnte nicht gelöscht oder aktualisiert werden. Entfernen Sie die Kursdaten in den Browsereinstellungen."
+    "clearFailed": "Der Browserspeicher konnte nicht gelöscht oder aktualisiert werden. Entfernen Sie die Kursdaten in den Browsereinstellungen.",
+    "lastResult": "Letztes Ergebnis",
+    "copyOutput": "Ausgabe kopieren",
+    "downloadPlot": "Abbildung herunterladen (PNG)",
+    "figureLabel": {
+      "$args": [
+        "n"
+      ],
+      "$t": "Abbildung {n}"
+    }
   },
   "nb": {
     "readingStep": "Gå i dybden",
@@ -203,7 +221,16 @@ CTMLocales.add("ui",
     "exportClose": "Lukk",
     "savingDisabled": "Lagring er slått av for denne siden.",
     "savingOffNotice": "Lagring er slått av på denne enheten for dette emnet.",
-    "clearFailed": "Nettleserlagringen kunne ikke slettes eller oppdateres. Fjern emnedataene i nettleserinnstillingene."
+    "clearFailed": "Nettleserlagringen kunne ikke slettes eller oppdateres. Fjern emnedataene i nettleserinnstillingene.",
+    "lastResult": "Siste resultat",
+    "copyOutput": "Kopier utskrift",
+    "downloadPlot": "Last ned figur (PNG)",
+    "figureLabel": {
+      "$args": [
+        "n"
+      ],
+      "$t": "Figur {n}"
+    }
   },
   "nn": {
     "readingStep": "Gå i djupna",
@@ -268,7 +295,16 @@ CTMLocales.add("ui",
     "exportClose": "Lukk",
     "savingDisabled": "Lagring er slått av for denne sida.",
     "savingOffNotice": "Lagring er slått av på denne eininga for dette emnet.",
-    "clearFailed": "Nettlesarlagringa kunne ikkje slettast eller oppdaterast. Fjern emnedata i nettlesarinnstillingane."
+    "clearFailed": "Nettlesarlagringa kunne ikkje slettast eller oppdaterast. Fjern emnedata i nettlesarinnstillingane.",
+    "lastResult": "Siste resultat",
+    "copyOutput": "Kopier utskrift",
+    "downloadPlot": "Last ned figur (PNG)",
+    "figureLabel": {
+      "$args": [
+        "n"
+      ],
+      "$t": "Figur {n}"
+    }
   }
 }
 /*END-JSON*/

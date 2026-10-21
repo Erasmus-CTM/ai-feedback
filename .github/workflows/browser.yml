@@ -55,3 +55,6 @@ jobs:
       - run: npx playwright install --with-deps ${{ matrix.browser }}
       - name: Links into tabs and reveals, the switch (${{ matrix.browser }})
         run: node tests/browser/ui.mjs ${{ matrix.browser }}
+
+      - name: Saved answers, copy and export (${{ matrix.browser }})
+        run: node tests/browser/store.mjs ${{ matrix.browser }}

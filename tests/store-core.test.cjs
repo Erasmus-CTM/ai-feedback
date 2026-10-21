@@ -3,7 +3,7 @@ function checkStore(source, assert) {
   var count = 0;
   function ok(value, reason) { assert(value, reason); count++; }
   function setup(config, existing, quota, blocked) {
-    var local = Object.assign({}, existing), session = {}, events = [], status = {textContent: ''};
+    var local = Object.assign({}, existing), session = {}, events = [], windowEvents = {}, timers = [], status = {textContent: ''};
     function storage(map) { return {
       get length() { return Object.keys(map).length; }, key: function(i) { return Object.keys(map)[i]; },
       getItem: function(key) { return Object.prototype.hasOwnProperty.call(map,key) ? map[key] : null; },
@@ -13,20 +13,20 @@ function checkStore(source, assert) {
     var document = {readyState:'complete', getElementById:function(){return {textContent:JSON.stringify(config || {})};},
       querySelector:function(selector){return selector === 'meta[name="quarto:offset"]' ? {content:'../'} : selector === '.ctm-save-status' ? status : null;},
       addEventListener:function(){}, dispatchEvent:function(event){events.push(event);}};
-    var window = {localStorage:storage(local),sessionStorage:storage(session),addEventListener:function(){},
+    var window = {localStorage:storage(local),sessionStorage:storage(session),addEventListener:function(type,fn){(windowEvents[type] || (windowEvents[type]=[])).push(fn);},
       crypto:{getRandomValues:function(bytes){for(var i=0;i<bytes.length;i++)bytes[i]=i+1;}}};
     if(blocked)Object.defineProperty(window,'localStorage',{get:function(){throw Error('SecurityError');}});
     function URL(){this.pathname='/course/';}
     function CustomEvent(type,opts){this.type=type;this.detail=opts.detail;}
     function Encoder(){}
     Encoder.prototype.encode=function(text){return new Uint8Array(unescape(encodeURIComponent(text)).length);};
-    new Function('window','document','location','URL','CustomEvent','TextEncoder',source)(window,document,
-      {pathname:'/course/chapter/x.html',href:'https://example.test/course/chapter/x.html'},URL,CustomEvent,Encoder);
+    new Function('window','document','location','URL','CustomEvent','TextEncoder','setTimeout','clearTimeout',source)(window,document,
+      {pathname:'/course/chapter/x.html',href:'https://example.test/course/chapter/x.html'},URL,CustomEvent,Encoder,function(fn){var token={fn:fn,canceled:false};timers.push(token);return token;},function(token){if(token)token.canceled=true;});
     var input={code:'answer'},writes=[],clears=0;
     function register(extra){return window.CTMStore.register(Object.assign({component:'code',id:'ex',source:'0123456789abcdef',
       read:function(){return input;},write:function(value,meta){writes.push({value:value,meta:meta});},clear:function(){clears++;}},extra));}
     return {store:window.CTMStore,local:local,session:session,events:events,register:register,writes:writes,
-      input:function(value){input=value;},clears:function(){return clears;}};
+      input:function(value){input=value;},clears:function(){return clears;},fire:function(event){(windowEvents.storage || []).forEach(function(fn){fn(event);});},runTimers:function(){timers.forEach(function(token){if(!token.canceled){token.canceled=true;token.fn();}});}};
   }
   function record(extra){return Object.assign({v:1,component:'code',source:'0123456789abcdef',inputs:{code:'old'}},extra);}
   var x=setup(),key=x.store.key('ex'),h=x.register();
@@ -79,9 +79,32 @@ function checkStore(source, assert) {
   ok(bh.restore().state==='restored','SecurityError memory restore');
   ok(blocked.store.clearCourse()===false,'SecurityError clear reports durable failure');
   ok(blocked.events.some(function(event){return event.type==='ctm:store-message' && event.detail.key==='clearFailed';}),'blocked deletion informs learner');
+  var quotaNow=true, unseenKey='ctm|1|%2Fcourse%2F|chapter%2Fx|unseen';
+  var unseen=setup({}, {[unseenKey]:JSON.stringify(record({v:2}))}, function(){return quotaNow;});
+  unseen.register().result({status:'wrong',score:0});quotaNow=false;
+  var unseenHandle=unseen.register({id:'unseen'});
+  ok(unseenHandle.restore().state==='empty','unknown future record not restored after quota');
+  unseenHandle.flush();ok(JSON.parse(unseen.local[unseenKey]).v===2,'unread future record survives quota recovery');
+  var normalKey='ctm|1|%2Fcourse%2F|chapter%2Fx|normal';unseen.local[normalKey]=JSON.stringify(record());
+  ok(unseen.register({id:'normal'}).restore().state==='restored','untouched durable answer readable after quota');
+  var exporter=setup(),rawItem={title:'Code',parts:[{kind:'code',text:'print(1)'}]},eh=exporter.register({exportItem:function(){return rawItem;}});
+  eh.result({status:'partial',score:.5});
+  ok(exporter.store.exportItems()[0].parts[1].text.includes('50 %'),'export appends last check result');
+  ok(rawItem.parts.length===1,'export does not mutate adapter item');
+  eh.changed();
+  ok(exporter.store.exportItems()[0].parts[1].text.includes('Outdated'),'edited answer export marks historical result outdated');
+  eh.cancel();
+  var removedTab=setup(),rtkey=removedTab.store.key('ex'),rth=removedTab.register({exportItem:function(){return {title:'Code',parts:[{kind:'code',text:'answer'}]};}});
+  rth.result({status:'partial',score:.5});rth.changed();delete removedTab.local[rtkey];
+  removedTab.fire({key:rtkey,newValue:null});removedTab.runTimers();
+  ok(!removedTab.local[rtkey],'external record deletion cancels pending save');
+  rth.result({status:'partial',score:.5});rth.changed();Object.keys(removedTab.local).forEach(function(name){delete removedTab.local[name];});
+  removedTab.fire({key:null,newValue:null});removedTab.runTimers();
+  ok(!removedTab.local[rtkey] && removedTab.store.exportItems()[0].parts.length===1,'external browser clear cancels and invalidates history');
+  ok(bh.clear()===false,'individual clear exposes durable failure');
   return count;
 }
 test('shared store contracts and durable quota recovery',()=>{
  const source=fs.readFileSync(path.join(__dirname,'../_extensions/ctm-libs/ui/ctm-store.js'),'utf8');
- assert.equal(checkStore(source,assert.ok),32);
+ assert.equal(checkStore(source,assert.ok),41);
 });
