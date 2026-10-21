@@ -60,7 +60,7 @@ return function(ctm)
   -- caller; every hook is optional:
   --   skip(b, tabset)          true: pass b through untouched (hidden material)
   --   header(b, state)         a heading starts a section
-  --   open(state) -> token     a scope starts (<details>, collapsed callout, tabset)
+  --   open(state, kind) -> token     a scope starts (<details>, collapsed callout, tabset)
   --   close(state, token)      ... and ends; a <details> left open ends with its list
   --   tab(tab, state)          a tab starts a section ({title, content})
   --   block(b, state, walk)    -> true, replacement: the hook takes b over
@@ -72,7 +72,7 @@ return function(ctm)
     local out = pandoc.Blocks({})
     -- The token of each <details> still open in this list.
     local scopes = {}
-    local function open() return hooks.open and hooks.open(state) end
+    local function open(kind) return hooks.open and hooks.open(state, kind) end
     local function close(token) if hooks.close then hooks.close(state, token) end end
     local function walk(list) return M.walk(list, hooks, state) end
     for _, b in ipairs(blocks) do
@@ -82,7 +82,7 @@ return function(ctm)
       elseif b.t == "RawBlock" then
         for _, opening in ipairs(M.detailsTags(b)) do
           if opening then
-            scopes[#scopes + 1] = open()
+            scopes[#scopes + 1] = open("details")
           elseif #scopes > 0 then
             close(table.remove(scopes))
           end
@@ -90,7 +90,7 @@ return function(ctm)
       elseif b.t == "Header" then
         if hooks.header then hooks.header(b, state) end
       elseif tabbed then
-        local token = open()
+        local token = open("tabset")
         for i = 1, #tabbed.tabs do
           local tab = tabbed.tabs[i]
           if hooks.tab then hooks.tab(tab, state) end
@@ -98,7 +98,7 @@ return function(ctm)
         end
         close(token)
       elseif M.collapsed(b) then
-        local token = open()
+        local token = open("callout")
         b.content = walk(b.content)
         close(token)
       else
