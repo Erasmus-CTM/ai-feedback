@@ -140,9 +140,12 @@ function checkStore(source, assert) {
   ok(!runtime.local[runtime.store.key('dup')],'manifest prevents first duplicate saving before second registration');
   var secondDuplicate=runtime.register({id:'dup',element:element('three')});secondDuplicate.result({status:'wrong',score:0});
   ok(runtime.events.filter(function(event){return event.type==='ctm:result' && ['two','three'].includes(event.detail.runtimeId);}).length===2,'duplicate results keep distinct runtime identities');
+  var generated=runtime.register({id:'generated-dom-id',runtimeId:'one',save:true});
+  generated.result({status:'correct',score:1});
+  ok(!runtime.local[runtime.store.key('generated-dom-id')],'manifest runtime identity prevents saving generated DOM id for unlabelled exercise');
   return count;
 }
 test('shared store contracts and durable quota recovery',()=>{
  const source=fs.readFileSync(path.join(__dirname,'../_extensions/ctm-libs/ui/ctm-store.js'),'utf8');
- assert.equal(checkStore(source,assert.ok),54);
+ assert.equal(checkStore(source,assert.ok),55);
 });

@@ -33,11 +33,12 @@
       element.getAttribute("data-ctm-id") === e.id &&
       element.getAttribute("data-ctm-component") === e.component) || document.getElementById(e.id);
     };
-    // Component filters register in batches. Restore author order from the
-    // already-rendered roots before numbering tiles; Python is not involved.
+    // Component filters register in batches. Prefer build-time source order;
+    // older manifests use rendered roots. Neither path starts Python.
     const rootOrder = new Map([...document.querySelectorAll("[data-ctm-runtime-id], [data-ctm-id], [id]")].map((node, i) => [node, i]));
+    const hasSourceOrder = exercises.every(e => Number.isSafeInteger(e.order) && e.order > 0);
     const entries = exercises.filter(e => e.runtimeId || !duplicates.has(e.id)).map((entry, i) => ({
-      entry, order: rootOrder.get(findTarget(entry)) ?? rootOrder.size + i
+      entry, order: hasSourceOrder ? entry.order : (rootOrder.get(findTarget(entry)) ?? rootOrder.size + i)
     })).sort((a, b) => a.order - b.order).map(row => row.entry);
     const number = n => {
       try { return new Intl.NumberFormat(text("locale", document.documentElement.lang || "en"), {maximumFractionDigits: 3}).format(n); }

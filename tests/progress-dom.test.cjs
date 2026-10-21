@@ -226,3 +226,25 @@ test('duplicate author labels in the same component do not merge runtime result 
   assert.deepEqual(buttons(quiz()).map(b=>b.dataset.status),['correct','unattempted','partial']);
   w.close();
 });
+
+test('build-time order numbers tiles before runtime root attributes become available', async () => {
+  const {w,quiz,buttons,send}=await load({configure:manifest=>{
+    for(const e of manifest.exercises){
+      e.order={a:1,b:2,outside:3,cell:4}[e.id];e.runtimeId='runtime-'+e.id;
+    }
+    manifest.exercises.reverse();
+  }});
+  send('ctm:result',{component:'math-exercise',id:'a',runtimeId:'runtime-a',score:1,status:'correct'});
+  send('ctm:result',{component:'py-exercise',id:'b',runtimeId:'runtime-b',score:0.5,status:'partial'});
+  assert.deepEqual(buttons(quiz()).map(b=>b.dataset.status),['correct','partial']);
+  for(const [id,component] of [['a','math-exercise'],['b','py-exercise']]){
+    const root=w.document.getElementById(id);
+    root.setAttribute('data-ctm-runtime-id','runtime-'+id);
+    root.setAttribute('data-ctm-component',component);
+  }
+  const targets=[];
+  w.CTMNav={reveal:async element=>{targets.push(element.id);}};
+  for(const button of buttons(quiz())){button.click();await Promise.resolve();}
+  assert.deepEqual(targets,['a','b']);
+  w.close();
+});

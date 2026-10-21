@@ -124,9 +124,9 @@
     if (!command || command.v !== 1 || !['course', 'page', 'exercise'].includes(command.scope)) return;
     if (command.scope !== 'course' && command.page !== page) return;
     entries.forEach(function (entry) {
-      if (command.scope === 'exercise' && entry.options.id !== command.id) return;
+      if (command.scope === 'exercise' && entry.id !== command.id) return;
       cancel(entry); entry.lastResult = null; entry.lastChecked = null;
-      if (entry.options.id) { delete memory.localStorage[key(entry.options.id)]; delete dirty.localStorage[key(entry.options.id)]; }
+      if (entry.id) { delete memory.localStorage[key(entry.id)]; delete dirty.localStorage[key(entry.id)]; }
     });
     emit('ctm:store-clear', {course: course, page: command.scope === 'course' ? undefined : page,
       id: command.scope === 'exercise' ? command.id : undefined});
@@ -182,12 +182,12 @@
   }
   function current(entry) { return entry.options.variant ? entry.options.variant() : null; }
   function writable(entry) {
-    if (!enabled() || entry.options.save === false || entry.duplicate || !entry.options.id) return false;
-    return !(config.exercises || []).some(function (item) { return item.id === entry.options.id && item.save === false; });
+    if (!enabled() || entry.options.save === false || entry.duplicate || !entry.id) return false;
+    return !(config.exercises || []).some(function (item) { return item.id === entry.id && item.save === false; });
   }
   function save(entry, inputs) {
     if (!writable(entry)) return false;
-    var name = key(entry.options.id), previous = parse(get(name));
+    var name = key(entry.id), previous = parse(get(name));
     if (future(previous)) return false;
     if (inputs === null || inputs === undefined) { entry.lastResult = null; return remove(name); }
     var record = {v: 1, component: entry.options.component, saved: new Date().toISOString(), inputs: inputs};
@@ -215,14 +215,16 @@
     if (!options || !options.component || typeof options.read !== 'function' || typeof options.write !== 'function') {
       throw new TypeError('CTMStore.register needs component, read and write.');
     }
-    var entry = {options: options, timer: null, lastResult: null, lastChecked: null, outdated: false, duplicate: false};
+    var entry = {options: options, id: options.id, timer: null, lastResult: null, lastChecked: null, outdated: false, duplicate: false};
     entry.runtimeId = options.runtimeId || (options.element && options.element.getAttribute && options.element.getAttribute('data-ctm-runtime-id')) || options.id;
-    entries.forEach(function (other) { if (options.id && other.options.id === options.id) entry.duplicate = other.duplicate = true; });
+    var declared = (config.exercises || []).find(function (item) { return item.runtimeId && item.runtimeId === entry.runtimeId; });
+    if (declared) entry.id = declared.id || '';
+    entries.forEach(function (other) { if (entry.id && other.id === entry.id) entry.duplicate = other.duplicate = true; });
     entries.push(entry);
     function restore() {
       cancel(entry);
       if (!writable(entry)) return {state: 'disabled'};
-      var record = parse(get(key(options.id)));
+      var record = parse(get(key(entry.id)));
       if (!future(record)) {
         (options.legacy || []).some(function (adapter) {
           var candidate = adapter.read();
@@ -252,7 +254,7 @@
       if (entry.outdated) entry.lastResult = null;
       var outcome = {state: state, record: clone(record), variant: selected, outdated: entry.outdated};
       if (state === 'restored') options.write(clone(record.inputs), outcome);
-      emit('ctm:store-restore', {component: options.component, id: options.id, runtimeId: entry.runtimeId, state: state, result: record.result || null, outdated: outcome.outdated});
+      emit('ctm:store-restore', {component: options.component, id: entry.id, runtimeId: entry.runtimeId, state: state, result: record.result || null, outdated: outcome.outdated});
       return outcome;
     }
     function flush() { cancel(entry); return save(entry, options.read()); }
@@ -270,15 +272,15 @@
         entry.lastChecked = entry.lastResult;
       }
       save(entry, options.read());
-      emit('ctm:result', {component: options.component, id: options.id, runtimeId: entry.runtimeId, score: detail.score, status: detail.status, variant: detail.variant || current(entry)});
+      emit('ctm:result', {component: options.component, id: entry.id, runtimeId: entry.runtimeId, score: detail.score, status: detail.status, variant: detail.variant || current(entry)});
     }
     function clear() {
       cancel(entry); entry.lastResult = null; entry.lastChecked = null;
-      var durable = options.id ? remove(key(options.id)) : true;
+      var durable = entry.id ? remove(key(entry.id)) : true;
       if (options.clear) options.clear();
-      if (options.id && !sendClear('exercise', options.id)) durable = false;
+      if (entry.id && !sendClear('exercise', entry.id)) durable = false;
       if (!durable) clearFailure();
-      emit('ctm:store-clear', {course: course, page: page, id: options.id, runtimeId: entry.runtimeId, durable: durable});
+      emit('ctm:store-clear', {course: course, page: page, id: entry.id, runtimeId: entry.runtimeId, durable: durable});
       return durable;
     }
     entry.flush = flush;
@@ -329,9 +331,9 @@
       delete dirty.localStorage[event.key];
       if (event.newValue === null && event.key.startsWith(pagePrefix)) {
         entries.forEach(function (entry) {
-          if (entry.options.id && key(entry.options.id) === event.key) {
+          if (entry.id && key(entry.id) === event.key) {
             cancel(entry); entry.lastResult = null; entry.lastChecked = null;
-            emit('ctm:store-clear', {course: course, page: page, id: entry.options.id, runtimeId: entry.runtimeId});
+            emit('ctm:store-clear', {course: course, page: page, id: entry.id, runtimeId: entry.runtimeId});
           }
         });
       }
