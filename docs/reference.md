@@ -121,9 +121,10 @@ the settings and before AI feedback's preparation (`lua/ui.lua`).
   the reading steps and hides the switch. `ctm-assessment: modes: false`
   leaves it out.
 - **Links into tabs and reveals** (`tab-links`, on by default, on pages with
-  a tabset or a reveal): a link to an id inside tabs or closed `<details>` —
-  in the page, from another page, Back/Forward, reload — opens every
-  enclosing tab and `<details>`, scrolls the target below the header, keeps
+  a tabset or a reveal): a link to an id inside tabs, closed `<details>` or a
+  collapsed callout (`collapse="true"`) — in the page, from another page,
+  Back/Forward, reload — opens every enclosing tab, `<details>` and
+  collapsed callout, in any nesting, scrolls the target below the header, keeps
   it there while the layout above it settles (2 s at most, until the reader
   scrolls, types or clicks), and focuses it. Back/Forward and a reload return
   to the position the history entry had, except a reload before the reader

@@ -565,7 +565,7 @@ steps after it do not run. A restart runs both stages again. Test-only: `globalT
 ### CTMNav and CTMReveal
 
 ```js
-await CTMNav.reveal(element)   // opens its tabs and <details>, scrolls it below the header, focuses it
+await CTMNav.reveal(element)   // opens its tabs, <details> and collapsed callouts, scrolls it below the header, focuses it
 CTMReveal.mode()               // 'lecture' or 'reading'
 CTMReveal.select('reading')    // as the switch's button does
 CTMReveal.course()             // the course's root path ("/ingmat3a_ntnu/"), from <meta name="quarto:offset">
@@ -575,8 +575,13 @@ Each history entry keeps its scroll position and open tabs in
 `history.state.__quartoTabPosition` (the courses' former `tab-links.html`
 used the same key), and while it still shows its link's target, that hash
 (`at`): a reload then follows the link again instead of restoring the
-position. A target the script handled carries `data-ctm-nav`
-(`load`, `link`, `hash`, `history` or `api`). `ctm-ui.css` sets its colours
+position. What a target hides is opened outer to inner: a tab pane through
+Bootstrap's Tab, a closed `<details>` by its `open` property, and the content
+of a collapsible Quarto callout (`.callout-collapse.collapse`, a callout the
+target is, or sits in) through Bootstrap's Collapse (the header's
+`aria-expanded` and `collapsed` class follow; without Bootstrap, or when it
+does not finish within 0.6 s, the script sets them). A target the script
+handled carries `data-ctm-nav` (`load`, `link`, `hash`, `history` or `api`). `ctm-ui.css` sets its colours
 as custom properties (`--ctm-reveal-*`, `--ctm-modes-*`, `--ctm-embed-border`)
 on `:root`, and again under `.quarto-dark`.
 
