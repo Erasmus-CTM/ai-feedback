@@ -129,3 +129,22 @@ test('local worker receives an absolute page URL and loads only subset packages 
   assert.equal(missing.result(0).type,'error');
   assert.match(missing.result(0).message,/outside the local Pyodide subset/);
 });
+
+test('assessment pins supply URLs and required versions even when the author keeps local board paths', {skip: !C.hasQuarto}, () => {
+  const p=project({extra:'jsxgraph:\n  src_jxg: boards/custom.js\n  src_css: boards/custom.css\n  src_mjx: boards/custom-math.js\n'});
+  try {
+    const packageDir=C.installPackage(p.dir);
+    fs.writeFileSync(path.join(packageDir,'jsxgraph-pins.yml'),'jsxgraph:\n  src_jxg: https://cdn.jsdelivr.net/npm/jsxgraph@1.2.3/distrib/jsxgraphcore.js\n  src_css: https://cdn.jsdelivr.net/npm/jsxgraph@1.2.3/distrib/jsxgraph.css\n  src_mjx: https://cdn.jsdelivr.net/npm/mathjax@4.5.6/tex-mml-svg.js\n  mjx_fonts: https://cdn.jsdelivr.net/npm/@mathjax/mathjax-newcm-font@7.8.9/\n');
+    Object.assign(p.versions,{jsxgraph:'1.2.3',mathjax4:'4.5.6','mathjax-newcm-font':'7.8.9'});
+    C.write(p.dir,{'_ctm-assets/manifest.json':JSON.stringify({v:1,versions:p.versions,files:{}})});
+    fs.appendFileSync(path.join(p.dir,p.file),C.probe('board','return {url=ctm.assets.url("jsxgraph", "distrib/jsxgraphcore.js"), fonts=ctm.assets.url("mathjax-newcm-font"), own=pandoc.utils.stringify(ctm.settings.meta().jsxgraph.src_jxg)}'));
+    let r=C.render(p.dir);assert.equal(r.status,0,r.stderr);
+    const got=C.probes(C.html(p.dir,p.file)).board;
+    assert.equal(got.url,'./_ctm-assets/npm/jsxgraph@1.2.3/distrib/jsxgraphcore.js');
+    assert.equal(got.fonts,'./_ctm-assets/npm/@mathjax/mathjax-newcm-font@7.8.9/');
+    assert.equal(got.own,'boards/custom.js');
+    delete p.versions.jsxgraph;
+    C.write(p.dir,{'_ctm-assets/manifest.json':JSON.stringify({v:1,versions:p.versions,files:{}})});
+    r=C.render(p.dir);assert.notEqual(r.status,0);assert.match(r.stderr,/version mismatch for jsxgraph/);
+  } finally {fs.rmSync(p.dir,{recursive:true,force:true});}
+});

@@ -208,7 +208,9 @@ ctm.assets.use()                         -- CTM_ASSETS and the CTMAssets browser
 
 Names and npm versions come from this installation's `assets.json`.
 Pyodide's version comes only from the constant in `runtime/pyodide-runtime.js`;
-board versions come only from the assessment hook's filled pin values.
+board versions come only from the assessment package's `jsxgraph-pins.yml`.
+The hook's private marker controls which default board URLs may be replaced;
+author overrides do not change the asset versions.
 Paths stay inside the named asset; absolute paths, parent traversal, queries
 and fragments are rejected.
 

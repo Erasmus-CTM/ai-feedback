@@ -47,8 +47,15 @@ return function(ctm)
     -- default provenance. Use pins as the source, without another version table.
     local meta = ctm.settings.meta() or {}
     local defaults = meta["_ctm-assessment-pin-defaults"] or {}
+    local pins = {}
+    local assessment = ctm.deps.folder("ctm-assessment")
+    local pinFile = assessment and io.open(pandoc.path.join({assessment, "jsxgraph-pins.yml"}), "r")
+    if pinFile then
+      local yaml = pinFile:read("*a"); pinFile:close()
+      pins = pandoc.read("---\n" .. yaml .. "\n---\n", "markdown").meta.jsxgraph or {}
+    end
     local names = {src_jxg = "jsxgraph", src_css = "jsxgraph", src_mjx = "mathjax4", mjx_fonts = "mathjax-newcm-font"}
-    for key, value in pairs(defaults) do
+    for key, value in pairs(pins) do
       local url = pandoc.utils.stringify(value)
       local base = packageBase(url)
       local name = names[key]
@@ -56,7 +63,8 @@ return function(ctm)
         local localPath = base:gsub("^https://cdn%.jsdelivr%.net/", "")
         local version = base:match("@([^/]+)/$")
         add(name, version, base, localPath)
-        if mode == "local" and meta.jsxgraph and pandoc.utils.stringify(meta.jsxgraph[key]) == url then
+        if mode == "local" and defaults[key] ~= nil and meta.jsxgraph
+          and pandoc.utils.stringify(defaults[key]) == url and pandoc.utils.stringify(meta.jsxgraph[key]) == url then
           meta.jsxgraph[key] = pandoc.MetaString(offset() .. "/_ctm-assets/" .. url:gsub("^https://cdn%.jsdelivr%.net/", ""))
         end
       end
