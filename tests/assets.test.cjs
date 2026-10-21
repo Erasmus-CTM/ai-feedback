@@ -58,6 +58,9 @@ function project({local = true, resources = true, theme = true, extra = '', fron
 test('local assets select nested Lua paths, inline JS config and Quarto MathJax without a polyfill', {skip: !C.hasQuarto}, () => {
   const p = project({nested: true});
   try {
+    fs.renameSync(path.join(p.dir,'offline.scss'),path.join(p.dir,'offline-system.scss'));
+    const configFile=path.join(p.dir,'_quarto.yml');
+    fs.writeFileSync(configFile,fs.readFileSync(configFile,'utf8').replace('offline.scss','offline-system.scss'));
     fs.appendFileSync(path.join(p.dir,p.file),C.probe('guard', 'return not pcall(ctm.assets.url, "katex", "a/" .. string.char(9) .. "../" .. string.char(9) .. "../escape")'));
     const result = C.render(p.dir);
     assert.equal(result.status, 0, result.stderr);
@@ -84,7 +87,7 @@ test('local preflight rejects missing bundle, wrong versions, missing resources/
   const cases = [
     [{manifest:false}, /manifest is missing or invalid/],
     [{resources:false}, /project\.resources/],
-    [{theme:false}, /offline\.scss theme/],
+    [{theme:false}, /offline\.scss or offline-system\.scss theme/],
     [{extra:'pyodide:\n  base-url: https://custom.test/\n'}, /pyodide\.base-url/],
     [{front:'pyodide:\n  build-variant: debug\n'}, /pyodide\.build-variant/],
     [{extra:'jsxgraph:\n  src_jxg: https://custom.test/board.js\n'}, /author HTTP jsxgraph\.src_jxg/],

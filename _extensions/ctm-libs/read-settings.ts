@@ -404,7 +404,7 @@ function localAssets() {
   const http = (value: unknown) => typeof value === 'string' && /^(?:https?:)?\/\//i.test(value);
   for (const {doc, origin} of docs) {
     resources ||= paths(doc.project?.resources).includes('_ctm-assets/**');
-    theme ||= [...paths(doc.theme), ...paths(doc.format?.html?.theme)].some(p => /(?:^|\/)offline\.scss$/.test(p));
+    theme ||= [...paths(doc.theme), ...paths(doc.format?.html?.theme)].some(p => /(?:^|\/)offline(?:-system)?\.scss$/.test(p));
     // Format-scoped project options may be hidden by a nearer section map in
     // Quarto's merged metadata. Validate both raw scopes before that merge.
     for (const [scope, where] of [[doc, origin], [doc.format?.html, origin + ' (format.html)']] as [any, string][]) {
@@ -425,7 +425,7 @@ function localAssets() {
     if (!errors.some(e => e.includes('pyodide.' + key + ' (' + origin + ')'))) errors.push('ctm-assessment: local assets do not support pyodide.' + key + ' (' + origin + '). Remove that override.');
   }
   if (!resources) errors.push('ctm-assessment: local assets require project.resources to include "_ctm-assets/**". Run the CTM Assessment installer with --assets local.');
-  if (!theme) errors.push('ctm-assessment: local assets require the offline.scss theme. Run the CTM Assessment installer with --assets local.');
+  if (!theme) errors.push('ctm-assessment: local assets require the offline.scss or offline-system.scss theme. Run the CTM Assessment installer with --assets local.');
 }
 
 let policyResult = {config: {layers: [], pageLayers: []} as Record<string, unknown>, names: [] as string[]};

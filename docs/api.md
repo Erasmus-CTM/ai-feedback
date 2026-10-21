@@ -215,7 +215,8 @@ Paths stay inside the named asset; absolute paths, parent traversal, queries
 and fragments are rejected.
 
 Local mode requires a matching `_ctm-assets/manifest.json`,
-`project.resources: ["_ctm-assets/**"]` and the `offline.scss` theme.
+`project.resources: ["_ctm-assets/**"]` and the `offline.scss` theme
+(`offline-system.scss` for a single-file build using system fonts).
 A Pyodide `base-url`/`build-variant` override or author HTTP board URL stops
 the render. A non-HTTP author board path is kept. Explicit
 `pyodide.packages` must be present in the served subset lock.
