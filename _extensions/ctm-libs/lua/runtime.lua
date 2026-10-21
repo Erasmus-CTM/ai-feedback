@@ -8,6 +8,7 @@ return function(ctm)
 
   -- Registers the ctm-runtime dependency (a classic script in the head).
   function M.use()
+    ctm.assets.use()
     ctm.deps.html({name = "ctm-runtime", scripts = {"runtime/pyodide-runtime.js"}})
   end
 
@@ -21,7 +22,7 @@ return function(ctm)
   -- Pyodide's base URL: the one constant in runtime/pyodide-runtime.js, which
   -- the browser uses too (E12: ctm-libs owns the Pyodide version).
   local index = nil
-  function M.indexURL()
+  function M.defaultIndexURL()
     if index then return index end
     local file = io.open(ctm.path("runtime", "pyodide-runtime.js"), "r")
     local text = file and file:read("*a") or ""
@@ -29,6 +30,10 @@ return function(ctm)
     index = text:match("\n%s*var indexURL = '([^']+)';")
     assert(index, "ctm-libs: runtime/pyodide-runtime.js has no `var indexURL = '...';` line")
     return index
+  end
+
+  function M.indexURL()
+    return ctm.assets.url("pyodide")
   end
 
   -- Registers the worker (ctm-runtime, then ctm-worker, classic scripts in

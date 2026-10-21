@@ -2,7 +2,7 @@
 -- page's instance; every filter of the page (ctm-libs.lua, the components'
 -- ctm-bootstrap.lua, the ai-feedback alias) gets the same one, because
 -- filters share Lua globals. Modules (settings, locale, deps, runtime,
--- feedback, policy, sections, source, ui) load on first use: ctm.<module>.
+-- feedback, policy, sections, source, ui, assets) load on first use: ctm.<module>.
 --
 -- Rules for the modules: paths only from this installation (ctm.path), never
 -- quarto.utils.resolve_path or relative dependency paths (both resolve against
@@ -63,7 +63,7 @@ end})
 function ctm.filters()
   local ui = ctm.ui.passes()
   return {
-    {Meta = function(meta) ctm.settings.load(meta); return ctm.feedback.bridge(meta) end},
+    {Meta = function(meta) ctm.settings.load(meta); ctm.assets.prepare(meta); return ctm.feedback.bridge(meta) end},
     {Callout = function(c) return ctm.feedback.markCallout(c) end},
     ui[1],
     ui[2],
