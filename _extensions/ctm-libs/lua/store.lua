@@ -17,7 +17,7 @@ return function(ctm)
   local function saving(spec)
     local value = spec.save
     if value == nil then
-      value = ctm.settings.choice(spec.component, "save", {"answers", "none"}, {shared = true, default = "answers"})
+      value = ctm.settings.choice(spec.component == "pyodide-interaktiv" and "pyodide" or spec.component, "save", {"answers", "none"}, {shared = true, default = "answers"})
     end
     if value == true or value == "true" or value == "answers" then return true end
     if value == false or value == "false" or value == "none" then return false end
@@ -75,7 +75,10 @@ return function(ctm)
     local quizzes = ctm.progress.finalize(exercises)
     local progress = ctm.settings.bool("ctm-assessment", "progress", {default = false})
     local export = ctm.settings.bool("ctm-assessment", "export", {default = true})
-    if progress or #quizzes > 0 then ctm.deps.html({name = "ctm-progress", scripts = {"ui/ctm-progress.js"}}) end
+    if progress or #quizzes > 0 then
+      ctm.deps.html({name = "ctm-nav", scripts = {"ui/ctm-nav.js"}})
+      ctm.deps.html({name = "ctm-progress", scripts = {"ui/ctm-progress.js"}})
+    end
     local warnings = {}
     local seen, duplicates = {}, {}
     for _, entry in ipairs(exercises) do

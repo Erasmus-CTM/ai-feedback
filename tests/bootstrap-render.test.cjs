@@ -16,11 +16,11 @@ function withProject(setup, run) {
 }
 const relative = (dir, value) => path.relative(fs.realpathSync(dir), fs.realpathSync(value)).split(path.sep).join('/');
 
-test('the bootstrap is the canonical file components copy, with default API level 1; ctm-libs is at level 2', () => {
+test('the bootstrap is the canonical file components copy, with default API level 1; ctm-libs is at level 3', () => {
   const text = fs.readFileSync(C.bootstrap, 'utf8');
   assert.match(text, /^-- CTM bootstrap: byte-identical in every CTM component/);
   assert.match(text, /local API = 1\n/);
-  assert.match(fs.readFileSync(path.join(C.library, 'lua', 'ctm.lua'), 'utf8'), /api = 2\}/);
+  assert.match(fs.readFileSync(path.join(C.library, 'lua', 'ctm.lua'), 'utf8'), /api = 3\}/);
 });
 
 test('package layout: the component uses the ctm-libs next to it', {skip}, () => withProject(dir => {
@@ -32,7 +32,7 @@ test('package layout: the component uses the ctm-libs next to it', {skip}, () =>
   const where = C.probes(C.html(dir, 'page.qmd')).where;
   assert.equal(relative(dir, where.dir), '_extensions/ctm-libs');
   assert.equal(where.version, C.version());
-  assert.equal(where.api, 2);
+  assert.equal(where.api, 3);
 }));
 
 test('without ctm-libs the render stops with the install command', {skip}, () => withProject(dir => {
@@ -88,7 +88,7 @@ test('two ctm-libs versions on one page stop the render; the same version from t
 test('a ctm-libs with an older interface level names the update', {skip}, () => withProject(dir => {
   C.installPackage(dir); C.install(dir); C.installProbe(dir);
   const entry = path.join(dir, '_extensions', 'ctm-libs', 'lua', 'ctm.lua');
-  fs.writeFileSync(entry, fs.readFileSync(entry, 'utf8').replace('api = 2}', 'api = 0}'));
+  fs.writeFileSync(entry, fs.readFileSync(entry, 'utf8').replace(/api = \d+\}/, 'api = 0}'));
   C.write(dir, {'page.qmd': page()});
 }, dir => {
   const r = C.render(dir, ['page.qmd']);
@@ -133,18 +133,18 @@ test('standalone inside the package: the package\'s messages', {skip}, () => wit
 
 test('opts.api above ctm-libs\' level stops with the right command', {skip}, () => withProject(dir => {
   C.install(dir, {owner: 'Erasmus-CTM'}); C.installProbe(dir, {owner: 'Erasmus-CTM'});
-  options(dir, 'return {standalone = "quarto add Erasmus-CTM/probe", api = 3}\n', 'Erasmus-CTM');
+  options(dir, 'return {standalone = "quarto add Erasmus-CTM/probe", api = 4}\n', 'Erasmus-CTM');
   C.write(dir, {'page.qmd': page('Erasmus-CTM/probe')});
 }, dir => {
   let r = C.render(dir, ['page.qmd']);
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /probe needs a newer ctm-libs than .*Erasmus-CTM.ctm-libs \(\S+\)\. Install probe again: quarto add Erasmus-CTM\/probe/s);
-  // The same component inside the package: update the package. api = 2 is ctm-libs' own level: renders.
+  // The same component inside the package: update the package. api = 3 is ctm-libs' own level: renders.
   C.installPackage(dir);
   r = C.render(dir, ['page.qmd']);
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /probe needs a newer ctm-libs than .*Update CTM Assessment: quarto add/s);
-  options(dir, 'return {standalone = "quarto add Erasmus-CTM/probe", api = 2}\n', 'Erasmus-CTM');
+  options(dir, 'return {standalone = "quarto add Erasmus-CTM/probe", api = 3}\n', 'Erasmus-CTM');
   r = C.render(dir, ['page.qmd']);
   assert.equal(r.status, 0, r.stderr);
 }));

@@ -19,9 +19,19 @@
     var map = memory[kind];
     if (failed[kind]) {
       if (action === 'get') return Object.prototype.hasOwnProperty.call(map, key) ? map[key] : null;
-      if (action === 'keys') return Object.keys(map);
-      if (action === 'set') map[key] = value;
-      if (action === 'remove') delete map[key];
+      if (action === 'keys') {
+        var known = Object.keys(map);
+        try { for (var j = 0; j < window[kind].length; j++) if (!known.includes(window[kind].key(j))) known.push(window[kind].key(j)); } catch (error) { /* inaccessible storage */ }
+        return known;
+      }
+      if (action === 'set') {
+        map[key] = value;
+        try { window[kind].setItem(key, value); return true; } catch (error) { /* memory only */ }
+      }
+      if (action === 'remove') {
+        delete map[key];
+        try { window[kind].removeItem(key); return true; } catch (error) { /* memory only */ }
+      }
       return false;
     }
     try {
@@ -87,14 +97,17 @@
     configure(); erase(pagePrefix); resetEntries();
     emit('ctm:store-clear', {course: course, page: page});
   }
-  function clearCourse() {
+  function deleteCourse(reset) {
     configure();
     storage('localStorage', 'keys').forEach(function (name) {
       if (name.startsWith(prefix) && name !== prefsKey && name !== prefix + '~mode') remove(name);
     });
     storage('sessionStorage', 'remove', seedKey);
-    resetEntries(); emit('ctm:store-clear', {course: course});
+    if (reset) resetEntries();
+    else entries.forEach(cancel);
+    emit('ctm:store-clear', {course: course});
   }
+  function clearCourse() { deleteCourse(true); }
   function seed() {
     configure();
     var kind = enabled() ? 'localStorage' : 'sessionStorage', found = storage(kind, 'get', seedKey);
@@ -106,7 +119,7 @@
   }
   function setEnabled(value) {
     configure(); value = !!value;
-    if (!value) clearCourse();
+    if (!value) deleteCourse(false);
     prefs = {v: 1, save: value}; put(prefsKey, JSON.stringify(prefs));
     if (value) {
       var temporary = storage('sessionStorage', 'get', seedKey);
@@ -197,8 +210,8 @@
       cancel(entry);
       if (detail.status !== 'invalid') {
         entry.lastResult = {score: detail.score, status: detail.status, at: new Date().toISOString()};
-        save(entry, options.read());
       }
+      save(entry, options.read());
       emit('ctm:result', {component: options.component, id: options.id, score: detail.score, status: detail.status, variant: detail.variant || current(entry)});
     }
     function clear() {
