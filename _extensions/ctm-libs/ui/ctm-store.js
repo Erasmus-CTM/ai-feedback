@@ -124,15 +124,21 @@
     if (!command || command.v !== 1 || !['course', 'page', 'exercise'].includes(command.scope)) return;
     if (command.scope !== 'course' && command.page !== page) return;
     entries.forEach(function (entry) {
-      if (command.scope === 'exercise' && entry.id !== command.id) return;
+      if (command.scope === 'exercise') {
+        if (command.runtimeId && entry.runtimeExplicit) { if (entry.runtimeId !== command.runtimeId) return; }
+        else if (entry.id !== command.id) return;
+        if (command.component && entry.options.component !== command.component) return;
+      }
       cancel(entry); entry.lastResult = null; entry.lastChecked = null;
       if (entry.id) { delete memory.localStorage[key(entry.id)]; delete dirty.localStorage[key(entry.id)]; }
     });
     emit('ctm:store-clear', {course: course, page: command.scope === 'course' ? undefined : page,
-      id: command.scope === 'exercise' ? command.id : undefined});
+      id: command.scope === 'exercise' ? command.id : undefined,
+      runtimeId: command.scope === 'exercise' ? command.runtimeId : undefined,
+      component: command.scope === 'exercise' ? command.component : undefined});
   }
-  function sendClear(scope, id) {
-    var command = {v: 1, scope: scope, page: page, id: id, nonce: Date.now() + ':' + Math.random()};
+  function sendClear(scope, id, runtimeId, component) {
+    var command = {v: 1, scope: scope, page: page, id: id, runtimeId: runtimeId, component: component, nonce: Date.now() + ':' + Math.random()};
     if (clearChannel) {
       try { clearChannel.postMessage(command); return true; } catch (error) { /* storage-event fallback */ }
     }
@@ -216,7 +222,9 @@
       throw new TypeError('CTMStore.register needs component, read and write.');
     }
     var entry = {options: options, id: options.id, timer: null, lastResult: null, lastChecked: null, outdated: false, duplicate: false};
-    entry.runtimeId = options.runtimeId || (options.element && options.element.getAttribute && options.element.getAttribute('data-ctm-runtime-id')) || options.id;
+    var explicitRuntime = options.runtimeId || (options.element && options.element.getAttribute && options.element.getAttribute('data-ctm-runtime-id'));
+    entry.runtimeExplicit = !!explicitRuntime;
+    entry.runtimeId = explicitRuntime || options.id;
     var declared = (config.exercises || []).find(function (item) { return item.runtimeId && item.runtimeId === entry.runtimeId; });
     if (declared) entry.id = declared.id || '';
     entries.forEach(function (other) { if (entry.id && other.id === entry.id) entry.duplicate = other.duplicate = true; });
@@ -278,7 +286,7 @@
       cancel(entry); entry.lastResult = null; entry.lastChecked = null;
       var durable = entry.id ? remove(key(entry.id)) : true;
       if (options.clear) options.clear();
-      if (entry.id && !sendClear('exercise', entry.id)) durable = false;
+      if (entry.id && !sendClear('exercise', entry.id, entry.runtimeExplicit ? entry.runtimeId : undefined, options.component)) durable = false;
       if (!durable) clearFailure();
       emit('ctm:store-clear', {course: course, page: page, id: entry.id, runtimeId: entry.runtimeId, durable: durable});
       return durable;

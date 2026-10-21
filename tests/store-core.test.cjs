@@ -143,9 +143,17 @@ function checkStore(source, assert) {
   var generated=runtime.register({id:'generated-dom-id',runtimeId:'one',save:true});
   generated.result({status:'correct',score:1});
   ok(!runtime.local[runtime.store.key('generated-dom-id')],'manifest runtime identity prevents saving generated DOM id for unlabelled exercise');
+  var duplicateConfig={exercises:[{id:'dup',runtimeId:'r1',save:false},{id:'dup',runtimeId:'r2',save:false}]};
+  var da=setup(duplicateConfig,null,null,false,Channel),db=setup(duplicateConfig,null,null,false,Channel);
+  function dup(tab,runtimeId){return tab.register({id:'dup',runtimeId:runtimeId,save:false,exportItem:function(){return {title:runtimeId,parts:[{kind:'answer',text:'answer'}]};}});}
+  var da1=dup(da,'r1'),da2=dup(da,'r2'),db1=dup(db,'r1'),db2=dup(db,'r2');
+  da1.result({status:'correct',score:1});da2.result({status:'partial',score:.5});db1.result({status:'correct',score:1});db2.result({status:'partial',score:.5});
+  da1.clear();
+  ok(db.store.exportItems()[0].parts.length===1 && db.store.exportItems()[1].parts.length===2,'runtime exercise clear preserves sibling duplicate history across tabs');
+  ok(db.events.some(function(event){return event.type==='ctm:store-clear' && event.detail.runtimeId==='r1' && event.detail.component==='code';}),'runtime clear command emits exact runtime and component');
   return count;
 }
 test('shared store contracts and durable quota recovery',()=>{
  const source=fs.readFileSync(path.join(__dirname,'../_extensions/ctm-libs/ui/ctm-store.js'),'utf8');
- assert.equal(checkStore(source,assert.ok),55);
+ assert.equal(checkStore(source,assert.ok),57);
 });
