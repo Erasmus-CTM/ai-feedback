@@ -2,7 +2,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 function checkStore(source, assert) {
   var count = 0;
   function ok(value, reason) { assert(value, reason); count++; }
-  function setup(config, existing, quota) {
+  function setup(config, existing, quota, blocked) {
     var local = Object.assign({}, existing), session = {}, events = [], status = {textContent: ''};
     function storage(map) { return {
       get length() { return Object.keys(map).length; }, key: function(i) { return Object.keys(map)[i]; },
@@ -15,6 +15,7 @@ function checkStore(source, assert) {
       addEventListener:function(){}, dispatchEvent:function(event){events.push(event);}};
     var window = {localStorage:storage(local),sessionStorage:storage(session),addEventListener:function(){},
       crypto:{getRandomValues:function(bytes){for(var i=0;i<bytes.length;i++)bytes[i]=i+1;}}};
+    if(blocked)Object.defineProperty(window,'localStorage',{get:function(){throw Error('SecurityError');}});
     function URL(){this.pathname='/course/';}
     function CustomEvent(type,opts){this.type=type;this.detail=opts.detail;}
     function Encoder(){}
@@ -67,9 +68,20 @@ function checkStore(source, assert) {
   r.register().result({status:'wrong',score:0});full=false;r.store.setEnabled(false);var reload=setup({},r.local);
   ok(!reload.store.enabled(),'quota recovery persists off preference across reload');
   ok(!reload.local[reload.store.key('old')],'durable deletion survives reload');
+  var offpage=setup({save:false}),offseed=offpage.store.seed();
+  ok(!offpage.local['ctm|1|%2Fcourse%2F|~seed'] && offpage.session['ctm|1|%2Fcourse%2F|~seed']===offseed,'author save none seed is session only');
+  offpage.store.setEnabled(true);
+  ok(!offpage.local['ctm|1|%2Fcourse%2F|~seed'],'author save none does not migrate seed on learner enable');
+  var tabs=setup(),th=tabs.register();
+  tabs.local['ctm|1|%2Fcourse%2F|~prefs']=JSON.stringify({v:1,save:false});th.flush();
+  ok(!tabs.local[tabs.store.key('ex')] && !tabs.store.enabled(),'other tab optout stops pending writes');
+  var blocked=setup({},null,null,true),bh=blocked.register();bh.result({status:'wrong',score:0});
+  ok(bh.restore().state==='restored','SecurityError memory restore');
+  ok(blocked.store.clearCourse()===false,'SecurityError clear reports durable failure');
+  ok(blocked.events.some(function(event){return event.type==='ctm:store-message' && event.detail.key==='clearFailed';}),'blocked deletion informs learner');
   return count;
 }
 test('shared store contracts and durable quota recovery',()=>{
  const source=fs.readFileSync(path.join(__dirname,'../_extensions/ctm-libs/ui/ctm-store.js'),'utf8');
- assert.equal(checkStore(source,assert.ok),26);
+ assert.equal(checkStore(source,assert.ok),32);
 });

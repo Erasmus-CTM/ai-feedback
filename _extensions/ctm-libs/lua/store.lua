@@ -30,7 +30,7 @@ return function(ctm)
     assert(source:match("^[%da-fA-F]+$") and #source == 16, "ctm.ui.exercise source must be the first 16 hex digits of the block's SHA-1")
     local save = saving(spec) and isHTML()
     local entry = {component = spec.component, id = id, source = source, save = save and id ~= "", title = spec.title}
-    entry.quiz = ctm.progress.quizFor(id)
+    entry.quiz = ctm.progress.quizFor(id, source)
     exercises[#exercises + 1] = entry
     if id ~= "" then
       for _, other in ipairs(exercises) do
@@ -46,7 +46,7 @@ return function(ctm)
   function M.exercises() return exercises end
   local function messages()
     local out = {}
-    for _, key in ipairs({"storageUnavailable", "recordTooLarge", "saveOff", "saveOn", "confirmSaveOff", "confirmClearCourse",
+    for _, key in ipairs({"savingNotice", "savingDisabled", "savingOffNotice", "clearFailed", "storageUnavailable", "recordTooLarge", "saveOff", "saveOn", "confirmSaveOff", "confirmClearCourse",
       "sourceChanged", "showSaved", "outdated", "variantChanged", "variantWithdrawn", "statusCorrect", "statusPartial",
       "statusWrong", "statusInvalid", "confirmNewVariant", "progressTitle", "exercise", "correct", "partial", "wrong",
       "unattempted", "total", "exportTitle", "copyAll", "downloadMarkdown", "downloadHTML", "exportClose"}) do
@@ -55,15 +55,15 @@ return function(ctm)
     out.locale = ctm.locale.resolve("ui")
     return out
   end
-  local function bar(export)
-    local buttons = {
+  local function bar(saving, export)
+    local buttons = saving and {
       '<button type="button" data-ctm-clear-page>' .. escape(text("clearPage")) .. '</button>',
       '<button type="button" data-ctm-clear-course>' .. escape(text("clearCourse")) .. '</button>',
       '<button type="button" data-ctm-save-toggle>' .. escape(text("saveOff")) .. '</button>'
-    }
+    } or {}
     if export then buttons[#buttons + 1] = '<button type="button" data-ctm-export>' .. escape(text("exportTitle")) .. '</button>' end
     return pandoc.RawBlock("html", '<!--ctm-save-generated--><div class="ctm-save-bar" role="region" aria-label="'
-      .. escape(text("savingLabel")) .. '" hidden><p>' .. escape(text("savingNotice")) .. '</p><div class="ctm-save-actions">'
+      .. escape(text(saving and "savingLabel" or "exportTitle")) .. '" hidden><p class="ctm-save-notice">' .. escape(text(saving and "savingNotice" or "savingDisabled")) .. '</p><div class="ctm-save-actions">'
       .. table.concat(buttons, "\n") .. '</div><span class="ctm-save-status" role="status" aria-live="polite"></span></div>')
   end
   function M.finalize(doc)
@@ -75,6 +75,7 @@ return function(ctm)
     local quizzes = ctm.progress.finalize(exercises)
     local progress = ctm.settings.bool("ctm-assessment", "progress", {default = false})
     local export = ctm.settings.bool("ctm-assessment", "export", {default = true})
+    if export then ctm.deps.html({name = "ctm-export", scripts = {"ui/ctm-export.js"}}) end
     if progress or #quizzes > 0 then
       ctm.deps.html({name = "ctm-nav", scripts = {"ui/ctm-nav.js"}})
       ctm.deps.html({name = "ctm-progress", scripts = {"ui/ctm-progress.js"}})
@@ -104,7 +105,7 @@ return function(ctm)
     end
     local position = 1
     if blocks[1] and blocks[1].t == "RawBlock" and blocks[1].text:find('class="ctm%-modes"') then position = 2 end
-    if saving or export then blocks:insert(position, bar(export)) end
+    if saving or export then blocks:insert(position, bar(saving, export)) end
     blocks:insert(pandoc.RawBlock("html", '<!--ctm-save-generated--><script type="application/json" id="ctm-store-manifest">' .. json .. '</script>'))
     doc.blocks = blocks
     finalized = true

@@ -70,7 +70,10 @@ CTMLocales.add("ui",
     "copyAll": "Copy all",
     "downloadMarkdown": "Download .md",
     "downloadHTML": "Download .html",
-    "exportClose": "Close"
+    "exportClose": "Close",
+    "savingDisabled": "Saving is off for this page.",
+    "savingOffNotice": "Saving is off on this device for this course.",
+    "clearFailed": "Browser storage could not be cleared or updated. Use your browser settings to remove this course data."
   },
   "de": {
     "readingStep": "Vertiefung",
@@ -132,7 +135,10 @@ CTMLocales.add("ui",
     "copyAll": "Alles kopieren",
     "downloadMarkdown": ".md herunterladen",
     "downloadHTML": ".html herunterladen",
-    "exportClose": "Schließen"
+    "exportClose": "Schließen",
+    "savingDisabled": "Speichern ist für diese Seite ausgeschaltet.",
+    "savingOffNotice": "Speichern ist auf diesem Gerät für diesen Kurs ausgeschaltet.",
+    "clearFailed": "Der Browserspeicher konnte nicht gelöscht oder aktualisiert werden. Entfernen Sie die Kursdaten in den Browsereinstellungen."
   },
   "nb": {
     "readingStep": "Gå i dybden",
@@ -194,7 +200,10 @@ CTMLocales.add("ui",
     "copyAll": "Kopier alt",
     "downloadMarkdown": "Last ned .md",
     "downloadHTML": "Last ned .html",
-    "exportClose": "Lukk"
+    "exportClose": "Lukk",
+    "savingDisabled": "Lagring er slått av for denne siden.",
+    "savingOffNotice": "Lagring er slått av på denne enheten for dette emnet.",
+    "clearFailed": "Nettleserlagringen kunne ikke slettes eller oppdateres. Fjern emnedataene i nettleserinnstillingene."
   },
   "nn": {
     "readingStep": "Gå i djupna",
@@ -256,7 +265,10 @@ CTMLocales.add("ui",
     "copyAll": "Kopier alt",
     "downloadMarkdown": "Last ned .md",
     "downloadHTML": "Last ned .html",
-    "exportClose": "Lukk"
+    "exportClose": "Lukk",
+    "savingDisabled": "Lagring er slått av for denne sida.",
+    "savingOffNotice": "Lagring er slått av på denne eininga for dette emnet.",
+    "clearFailed": "Nettlesarlagringa kunne ikkje slettast eller oppdaterast. Fjern emnedata i nettlesarinnstillingane."
   }
 }
 /*END-JSON*/

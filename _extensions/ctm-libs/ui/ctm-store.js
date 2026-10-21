@@ -80,7 +80,7 @@
       prefs = {v: 1, save: false}; put(prefsKey, JSON.stringify(prefs));
     }
   }
-  function enabled() { configure(); return !(prefs && prefs.save === false); }
+  function enabled() { configure(); prefs = parse(get(prefsKey)); return !(prefs && prefs.save === false); }
   function key(id) { configure(); return pagePrefix + encodeURIComponent(id); }
   function future(record) { return record && Number.isInteger(record.v) && record.v > 1; }
   function cancel(entry) { clearTimeout(entry.timer); entry.timer = null; }
@@ -90,27 +90,41 @@
       if (entry.options.clear) entry.options.clear();
     });
   }
+  function localReadable() {
+    try { return typeof window.localStorage.length === 'number'; } catch (error) { return false; }
+  }
+  function clearFailure() {
+    announce('clearFailed', 'Browser storage could not be cleared or updated. Use your browser settings to remove this course data.');
+  }
   function erase(where) {
-    storage('localStorage', 'keys').forEach(function (name) { if (name.startsWith(where)) remove(name); });
+    var durable = localReadable();
+    storage('localStorage', 'keys').forEach(function (name) {
+      if (name.startsWith(where) && !remove(name)) durable = false;
+    });
+    return durable;
   }
   function clearPage() {
-    configure(); erase(pagePrefix); resetEntries();
-    emit('ctm:store-clear', {course: course, page: page});
+    configure(); var durable = erase(pagePrefix); resetEntries();
+    if (!durable) clearFailure();
+    emit('ctm:store-clear', {course: course, page: page, durable: durable});
+    return durable;
   }
   function deleteCourse(reset) {
-    configure();
+    configure(); var durable = localReadable();
     storage('localStorage', 'keys').forEach(function (name) {
-      if (name.startsWith(prefix) && name !== prefsKey && name !== prefix + '~mode') remove(name);
+      if (name.startsWith(prefix) && name !== prefsKey && name !== prefix + '~mode' && !remove(name)) durable = false;
     });
     storage('sessionStorage', 'remove', seedKey);
     if (reset) resetEntries();
     else entries.forEach(cancel);
-    emit('ctm:store-clear', {course: course});
+    if (!durable) clearFailure();
+    emit('ctm:store-clear', {course: course, durable: durable});
+    return durable;
   }
-  function clearCourse() { deleteCourse(true); }
+  function clearCourse() { return deleteCourse(true); }
   function seed() {
     configure();
-    var kind = enabled() ? 'localStorage' : 'sessionStorage', found = storage(kind, 'get', seedKey);
+    var kind = enabled() && config.save !== false ? 'localStorage' : 'sessionStorage', found = storage(kind, 'get', seedKey);
     if (found) return found;
     var bytes = new Uint8Array(16); window.crypto.getRandomValues(bytes);
     found = Array.prototype.map.call(bytes, function (n) { return n.toString(16).padStart(2, '0'); }).join('');
@@ -120,11 +134,11 @@
   function setEnabled(value) {
     configure(); value = !!value;
     if (!value) deleteCourse(false);
-    prefs = {v: 1, save: value}; put(prefsKey, JSON.stringify(prefs));
-    if (value) {
+    prefs = {v: 1, save: value}; if (!put(prefsKey, JSON.stringify(prefs))) clearFailure();
+    if (value && config.save !== false) {
       var temporary = storage('sessionStorage', 'get', seedKey);
       if (temporary) { put(seedKey, temporary); storage('sessionStorage', 'remove', seedKey); }
-    } else { remove(seedKey); seed(); }
+    } else if (!value) { remove(seedKey); seed(); }
     updateBar(); emit('ctm:store-enabled', {enabled: value}); return value;
   }
   function current(entry) { return entry.options.variant ? entry.options.variant() : null; }
@@ -221,7 +235,7 @@
       emit('ctm:store-clear', {course: course, page: page, id: options.id});
     }
     entry.flush = flush;
-    return {restore: restore, changed: changed, result: result, clear: clear};
+    return {restore: restore, changed: changed, result: result, clear: clear, flush: flush, cancel: function () { cancel(entry); }};
   }
   function cleanup() {
     if (!enabled() || !Array.isArray(config.exercises)) return;
@@ -233,6 +247,9 @@
   function updateBar() {
     var button = document.querySelector('[data-ctm-save-toggle]');
     if (button) button.textContent = enabled() ? text('saveOff', 'Do not save on this device') : text('saveOn', 'Save again');
+    var notice = document.querySelector('.ctm-save-notice');
+    if (notice) notice.textContent = config.save === false ? text('savingDisabled', 'Saving is off for this page.') :
+      enabled() ? text('savingNotice', 'Your answers are saved only in this browser.') : text('savingOffNotice', 'Saving is off on this device for this course.');
   }
   function start() {
     configure(); cleanup(); updateBar();
@@ -251,6 +268,15 @@
       });
     }
   }
+  window.addEventListener('storage', function (event) {
+    configure();
+    if (event.key !== prefsKey) return;
+    if (event.newValue === null) delete memory.localStorage[prefsKey];
+    else memory.localStorage[prefsKey] = event.newValue;
+    prefs = parse(event.newValue);
+    if (prefs && prefs.save === false) entries.forEach(cancel);
+    updateBar(); emit('ctm:store-enabled', {enabled: !(prefs && prefs.save === false)});
+  });
   window.addEventListener('pagehide', function () { entries.forEach(function (entry) { if (entry.timer) entry.flush(); }); });
   window.CTMStore = {
     version: 1, register: register, enabled: enabled, setEnabled: setEnabled, clearPage: clearPage, clearCourse: clearCourse, seed: seed, key: key,
@@ -258,7 +284,7 @@
       return entries.filter(function (entry) { return typeof entry.options.exportItem === 'function'; }).sort(function (a, b) {
         if (!a.options.element || !b.options.element) return 0;
         return a.options.element.compareDocumentPosition(b.options.element) & 2 ? 1 : -1;
-      }).map(function (entry) { return entry.options.exportItem(); }).filter(Boolean);
+      }).map(function (entry) { var item = entry.options.exportItem(); return item ? Object.assign({element: entry.options.element}, item) : null; }).filter(Boolean);
     }
   };
   Object.defineProperties(window.CTMStore, {course: {get: function () { configure(); return course; }}, page: {get: function () { configure(); return page; }}});
