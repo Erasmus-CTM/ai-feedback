@@ -14,6 +14,16 @@
 -- (lua/sections.lua). Pages without the syntax are unchanged, except that a
 -- page with a tabset loads the tab links (ui/ctm-nav.js; ctm-assessment:
 -- tab-links: false turns them off).
+--
+-- For maintainer tools (ctm-assessment's migrate-course-html.py), also outside
+-- a render (docs/api.md), the rules that markdown-lint and the reveals apply:
+--
+--   ctm.ui.rawHTML(lines)            the raw HTML markdown-lint names in one file's lines
+--                                    (ctm.source.read): {{rule = "details" | "anchor" |
+--                                    "iframe" | "switch", line = n, text = …, raw = …}}, in order
+--   ctm.ui.defaultTitle(kind, lang)  the title a reveal of `kind` ("reading-step", "hint",
+--                                    "solution", "details") shows without title=, in `lang`
+--                                    (a language of the ui catalogue: ctm.locale.language("ui", tag))
 return function(ctm)
   local M = {}
 
@@ -33,6 +43,18 @@ return function(ctm)
   local function text(key)
     if not lang then lang = ctm.locale.resolve("ui") end
     return ctm.locale.text("ui", key, lang)
+  end
+
+  function M.defaultTitle(kind, language)
+    local key = DEFAULT_TITLE[kind]
+    if not key then error("ctm.ui.defaultTitle: no reveal kind " .. tostring(kind), 2) end
+    return ctm.locale.text("ui", key, language)
+  end
+
+  -- The kind's default title in the page's language.
+  local function defaultTitle(kind)
+    if not lang then lang = ctm.locale.resolve("ui") end
+    return M.defaultTitle(kind, lang)
   end
 
   -- Where the source writes fenced divs of `class` ("file:line, ..."; only
@@ -122,7 +144,7 @@ return function(ctm)
     local title = markdown(attr.attributes.title)
     if title then return title end
     if kind == "details" then page.untitled = page.untitled + 1 end
-    return pandoc.Inlines(text(DEFAULT_TITLE[kind]))
+    return pandoc.Inlines(defaultTitle(kind))
   end
 
   -- ::: {.embed src="…" title="…" height="920px"} becomes an iframe; its
@@ -206,7 +228,7 @@ return function(ctm)
       fail('A .solution block has both title= and a name (name="…", or a heading as its first block, which Quarto '
         .. "takes as the name): use one (" .. places("solution") .. ").")
     end
-    title = title or (#name > 0 and name) or pandoc.Inlines(text("solution"))
+    title = title or (#name > 0 and name) or pandoc.Inlines(defaultTitle("solution"))
     page.reveals = page.reveals + 1
     local attr = pandoc.Attr(proof.identifier or "", div.classes, div.attributes)
     return reveal("solution", attr, title, div.content)
@@ -255,19 +277,31 @@ return function(ctm)
       advice = "a hand-written lecture/reading switch (data-learning-mode, %s): remove it. Pages with "
         .. ".reading-step blocks get the switch; ::: {.modes} places it."},
   }
-  local function lint(meta)
+  -- The rules' state is per file.
+  function M.rawHTML(lines)
     local found, states = {}, {}
-    ctm.source.scan(function(line, file, number)
-      local lower = line:lower()
-      for _, rule in ipairs(LINT) do
-        local key = rule.name .. "|" .. file.path
-        states[key] = states[key] or {}
-        if rule.find(lower, states[key]) then
-          found[rule.name] = found[rule.name] or {}
-          table.insert(found[rule.name], file.label .. ":" .. number)
+    for number, line in ipairs(ctm.source.read(lines)) do
+      if line and line.text:match("%S") then
+        local lower = line.text:lower()
+        for _, rule in ipairs(LINT) do
+          states[rule.name] = states[rule.name] or {}
+          if rule.find(lower, states[rule.name]) then
+            found[#found + 1] = {rule = rule.name, line = number, text = line.text, raw = line.raw}
+          end
         end
       end
-    end)
+    end
+    return found
+  end
+
+  local function lint(meta)
+    local found = {}
+    for _, file in ipairs(ctm.source.files()) do
+      for _, hit in ipairs(M.rawHTML(file.lines)) do
+        found[hit.rule] = found[hit.rule] or {}
+        table.insert(found[hit.rule], file.label .. ":" .. hit.line)
+      end
+    end
     for _, rule in ipairs(LINT) do
       local where = found[rule.name]
       if where then
@@ -279,7 +313,7 @@ return function(ctm)
     end
     if page.untitled > 0 then
       quarto.log.warning("markdown-lint: .details without a title (" .. places("details", "title") .. ') shows "'
-        .. text("details") .. '": say what it holds with ::: {.details title="…"}.')
+        .. defaultTitle("details") .. '": say what it holds with ::: {.details title="…"}.')
     end
     if page.tabsets > 0 and meta["ctm-tab-ids"] == nil then
       quarto.log.warning("markdown-lint: " .. ctm.source.pageName() .. " has tabsets, but Quarto drops the ids of "

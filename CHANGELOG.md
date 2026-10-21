@@ -46,8 +46,10 @@
   scrolls the target into view below the header, keeps it there while the
   page settles, and focuses it. The browser's own jump to the fragment, which
   WebKit makes late on a busy page, lands there too, also after the tab row
-  or the header reflows: a tab title's tab row stays in view. A link wins over a grouped tabset's
-  remembered tab without changing it. A reload returns to where the reader
+  or the header reflows: a tab title's tab row stays in view, and the focus
+  stays where the link put it (that jump leaves nothing focused when its
+  target cannot take focus, such as a tab title's). A link wins over a
+  grouped tabset's remembered tab without changing it, and keeps the focus. A reload returns to where the reader
   was, or, before the reader has scrolled, typed, clicked or touched, follows
   the link again: so does the reload with which coi-serviceworker makes a
   learner's first visit cross-origin isolated (hosts without COOP/COEP
@@ -132,6 +134,16 @@
   too, resolved as Quarto resolves them, for messages that name a file and
   line). In the browser: `CTMNav.reveal(element)` and
   `CTMReveal`. A new catalogue, `ui`, has en, de, nb and nn.
+- **For maintainer tools, what markdown-lint and the reveals read**
+  (additive; no change to a page or a warning): `ctm.source.read(lines)`
+  (one file's lines as the lint reads them: Markdown text without inline
+  code and comments, or code, front matter and fences),
+  `ctm.ui.rawHTML(lines)` (the raw HTML the lint names, by rule and line)
+  and `ctm.ui.defaultTitle(kind, lang)` (a reveal's title without
+  `title=`). `ctm.source.scan`, `markdown-lint` and the reveals' titles use
+  them, so there is one implementation. They need no page: CTM Assessment's
+  course converter runs them with `quarto pandoc lua` (docs/api.md, "Outside
+  a render") instead of keeping a copy of these rules.
 - `ctm.policy.withoutAI({component, kind, name, text, lang})`: a component
   asks about each of its exercises without a static check and gets nil (AI
   feedback on), `{action = "text", note}` or `{action = "drop"}`; ctm-libs

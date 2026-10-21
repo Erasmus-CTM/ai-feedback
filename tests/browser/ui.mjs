@@ -782,6 +782,42 @@ async function slowLoads(browser, base, name) {
   await done(session, name);
 }
 
+// The browser's own jump to the fragment also runs the focusing steps of
+// "scroll to the fragment" (HTML): a target that cannot take focus, with the
+// viewport as fallback, leaves nothing focused. WebKit makes that jump late,
+// after the script has focused the target (CTM Assessment's preview of
+// ingmat3a's linalg-branch, uke3: "focus not in view: BODY"). Imitated in
+// every engine: while the page settles, the focus goes back where the script
+// put it; once the reader has clicked, it stays where the reader put it.
+function jumpAndFocus(page, id) {
+  return page.evaluate(id => {
+    const target = document.getElementById(id);
+    target.scrollIntoView({block: 'start', behavior: 'instant'});
+    if (!target.hasAttribute('tabindex') && !target.matches('a[href], button, input, select, textarea, summary')) document.activeElement?.blur();
+  }, id);
+}
+async function jumpFocus(browser, base, name) {
+  const session = await newPage(browser, base), {page} = session;
+  for (const [url, id] of [['long.html#long-del3', 'long-del3'], ['index.html#eks-3', 'eks-3'], ['index.html#anchor-b', 'anchor-b']]) {
+    await open(page, base + url);
+    const before = await state(page, id);
+    await jumpAndFocus(page, id);
+    await page.waitForTimeout(150);
+    const after = await state(page, id);
+    const label = name + ' ' + url + ' ' + JSON.stringify({before: before.focus, after: after.focus, trace: after.trace});
+    assert.notEqual(before.focus, 'BODY', label + ': focused on load');
+    assert.equal(after.focus, before.focus, label + ': the focus is back after the browser\'s jump');
+    assert.ok(after.focusTopInView, label + ': in view');
+  }
+  // The reader clicked the page's text: a later blur is the reader's.
+  await open(page, base + 'long.html#long-del3');
+  await page.mouse.click(5, 790);
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.waitForTimeout(150);
+  assert.equal((await state(page, 'long-del3')).focus, 'BODY', name + ': after the reader clicked, nothing takes the focus back');
+  await done(session, name);
+}
+
 // Tab titles of a tabset below the fold on a heavy page (long.qmd; ingmat3a's
 // uke3 and page4): typed, and from another page. From when the script has
 // handled the link, the tab row stays below the header and in view, at
@@ -1005,7 +1041,7 @@ try {
     const browser = await playwright[name].launch(options);
     try {
       // Each check on its own, so that one run reports every failure.
-      for (const check of [loads, inPage, otherPage, withoutTabs, pinned, slowLoads, deepTabs, firstVisit, groups, reveals, colours]) {
+      for (const check of [loads, inPage, otherPage, withoutTabs, pinned, slowLoads, deepTabs, jumpFocus, firstVisit, groups, reveals, colours]) {
         try {
           await check(browser, base, name);
           console.log('ok', name, check.name);
