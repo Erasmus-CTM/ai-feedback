@@ -83,8 +83,6 @@ def expected_files(version):
                         text, path, re.S)
 
     update(FEEDBACK / 'ai-feedback.js', interface)
-    update(ROOT / '_extensions' / 'ai-feedback' / '_extension.yml',
-           lambda text, path: sub_once(r'^version:.*$', f'version: {version}', text, path, re.M))
     # The forwarder pyodide-interaktiv ships (step 3, E9 (ii)).
     update(ROOT / 'templates' / 'ai-feedback' / '_extension.yml',
            lambda text, path: sub_once(r'^version:.*$', f'version: {version}', text, path, re.M))

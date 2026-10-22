@@ -7,18 +7,16 @@ const {spawnSync} = require('node:child_process');
 const repository = path.join(__dirname, '..', '..');
 const extensions = path.join(repository, '_extensions');
 const library = path.join(extensions, 'ctm-libs');
-const alias = path.join(extensions, 'ai-feedback');
 const feedback = path.join(library, 'feedback');
 const bootstrap = path.join(repository, 'bootstrap', 'ctm-bootstrap.lua');
 const quarto = process.env.QUARTO_BIN || 'quarto';
 const hasQuarto = !spawnSync(quarto, ['--version']).error;
 
-// Copies ctm-libs (and the ai-feedback alias) into `<dir>/_extensions[/<owner>]`,
+// Copies ctm-libs into `<dir>/_extensions[/<owner>]`,
 // as `quarto add` does: it installs every extension of the repository.
-function install(dir, {owner = '', withAlias = true} = {}) {
+function install(dir, {owner = ''} = {}) {
   const target = path.join(dir, '_extensions', owner);
   fs.cpSync(library, path.join(target, 'ctm-libs'), {recursive: true});
-  if (withAlias) fs.cpSync(alias, path.join(target, 'ai-feedback'), {recursive: true});
   return target;
 }
 
@@ -81,5 +79,5 @@ function probe(name, code) {
   return '\n```{.ctm-probe #' + name + '}\n' + code + '\n```\n';
 }
 
-module.exports = {repository, extensions, library, alias, feedback, bootstrap, quarto, hasQuarto,
+module.exports = {repository, extensions, library, feedback, bootstrap, quarto, hasQuarto,
   install, installProbe, installPackage, version, setVersion, tempdir, write, render, html, probes, probe};

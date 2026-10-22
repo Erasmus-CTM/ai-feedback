@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Remove the ai-feedback extension alias and the metadata bridge for
+  pyodide-interaktiv 1.8 (consolidation L3x). Install CTM Assessment and list
+  `ctm-assessment`, or use standalone pyodide-interaktiv 1.9 or later.
+  The generated forwarder template stays; stale ai-feedback 0.8.1 folders
+  still trigger the migration message when listed beside CTM components.
+
+
 ### Added for components
 
 - **ctm-checkers' STACK engine** (ctm-checkers 0.2, consolidation step 2):

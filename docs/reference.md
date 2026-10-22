@@ -243,7 +243,7 @@ allowed ones. Builds with AI feedback do not use `without-ai`.
 The package lists `ctm-libs-end.lua` after every component: it prints the
 page's build message, or raises the error, once every exercise of the page is
 known. Where it is not listed (component development builds,
-`filters: [ai-feedback]`), the error comes as soon as ctm-libs meets such an
+`filters: [ctm-libs]`), the error comes as soon as ctm-libs meets such an
 exercise. Where it runs before another CTM filter, a build without AI
 feedback stops and names the expected order; a build with AI feedback goes
 on as before, with a build warning that names it.
@@ -255,24 +255,11 @@ selection and the learning context); a cell with `#| task:` stays a runnable
 cell and does not count as an exercise only AI feedback can assess. The build
 message names a page's Pyodide cells only under an explicit
 `pyodide: feedback: true` (pyodide-interaktiv's own default is no request, as
-math-exercise's `feedback: auto`), once. pyodide-interaktiv 1.8 reads its own
-`pyodide: feedback`; ctm-libs sets it to false when its filter runs before
-pyodide-interaktiv's (the package order, or
-`filters: [ai-feedback, pyodide-interaktiv]`). Components released before
-CTM Assessment 0.9 do not know the switch when they run outside the package:
-ctm-libs still writes none of its own feedback scripts, configuration,
-policies or context, but the older components keep their own feedback code
-and fields. pyodide-interaktiv 1.8 listed before ctm-libs
-(`filters: [pyodide-interaktiv, ai-feedback]`) keeps
-`qpyodideFeedbackOptions` enabled, its feedback script and its cells'
-`#| task:` text; math-exercise 0.9 keeps its Feedback and settings buttons and
-`data-feedback-policy`; py-exercise 0.3 keeps `feedback: true` in its
-configuration, its exercises' task, feedback language and (empty) policy and
-context fields, and its feedback script. Their Feedback buttons are disabled
-by their own scripts, with a note that ai-feedback is missing, and no build
-message names them. A clean site without AI feedback needs the package
-(`filters: [ctm-assessment]`): its order runs ctm-libs first, and its
-components know the switch.
+math-exercise's `feedback: auto`), once.
+
+Use CTM Assessment or standalone pyodide-interaktiv 1.9 or later for builds
+without AI feedback. Older standalone components do not implement the
+shared switch; update them instead of relying on filter order.
 
 ## Author text, translation and image tasks
 
