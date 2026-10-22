@@ -79,6 +79,8 @@
       const total = document.createElement("p");
       total.className = "ctm-progress-total";
       const list = document.createElement("ol");
+      // Keep list semantics when native markers are hidden in WebKit.
+      list.setAttribute("role", "list");
       items.forEach(e => {
         const li = document.createElement("li"), button = document.createElement("button");
         button.type = "button";

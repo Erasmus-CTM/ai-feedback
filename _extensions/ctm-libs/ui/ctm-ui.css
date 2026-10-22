@@ -140,7 +140,7 @@ details.ctm-reveal.details[open] > summary::before { transform: rotate(45deg); }
 }
 .ctm-save-status {display:block;margin-top:.5rem;}
 .ctm-save-status:empty {margin:0;}
-.ctm-progress ol {display:flex;flex-wrap:wrap;gap:.5rem;padding-left:1.5rem;}
+.ctm-progress ol {display:flex;flex-wrap:wrap;gap:.5rem;list-style:none;padding-left:0;}
 .ctm-progress-outdated, .ctm-saved-result {opacity:.65;}
 .ctm-export-view textarea, .ctm-copy-dialog textarea {display:block;box-sizing:border-box;width:100%;margin-top:1rem;font-family:monospace;}
 .ctm-copy-dialog {width:min(90vw,55rem);}

@@ -60,7 +60,7 @@ test('unset: one error per page names every such exercise, also the components\'
     assert.equal(r.stderr.match(/that only AI feedback can assess/g).length, 1, 'one error');
     assert.doesNotMatch(r.stderr, /left out on this page|shown as text/);
   });
-  // Without the end filter (component development builds, filters: [ai-feedback]) the stop comes at once.
+  // Without the end filter (component development builds, filters: [ctm-libs]) the stop comes at once.
   withProject({'page.qmd': page()}, dir => {
     const r = C.render(dir, ['page.qmd'], OFF);
     assert.notEqual(r.status, 0);

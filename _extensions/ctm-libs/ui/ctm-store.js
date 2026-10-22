@@ -99,9 +99,14 @@
   function key(id) { configure(); return pagePrefix + encodeURIComponent(id); }
   function future(record) { return record && Number.isInteger(record.v) && record.v > 1; }
   function cancel(entry) { clearTimeout(entry.timer); entry.timer = null; }
+  // The store owns entry scope; adapters only discard cached persistence state.
+  function forget(entry) {
+    cancel(entry); entry.lastResult = null; entry.lastChecked = null; entry.outdated = false;
+    if (entry.options.forget) entry.options.forget();
+  }
   function resetEntries() {
     entries.forEach(function (entry) {
-      cancel(entry); entry.lastResult = null; entry.lastChecked = null;
+      forget(entry);
       if (entry.options.clear) entry.options.clear();
     });
   }
@@ -134,8 +139,9 @@
         if (entry.id !== command.id || !componentMatches({component: entry.options.component})) return;
         if (ambiguous && command.runtimeId && entry.runtimeExplicit && entry.runtimeId !== command.runtimeId) return;
       }
-      cancel(entry); entry.lastResult = null; entry.lastChecked = null;
       if (entry.id) { delete memory.localStorage[key(entry.id)]; delete dirty.localStorage[key(entry.id)]; }
+      forget(entry);
+      if (command.reset === true && entry.options.clear) entry.options.clear();
       if (command.scope === 'exercise') emit('ctm:store-clear', {
         course: course, page: page, id: entry.id, runtimeId: entry.runtimeId, component: entry.options.component
       });
@@ -144,8 +150,8 @@
       course: course, page: command.scope === 'course' ? undefined : page
     });
   }
-  function sendClear(scope, id, runtimeId, component) {
-    var command = {v: 1, scope: scope, page: page, id: id, runtimeId: runtimeId, component: component, nonce: Date.now() + ':' + Math.random()};
+  function sendClear(scope, id, runtimeId, component, reset) {
+    var command = {v: 1, scope: scope, page: page, id: id, runtimeId: runtimeId, component: component, reset: reset === true, nonce: Date.now() + ':' + Math.random()};
     if (clearChannel) {
       try { clearChannel.postMessage(command); return true; } catch (error) { /* storage-event fallback */ }
     }
@@ -155,7 +161,7 @@
   }
   function clearPage() {
     configure(); var durable = erase(pagePrefix); resetEntries();
-    if (!sendClear('page')) durable = false;
+    if (!sendClear('page', undefined, undefined, undefined, true)) durable = false;
     if (!durable) clearFailure();
     emit('ctm:store-clear', {course: course, page: page, durable: durable});
     return durable;
@@ -167,8 +173,8 @@
     });
     storage('sessionStorage', 'remove', seedKey);
     if (reset) resetEntries();
-    else entries.forEach(cancel);
-    if (!sendClear('course')) durable = false;
+    else entries.forEach(forget);
+    if (!sendClear('course', undefined, undefined, undefined, reset)) durable = false;
     if (!durable) clearFailure();
     emit('ctm:store-clear', {course: course, durable: durable});
     return durable;
@@ -290,10 +296,10 @@
       emit('ctm:result', {component: options.component, id: entry.id, runtimeId: entry.runtimeId, score: detail.score, status: detail.status, variant: detail.variant || current(entry)});
     }
     function clear() {
-      cancel(entry); entry.lastResult = null; entry.lastChecked = null;
       var durable = entry.id ? remove(key(entry.id)) : true;
+      forget(entry);
       if (options.clear) options.clear();
-      if (entry.id && !sendClear('exercise', entry.id, entry.runtimeExplicit ? entry.runtimeId : undefined, options.component)) durable = false;
+      if (entry.id && !sendClear('exercise', entry.id, entry.runtimeExplicit ? entry.runtimeId : undefined, options.component, true)) durable = false;
       if (!durable) clearFailure();
       emit('ctm:store-clear', {course: course, page: page, id: entry.id, runtimeId: entry.runtimeId, durable: durable});
       return durable;
@@ -337,25 +343,25 @@
     if (event.key === clearKey) { if (event.newValue) receiveClear(parse(event.newValue)); return; }
     if (event.key === null) {
       memory.localStorage = {}; dirty.localStorage = {};
-      entries.forEach(function (entry) { cancel(entry); entry.lastResult = null; entry.lastChecked = null; });
+      entries.forEach(forget);
       updateBar(); emit('ctm:store-clear', {course: course}); return;
     }
     if (event.key.startsWith(prefix)) {
       if (event.newValue === null) delete memory.localStorage[event.key];
       else memory.localStorage[event.key] = event.newValue;
       delete dirty.localStorage[event.key];
-      if (event.newValue === null && event.key.startsWith(pagePrefix)) {
+      if (event.key.startsWith(pagePrefix)) {
         entries.forEach(function (entry) {
           if (entry.id && key(entry.id) === event.key) {
-            cancel(entry); entry.lastResult = null; entry.lastChecked = null;
-            emit('ctm:store-clear', {course: course, page: page, id: entry.id, runtimeId: entry.runtimeId});
+            forget(entry);
+            if (event.newValue === null) emit('ctm:store-clear', {course: course, page: page, id: entry.id, runtimeId: entry.runtimeId});
           }
         });
       }
     }
     if (event.key !== prefsKey) return;
     prefs = parse(event.newValue);
-    if (prefs && prefs.save === false) entries.forEach(cancel);
+    if (prefs && prefs.save === false) entries.forEach(forget);
     updateBar(); emit('ctm:store-enabled', {enabled: !(prefs && prefs.save === false)});
   });
   window.addEventListener('pagehide', function () { entries.forEach(function (entry) { if (entry.timer) entry.flush(); }); });

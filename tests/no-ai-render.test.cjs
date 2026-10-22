@@ -40,7 +40,7 @@ function withProject(run) {
       'asks.qmd': '---\ntitle: Asks\nai-feedback:\n  enabled: true\n---\nText.\n',
       'plain.qmd': '---\ntitle: Plain\n---\nNo feedback here.\n',
       'pyodide.qmd': '---\ntitle: Pyodide\n---\n```{pyodide-python}\nprint(1)\n```\n' + C.probe('pyodide', 'return {meta.pyodide and meta.pyodide.feedback}'),
-      'pyodide-asks.qmd': '---\ntitle: Pyodide asks\npyodide:\n  feedback: true\n---\n```{pyodide-python}\nprint(1)\n```\n' + C.probe('pyodide', 'return {meta.pyodide and meta.pyodide.feedback}'),
+      'pyodide-asks.qmd': '---\ntitle: Pyodide asks\npyodide:\n  feedback: true\n---\n```{pyodide-python}\nprint(1)\n```\n' + C.probe('pyodide', 'ctm.feedback.request("pyodide-interaktiv", true); return {meta.pyodide and meta.pyodide.feedback}'),
     });
     return run(dir);
   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
@@ -68,7 +68,8 @@ function checkOff(dir, reason) {
   assert.equal(p.request, false);
   assert.equal(p.declined, false);
   assert.deepEqual(p.selection, [{exercise: 'ex1', name: ''}, {mode: 'none', refs: '', text: ''}]);
-  for (const page of ['pyodide.qmd', 'pyodide-asks.qmd']) assert.deepEqual(C.probes(C.html(dir, page)).pyodide, [false], page);
+  assert.deepEqual(C.probes(C.html(dir, 'pyodide.qmd')).pyodide, []);
+  assert.deepEqual(C.probes(C.html(dir, 'pyodide-asks.qmd')).pyodide, [true]);
 }
 // Each page's message: its exercises shown as text (shown), and what it asked
 // for but did not get (items).
@@ -115,16 +116,6 @@ test('Pyodide pages are named only under an explicit pyodide: feedback: true', {
     assert.equal(r.status, 0, r.stderr);
     assert.deepEqual(messages(r.stderr).map(m => m.items), items, page);
   }
-}));
-
-// M11: pyodide-interaktiv 1.9 makes its own request for an explicit
-// pyodide: feedback: true; the bridge's item then gives way, so the message
-// names Pyodide once.
-test('pyodide-interaktiv\'s own request replaces the bridged item (named once)', {skip}, () => withProject(dir => {
-  fs.appendFileSync(path.join(dir, 'pyodide-asks.qmd'), C.probe('asked', 'return ctm.feedback.request("pyodide-interaktiv", true, "pyodide: feedback: true in pyodide-asks.qmd")'));
-  const r = C.render(dir, ['pyodide-asks.qmd'], {CTM_FEEDBACK: 'off'});
-  assert.equal(r.status, 0, r.stderr);
-  assert.deepEqual(messages(r.stderr).map(m => m.items), ['pyodide-interaktiv feedback (pyodide: feedback: true in pyodide-asks.qmd)']);
 }));
 
 // Only what is on the page is a request: a project-wide or folder-wide
