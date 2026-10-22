@@ -22,25 +22,20 @@ found without the package stops the render with this install command.
 AI feedback activities (`.ai-feedback` blocks), their settings (`ai-feedback:`)
 and the teaching policies work as before; see the [reference](reference.md).
 
-## Projects set up for ai-feedback (0.9.x)
+## Projects set up for ai-feedback
 
-ai-feedback is now a part of ctm-libs. For one release the repository keeps a
-thin `ai-feedback` extension, so older setups keep building:
+The renamed repository now installs ctm-libs only. Install CTM Assessment
+with the command above and use `filters: [ctm-assessment]`.
+On a fresh installation, `filters: [ai-feedback]` fails with Quarto's
+extension-not-found error.
 
-- `quarto add Erasmus-CTM/ai-feedback` still works: GitHub redirects the
-  renamed repository, and Quarto installs both of its extensions,
-  `_extensions/Erasmus-CTM/ctm-libs` and `_extensions/Erasmus-CTM/ai-feedback`.
-- `filters: [ai-feedback]` renders AI feedback activities as before, with one
-  build warning: use `filters: [ctm-assessment]`.
-- Components released before the consolidation (math-exercise 0.9,
-  py-exercise 0.3, pyodide-interaktiv 1.8) load the alias's
-  `feedback-quarto.lua`, which hands them ctm-libs' feedback module.
-- An old standalone ai-feedback (0.8) listed next to the package or next to
-  pyodide-interaktiv 1.9 stops the page: a page uses one version. Remove
-  `ai-feedback` from `filters:` and delete the old folder.
+Quarto does not remove folders left by earlier installations. Remove
+`ai-feedback` from `filters:` and delete its old folder. Listing a stale
+standalone ai-feedback 0.8.1 next to CTM Assessment stops the page with a
+migration message, because a page must use one feedback implementation.
 
-The alias goes once the package ships pyodide-interaktiv 1.9, which brings
-ctm-libs itself (consolidation step 3).
+For standalone pyodide-interaktiv, install 1.9 or later as described below.
+It ships its own generated forwarder for projects set up for 1.8.
 
 ## pyodide-interaktiv on its own
 

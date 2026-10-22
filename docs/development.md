@@ -22,10 +22,9 @@ _extensions/ctm-libs/            the library (authors never list it; the package
   feedback/                      AIFeedback browser files, feedback-defaults.yml
   runtime/pyodide-runtime.js     MathExerciseRuntime
   locales/                       ctm-locale.js (CTMLocales) and the message catalogues
-_extensions/ai-feedback/         alias for 0.9.x (feedback-quarto.lua, ai-feedback.lua)
 bootstrap/ctm-bootstrap.lua      the file every component copies
 scripts/                         sync-feedback-defaults.py, check-locales.py, capture-legacy-locales.mjs
-tests/                           npm test; tests/legacy (CI job with the old components)
+tests/                           npm test
 ```
 
 ## Tests
@@ -65,11 +64,6 @@ CI (`.github/workflows`):
   another for review, read by the umbrella's
   `tools/ci/review-dependencies.py` at the pinned umbrella commit);
 - `example.yml`: renders `example.qmd`;
-- `legacy-consumers.yml`: the components as merged before the consolidation
-  (math-exercise `bf6caf3`, py-exercise `c14c5f4`) and pyodide-interaktiv
-  1.8 (`8a16aa7`) render through the ai-feedback alias; pyodide-interaktiv's
-  own tests run with `AI_FEEDBACK_EXTENSION=_extensions/ctm-libs/feedback`;
-  `quarto add Erasmus-CTM/ai-feedback@<branch>` still installs both extensions;
 - `browser.yml`: the runtime loads Pyodide from jsDelivr in Chromium; the
   page's interface (`tests/browser/ui.mjs`: links into tabs and reveals, the
   switch, printing) on a rendered site, in Chromium, Firefox and WebKit.
@@ -88,14 +82,13 @@ package it builds.
 - the interface strings of `feedback/ai-feedback.js` from
   `locales/feedback.js` (that file stays self-contained: pyodide-interaktiv
   1.8's tests load the three feedback files without a locale runtime);
-- the version, from `_extensions/ctm-libs/_extension.yml`, in the alias
-  manifest, the `VERSION` of `feedback-core.js`, `package.json` and
+- the version, from `_extensions/ctm-libs/_extension.yml`, in the forwarder
+  template manifest, the `VERSION` of `feedback-core.js`, `package.json` and
   `package-lock.json`.
 
 `--check` fails when one of them differs. For a release, change the version
-in `_extensions/ctm-libs/_extension.yml` and run the script. The alias must
-have ctm-libs' version: older components' loaders compare its manifest with
-the version ctm-libs registers.
+in `_extensions/ctm-libs/_extension.yml` and run the script. The forwarder
+manifest keeps ctm-libs' version.
 
 ## Messages
 
@@ -148,21 +141,6 @@ its copy of ctm-libs (its `scripts/sync-ctm-libs.py` copies it): three files,
 `feedback-quarto.lua` for older loaders. Its manifest carries ctm-libs'
 version (the sync script below). It is no extension of this repository.
 
-## What older consumers rely on (until the alias goes)
-
-pyodide-interaktiv 1.8 and the components released before the consolidation
-load `_extensions/ai-feedback/feedback-quarto.lua` through their
-`feedback-loader.lua`. They need:
-
-- that file name, in a folder `ai-feedback` next to `ctm-libs`;
-- the alias manifest's version equal to ctm-libs' version (they compare it
-  with `_G.__ctmAiFeedbackInstallation`, which `lua/feedback.lua` registers);
-- the module's `prepare`, `markCallout`, `selection` and `context`, and the
-  browser API of `AIFeedback` (`version`, `attach`, `settingsButton`,
-  `openSettings`, `buildSettings`, `contextMaterials`, `locales`, …).
-
-`legacy-consumers.yml` checks all of this.
-
 ## Python runtime
 
 `runtime/pyodide-runtime.js` names the Pyodide version (`indexURL`), the one
@@ -177,8 +155,6 @@ parity run over the courses (T13); it goes in a commit of its own. CI's
 native checks use the SymPy version that Pyodide ships.
 
 `runtime/pyodide-worker.js` (CTMWorker) came from pyodide-interaktiv 1.8's
-`qpyodide-document-engine-initialization.js`; `.github/workflows/moved-worker.yml`
-shows how the moved blocks differ from 1.8 (a one-off check, removed with the
-alias). Its tests: `tests/worker*.test.cjs` with a fake Pyodide and network,
+`qpyodide-document-engine-initialization.js`. Its tests: `tests/worker*.test.cjs` with a fake Pyodide and network,
 and `tests/browser/worker.mjs` in Chromium with real Pyodide (needs the
 network or `PYODIDE_DIST`, a folder with the distribution's files).

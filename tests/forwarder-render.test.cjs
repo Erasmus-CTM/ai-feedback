@@ -15,7 +15,7 @@ function withProject(setup, run) {
 }
 // pyodide-interaktiv's layout after `quarto add`: ctm-libs and the forwarder under the owner folder.
 function installStandalone(dir) {
-  C.install(dir, {owner: 'Erasmus-CTM', withAlias: false});
+  C.install(dir, {owner: 'Erasmus-CTM'});
   fs.cpSync(TEMPLATE, path.join(dir, '_extensions', 'Erasmus-CTM', 'ai-feedback'), {recursive: true});
 }
 

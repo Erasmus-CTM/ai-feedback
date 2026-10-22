@@ -1,6 +1,6 @@
 -- ctm-libs: the internal library of CTM Assessment. This file returns the
 -- page's instance; every filter of the page (ctm-libs.lua, the components'
--- ctm-bootstrap.lua, the ai-feedback alias) gets the same one, because
+-- ctm-bootstrap.lua, the standalone forwarder) gets the same one, because
 -- filters share Lua globals. Modules (settings, locale, deps, runtime,
 -- feedback, policy, sections, source, ui) load on first use: ctm.<module>.
 --
@@ -57,13 +57,13 @@ setmetatable(ctm, {__index = function(self, name)
   return module
 end})
 
--- The passes of the ctm-libs filter (ctm-libs.lua and the ai-feedback alias):
+-- The passes of the ctm-libs filter (ctm-libs.lua and the standalone forwarder):
 -- settings, callouts, the page's interface (reveals, the switch, embeds, tab
 -- links: lua/ui.lua), then AI feedback's preparation, which sees reveals as
 -- the <details> scopes they become.
 function ctm.filters()
   local filters = {
-    {Meta = function(meta) ctm.settings.load(meta); return ctm.feedback.bridge(meta) end},
+    {Meta = function(meta) ctm.settings.load(meta) end},
     {Callout = function(c) return ctm.feedback.markCallout(c) end},
   }
   for _, pass in ipairs(ctm.ui.passes()) do filters[#filters + 1] = pass end
