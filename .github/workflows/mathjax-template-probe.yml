@@ -1,0 +1,33 @@
+name: Probe the actual MathJax template
+on:
+  push:
+    branches: [consolidation/2026-10-mathjax-render-probe]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - uses: quarto-dev/quarto-actions/setup@v2
+        with:
+          version: '1.8.27'
+      - run: npm ci --ignore-scripts
+      - run: node --check tests/mathjax-template.probe.cjs
+      - name: Compare actual baseline and metadata-only rendered output
+        env:
+          CTM_MATHJAX_PROBE_DIR: ${{ runner.temp }}/mathjax-template-probe
+        run: node tests/mathjax-template.probe.cjs
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: mathjax-template-probe-${{ github.sha }}
+          path: ${{ runner.temp }}/mathjax-template-probe
+          if-no-files-found: error
