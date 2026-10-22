@@ -135,6 +135,7 @@
         if (ambiguous && command.runtimeId && entry.runtimeExplicit && entry.runtimeId !== command.runtimeId) return;
       }
       cancel(entry); entry.lastResult = null; entry.lastChecked = null;
+      if (command.reset === true && entry.options.clear) entry.options.clear();
       if (entry.id) { delete memory.localStorage[key(entry.id)]; delete dirty.localStorage[key(entry.id)]; }
       if (command.scope === 'exercise') emit('ctm:store-clear', {
         course: course, page: page, id: entry.id, runtimeId: entry.runtimeId, component: entry.options.component
@@ -144,8 +145,8 @@
       course: course, page: command.scope === 'course' ? undefined : page
     });
   }
-  function sendClear(scope, id, runtimeId, component) {
-    var command = {v: 1, scope: scope, page: page, id: id, runtimeId: runtimeId, component: component, nonce: Date.now() + ':' + Math.random()};
+  function sendClear(scope, id, runtimeId, component, reset) {
+    var command = {v: 1, scope: scope, page: page, id: id, runtimeId: runtimeId, component: component, reset: reset === true, nonce: Date.now() + ':' + Math.random()};
     if (clearChannel) {
       try { clearChannel.postMessage(command); return true; } catch (error) { /* storage-event fallback */ }
     }
@@ -155,7 +156,7 @@
   }
   function clearPage() {
     configure(); var durable = erase(pagePrefix); resetEntries();
-    if (!sendClear('page')) durable = false;
+    if (!sendClear('page', undefined, undefined, undefined, true)) durable = false;
     if (!durable) clearFailure();
     emit('ctm:store-clear', {course: course, page: page, durable: durable});
     return durable;
@@ -168,7 +169,7 @@
     storage('sessionStorage', 'remove', seedKey);
     if (reset) resetEntries();
     else entries.forEach(cancel);
-    if (!sendClear('course')) durable = false;
+    if (!sendClear('course', undefined, undefined, undefined, reset)) durable = false;
     if (!durable) clearFailure();
     emit('ctm:store-clear', {course: course, durable: durable});
     return durable;
@@ -293,7 +294,7 @@
       cancel(entry); entry.lastResult = null; entry.lastChecked = null;
       var durable = entry.id ? remove(key(entry.id)) : true;
       if (options.clear) options.clear();
-      if (entry.id && !sendClear('exercise', entry.id, entry.runtimeExplicit ? entry.runtimeId : undefined, options.component)) durable = false;
+      if (entry.id && !sendClear('exercise', entry.id, entry.runtimeExplicit ? entry.runtimeId : undefined, options.component, true)) durable = false;
       if (!durable) clearFailure();
       emit('ctm:store-clear', {course: course, page: page, id: entry.id, runtimeId: entry.runtimeId, durable: durable});
       return durable;

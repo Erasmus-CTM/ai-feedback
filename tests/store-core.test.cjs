@@ -158,9 +158,40 @@ function checkStore(source, assert) {
   oa.result({status:'correct',score:1});nb.result({status:'correct',score:1});na.result({status:'partial',score:.5});oa.clear();
   ok(newOrder.store.exportItems()[0].parts.length===2 && newOrder.store.exportItems()[1].parts.length===1,'cross-version ordinal collision clears stable label A and preserves unrelated B');
   ok(newOrder.events.some(function(event){return event.type==='ctm:store-clear' && event.detail.id==='A' && event.detail.runtimeId==='r2';}),'cross-version clear emits receiving entry actual runtime identity');
+
+  var intentConfig={course:'explicit-clear-intent'},intentA=setup(intentConfig,null,null,false,Channel),intentB=setup(intentConfig,null,null,false,Channel);
+  var liveInput='pending',remoteClears=0,remoteReads=0;
+  var intentHandle=intentB.register({
+    read:function(){remoteReads++;return {code:liveInput};},
+    clear:function(){remoteClears++;liveInput='';}
+  });
+  intentHandle.changed();intentA.store.clearPage();intentB.runTimers();
+  ok(liveInput==='' && remoteClears===1,'explicit remote page clear resets adapter input');
+  ok(remoteReads===0,'explicit remote page clear cancels pending adapter read');
+  liveInput='keep while off';intentHandle.changed();intentA.store.setEnabled(false);intentB.runTimers();
+  ok(liveInput==='keep while off' && remoteClears===1,'remote opt-out preserves live adapter input');
+  ok(remoteReads===0,'remote opt-out cancels pending adapter read');
+  liveInput='course answer';intentHandle.changed();intentA.store.clearCourse();intentB.runTimers();
+  ok(liveInput==='' && remoteClears===2 && remoteReads===0,'explicit remote course clear resets input without reading or saving');
+  var intentSource=intentA.register();liveInput='exercise answer';intentHandle.changed();intentSource.clear();intentB.runTimers();
+  ok(liveInput==='' && remoteClears===3 && remoteReads===0,'explicit remote exercise clear resets matched adapter');
+  liveInput='keep raw removal';intentHandle.changed();intentB.fire({key:intentB.store.key('ex'),newValue:null});intentB.runTimers();
+  ok(liveInput==='keep raw removal' && remoteClears===3 && remoteReads===0,'raw external record removal preserves live input but cancels save');
+  intentHandle.changed();intentB.fire({key:null,newValue:null});intentB.runTimers();
+  ok(liveInput==='keep raw removal' && remoteClears===3 && remoteReads===0,'raw browser storage clear preserves live input but cancels save');
+  var fallback=setup({course:'fallback-intent'}),fallbackHandle=fallback.register(),fallbackCount=fallback.clears();
+  fallbackHandle.changed();
+  fallback.fire({key:'ctm|1|fallback-intent|~clear',newValue:JSON.stringify({v:1,scope:'page',page:'chapter/x',reset:true})});
+  fallback.runTimers();
+  ok(fallback.clears()===fallbackCount+1 && !fallback.local[fallback.store.key('ex')],'storage fallback explicit reset clears input and cancels never-saved record');
+  fallbackHandle.changed();
+  fallback.fire({key:'ctm|1|fallback-intent|~clear',newValue:JSON.stringify({v:1,scope:'page',page:'chapter/x'})});
+  fallback.runTimers();
+  ok(fallback.clears()===fallbackCount+1 && !fallback.local[fallback.store.key('ex')],'legacy clear command without reset intent preserves live input');
+
   return count;
 }
 test('shared store contracts and durable quota recovery',()=>{
  const source=fs.readFileSync(path.join(__dirname,'../_extensions/ctm-libs/ui/ctm-store.js'),'utf8');
- assert.equal(checkStore(source,assert.ok),59);
+ assert.equal(checkStore(source,assert.ok),69);
 });
