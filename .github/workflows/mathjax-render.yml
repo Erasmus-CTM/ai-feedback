@@ -1,0 +1,33 @@
+name: Production MathJax render regression
+on:
+  push:
+    branches: [consolidation/2026-10-step5-assets-union]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - uses: quarto-dev/quarto-actions/setup@v2
+        with:
+          version: '1.8.27'
+      - run: npm ci --ignore-scripts
+      - run: node tests/prepare-quarto.cjs
+      - run: node --test tests/mathjax-render.test.cjs
+        env:
+          CTM_MATHJAX_RENDER_DIR: ${{ runner.temp }}/production-mathjax
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: production-mathjax-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/production-mathjax
+          if-no-files-found: error
