@@ -189,9 +189,78 @@ function checkStore(source, assert) {
   fallback.runTimers();
   ok(fallback.clears()===fallbackCount+1 && !fallback.local[fallback.store.key('ex')],'legacy clear command without reset intent preserves live input');
 
+
+  // Optional adapter cache invalidation is scoped by the canonical store.
+  function tracked(tab,id,component,runtimeId) {
+    var state={live:'learner',ack:'learner',calls:[],reads:0};
+    state.handle=tab.register({id:id || 'ex',component:component || 'code',runtimeId:runtimeId,
+      read:function(){state.reads++;return {code:state.live};},
+      forget:function(){state.calls.push('forget');state.ack=null;},
+      clear:function(){state.calls.push('clear');state.live='starter';},
+      exportItem:function(){return {title:id || 'ex',parts:[{kind:'code',text:state.live}]};}});
+    state.handle.result({status:'correct',score:1});state.handle.changed();state.reads=0;
+    return state;
+  }
+  var fl=setup({course:'forget-local'}),fle=tracked(fl);
+  fle.handle.clear();fl.runTimers();
+  ok(fle.calls.join(',')==='forget,clear' && fle.reads===0 && !fl.local[fl.store.key('ex')] && fl.store.exportItems()[0].parts.length===1,'local exercise forget precedes reset, clears history and cancels pending read');
+  var fp=setup({course:'forget-page'}),fpe=tracked(fp);
+  fp.store.clearPage();fp.runTimers();
+  ok(fpe.calls.join(',')==='forget,clear' && fpe.live==='starter' && fpe.reads===0,'local page reset invalidates adapter before clear');
+  var fc=setup({course:'forget-course'}),fce=tracked(fc);
+  fc.store.clearCourse();fc.runTimers();
+  ok(fce.calls.join(',')==='forget,clear' && fce.reads===0 && fce.ack===null,'local course reset invalidates adapter before clear');
+  var fo=setup({course:'forget-off'}),foe=tracked(fo);
+  fo.store.setEnabled(false);fo.runTimers();
+  ok(foe.calls.join(',')==='forget' && foe.live==='learner' && foe.ack===null && foe.reads===0,'local optout forgets persisted state while preserving live input');
+
+  var fra=setup({course:'forget-remote'},null,null,false,Channel),frb=setup({course:'forget-remote'},null,null,false,Channel);
+  var fre=tracked(frb),frSource=fra.register();
+  frSource.clear();frb.runTimers();
+  ok(fre.calls.join(',')==='forget,clear' && fre.reads===0,'remote explicit exercise reset invokes forget then clear');
+  fre.calls=[];fre.live='page edit';fre.handle.changed();fra.store.clearPage();frb.runTimers();
+  ok(fre.calls.join(',')==='forget,clear' && fre.live==='starter' && fre.reads===0,'remote page reset invalidates before reset');
+  fre.calls=[];fre.live='course edit';fre.handle.changed();fra.store.clearCourse();frb.runTimers();
+  ok(fre.calls.join(',')==='forget,clear' && fre.reads===0,'remote course reset invalidates before reset');
+  fre.calls=[];fre.live='keep off';fre.ack='keep off';fre.handle.changed();fra.store.setEnabled(false);frb.runTimers();
+  ok(fre.calls.join(',')==='forget' && fre.live==='keep off' && fre.ack===null && fre.reads===0,'remote optout forgets cache without resetting live input');
+
+  var fr=setup({course:'forget-raw'}),fr1=tracked(fr,'one'),fr2=tracked(fr,'two');
+  delete fr.local[fr.store.key('one')];fr.fire({key:fr.store.key('one'),newValue:null});fr.runTimers();
+  ok(fr1.calls.join(',')==='forget' && fr1.live==='learner' && fr1.reads===0 && fr2.calls.length===0 && fr2.ack==='learner' && fr2.reads===1,'raw targeted deletion forgets only matching entry and cancels its pending save');
+  fr1.calls=[];fr1.handle.changed();fr2.handle.changed();fr1.reads=fr2.reads=0;
+  Object.keys(fr.local).forEach(function(name){delete fr.local[name];});fr.fire({key:null,newValue:null});fr.runTimers();
+  ok(fr1.calls.join(',')==='forget' && fr2.calls.join(',')==='forget' && fr1.live==='learner' && fr2.live==='learner' && fr1.reads===0 && fr2.reads===0,'raw all-storage deletion forgets every local entry without resetting inputs');
+  var fpr=setup({course:'forget-prefs'}),fpre=tracked(fpr);
+  fpr.local['ctm|1|forget-prefs|~prefs']=JSON.stringify({v:1,save:false});
+  fpr.fire({key:'ctm|1|forget-prefs|~prefs',newValue:fpr.local['ctm|1|forget-prefs|~prefs']});fpr.runTimers();
+  ok(fpre.calls.join(',')==='forget' && fpre.live==='learner' && fpre.reads===0 && !fpr.store.enabled(),'remote preference optout invalidates adapter acknowledgement');
+
+  var fw=setup({course:'forget-overwrite'}),fw1=tracked(fw,'one'),fw2=tracked(fw,'two');
+  var replacement=JSON.stringify(record({inputs:{code:'remote replacement'}}));
+  fw.local[fw.store.key('one')]=replacement;
+  fw.fire({key:fw.store.key('one'),newValue:replacement});fw.runTimers();
+  ok(fw1.calls.join(',')==='forget' && fw1.ack===null && fw1.live==='learner' && fw1.reads===0 && fw2.calls.length===0 && fw.store.exportItems()[0].parts.length===1 && fw.local[fw.store.key('one')]===replacement,'external overwrite forgets matching acknowledgement/history, preserves local input and remote record');
+  fw1.calls=[];fw.fire({key:'ctm|1|forget-overwrite|another-page|one',newValue:replacement});
+  ok(fw1.calls.length===0 && fw2.calls.length===0,'external overwrite on another page does not invalidate local entries');
+  fw.fire({key:'ctm|1|other-course|chapter%2Fx|one',newValue:null});
+  ok(fw1.calls.length===0 && fw2.calls.length===0,'foreign-course storage deletion does not invalidate entries');
+
+  var fm=setup({course:'forget-mirror'},null,function(){return true;}),observedMirror,mirrorHandle;
+  mirrorHandle=fm.register({forget:function(){observedMirror=mirrorHandle.restore().record.inputs.code;}});
+  mirrorHandle.result({status:'correct',score:1});mirrorHandle.changed();
+  fm.local[fm.store.key('ex')]=replacement;fm.fire({key:fm.store.key('ex'),newValue:replacement});
+  ok(observedMirror==='remote replacement','overwrite invalidates dirty memory mirror before optional forget callback');
+  var fdconfig={course:'forget-duplicates',exercises:[{id:'dup',runtimeId:'r1',save:false},{id:'dup',runtimeId:'r2',save:false}]};
+  var fda=setup(fdconfig,null,null,false,Channel),fdb=setup(fdconfig,null,null,false,Channel);
+  var fdsource=fda.register({id:'dup',runtimeId:'r1',save:false});
+  var fd1=tracked(fdb,'dup','code','r1'),fd2=tracked(fdb,'dup','code','r2');
+  fdsource.clear();
+  ok(fd1.calls.join(',')==='forget,clear' && fd2.calls.length===0,'optional forget honors duplicate runtime scoping owned by core');
+
   return count;
 }
 test('shared store contracts and durable quota recovery',()=>{
  const source=fs.readFileSync(path.join(__dirname,'../_extensions/ctm-libs/ui/ctm-store.js'),'utf8');
- assert.equal(checkStore(source,assert.ok),69);
+ assert.equal(checkStore(source,assert.ok),85);
 });
