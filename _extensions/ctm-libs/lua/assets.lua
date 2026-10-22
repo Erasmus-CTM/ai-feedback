@@ -131,8 +131,10 @@ return function(ctm)
     M.use()
     local method = PANDOC_WRITER_OPTIONS.html_math_method
     method = type(method) == "table" and method.method or method
+    -- Quarto already supplies the actual MathJax loader through math metadata.
+    -- Its legacy template flag only adds an ES6 polyfill without CORS support.
+    if tostring(method):lower() == "mathjax" then meta.mathjax = false end
     if M.mode() == "local" and tostring(method):lower() == "mathjax" then
-      meta.mathjax = false
       meta.math = pandoc.MetaBlocks({pandoc.RawBlock("html", '<script src="' .. M.url("mathjax3", "es5/tex-chtml-full.js")
         .. '" id="MathJax-script" async type="text/javascript"></script>')})
     end
