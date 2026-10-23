@@ -64,3 +64,17 @@ merge behavior. Exercise, page and course clearing remove session choices too.
 Inaccessible storage retains the store's existing same-page memory fallback.
 On `ctm:store-enabled`, the component persists its current accepted choice again
 so the new saving backend receives it; session choices are not silently promoted.
+
+A plain-text AI feedback activity can opt into clearing its explanation when
+the learner accepts a new variant of a named math question:
+
+```markdown
+::: {.ai-feedback reset-on-variant="stack-tangent" context="stack-tangent-question"}
+Explain your method.
+:::
+```
+
+The activity resets its own response, image attachments, pending request and
+feedback on `math-exercise:variant-accepted` for that label. Initial selection,
+saved-choice hydration, cancelled changes and other questions leave it alone.
+The event carries only public variant identity; it exposes no grading context.
