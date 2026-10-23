@@ -307,7 +307,15 @@
         entry.lastChecked = entry.lastResult;
       }
       save(entry, options.read());
-      emit('ctm:result', {component: options.component, id: entry.id, runtimeId: entry.runtimeId, score: detail.score, status: detail.status, variant: detail.variant || current(entry)});
+      var selected = detail.variant || current(entry);
+      var event = {component: options.component, id: entry.id, runtimeId: entry.runtimeId, score: detail.score, status: detail.status, variant: selected};
+      if (options.numberedVariantResults === true) {
+        var identity = selected && Number.isSafeInteger(selected.n) && selected.n > 0 &&
+          typeof selected.id === 'string' && selected.id && typeof selected.hash === 'string' && selected.hash ? selected : null;
+        event.variant = identity ? identity.n : null;
+        event.variantIdentity = identity ? {n: identity.n, id: identity.id, hash: identity.hash} : null;
+      }
+      emit('ctm:result', event);
     }
     function clear() {
       var durable = entry.id ? remove(key(entry.id)) : true;
