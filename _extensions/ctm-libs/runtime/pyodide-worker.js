@@ -143,7 +143,19 @@ async function init(cfg) {
           throw new Error("Package is outside the local Pyodide subset: " + name);
         }
       }
-      await pyodide.loadPackage(names);
+      const errors = [];
+      await pyodide.loadPackage(names, {
+        checkIntegrity: true,
+        errorCallback: text => { errors.push(String(text)); }
+      });
+      // loadPackage can report a failed download without rejecting. Required
+      // stage-1 packages must actually be loaded before publishing readiness.
+      const missing = names.filter(name => !isLoaded(name));
+      if (missing.length) {
+        console.warn("CTMWorker: stage 1 could not install " + missing.join(", ") + ": " + (errors.join("\n") || "not loaded"));
+        const reason = errors.find(text => !/^The following error occurred/.test(text)) || "not installed";
+        throw new Error(missing.join(", ") + ": " + shortReason(reason));
+      }
     } else {
       await pyodide.loadPackage("micropip");
       postStatus(msg.extraPackages || "Installing additional packages ...");

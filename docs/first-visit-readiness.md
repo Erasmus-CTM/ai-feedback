@@ -50,3 +50,10 @@ The dead proxy rejects later calls immediately; no runtime is automatically
 replaced. An explicit restart creates one replacement and retains normal
 restart notifications. Failed postMessage calls reject their own operation
 and remove their pending entry. Worker object URLs are released once.
+
+Local explicit stage-1 packages are checked against the served subset and
+verified in Pyodide's loaded-package registry after loading. A reported or
+silent missing package fails required startup before plugin hooks or optional
+background setup run. Stage-2 failure remains a separate degradation path.
+Range-stall retries and idle-install admission do not provide an end-to-end
+deadline for lock loading, interpreter bootstrap or Python package execution.
