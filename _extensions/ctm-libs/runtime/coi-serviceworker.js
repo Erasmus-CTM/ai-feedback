@@ -54,7 +54,7 @@ if (typeof window === "undefined") {
 
     event.respondWith(
       fetch(request).then(resp => {
-        if (resp.status === 0) return resp;
+        if (resp.status === 0 || request.method === "HEAD") return resp;
         const headers = new Headers(resp.headers);
         headers.set("Cross-Origin-Opener-Policy", "same-origin");
         headers.set("Cross-Origin-Embedder-Policy", "credentialless");
