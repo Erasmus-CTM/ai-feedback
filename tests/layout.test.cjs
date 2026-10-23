@@ -35,7 +35,7 @@ test('shared UI initializes once after complete parsed content and before DOMCon
 test('reveal-only marker and late or unmarked consumers retain a readiness path',()=>{
   const e=environment();let count=0;e.api.ready(()=>count++);e.nodes['ctm-layout-ready']={};e.mutate();e.microtask();assert.equal(count,1);
   const fallback=environment();fallback.api.ready(()=>count++);fallback.events.DOMContentLoaded();fallback.microtask();assert.equal(count,2);
-  fallback.document.readyState='complete';fallback.api.ready(()=>count++);fallback.microtask();assert.equal(count,3);
+  fallback.document.readyState='complete';fallback.api.ready(()=>count++);assert.equal(count,3,'late scripts retain their original synchronous initialization');
 });
 test('the initial fit stays synchronous; later notifications coalesce into a rendering frame',()=>{
   const e=environment(),model=editor(),container={style:{height:''}};e.api.fitEditor(model.value,container,{minHeight:80});

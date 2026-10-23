@@ -147,6 +147,5 @@
     for (const event of pending.splice(0)) dispatch(event);
     update(); // No live region on load; tiles are available before Python starts.
   }
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init, {once: true});
-  else init();
+  window.CTMLayout.ready(init);
 })();

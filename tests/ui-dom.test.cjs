@@ -25,6 +25,7 @@ async function load(body, {url = 'https://example.invalid/course/pages/a.html', 
   const w = dom.window;
   for (const [key, value] of Object.entries(session)) w.sessionStorage.setItem(key, value);
   if (before) before(w);
+  w.eval(script('ctm-layout.js'));
   w.eval(script('ctm-reveal.js'));
   if (w.document.readyState === 'loading') await new Promise(resolve => w.document.addEventListener('DOMContentLoaded', resolve));
   await wait(0);

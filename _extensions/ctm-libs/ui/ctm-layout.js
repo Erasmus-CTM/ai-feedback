@@ -19,7 +19,9 @@
   }
   function ready(callback) {
     if (typeof callback !== 'function') throw new TypeError('CTMLayout.ready needs a function');
-    if (parsed || document.readyState !== 'loading') { root.queueMicrotask(callback); return; }
+    // Preserve the existing immediate initialization path for late scripts.
+    if (document.readyState !== 'loading') { callback(); return; }
+    if (parsed) { root.queueMicrotask(callback); return; }
     waiting.push(callback);
     if (!parserObserver && typeof root.MutationObserver === 'function') {
       parserObserver = new root.MutationObserver(function () { release(false); });
