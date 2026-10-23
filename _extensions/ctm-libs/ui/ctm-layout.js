@@ -52,17 +52,20 @@
 
   // Supported Monaco explicit-layout integration. Components retain editor
   // options/model ownership; this owns only fitting and resize observation.
+  // Bind during editor construction, outside ResizeObserver delivery.
   function fitEditor(editor, container, options) {
     options = options || {};
     var minimum = options.minHeight || 0, box = null, disposed = false;
-    var pending = task(function () {
+    function fit(initial) {
       var height = Math.max(minimum, editor.getContentHeight()) + 'px';
       if (container.style.height !== height) container.style.height = height;
       // A height write gets a fresh content box from the native observer.
       // Retain the latest supplied fractional/untransformed box semantics.
-      if (box) editor.layout({width: Math.max(5, box.width), height: Math.max(5, box.height)});
+      if (initial) editor.layout();
+      else if (box) editor.layout({width: Math.max(5, box.width), height: Math.max(5, box.height)});
       else if (!observer) editor.layout();
-    });
+    }
+    var pending = task(function () { fit(false); });
     var observer = typeof root.ResizeObserver === 'function' ? new root.ResizeObserver(function (entries) {
       if (disposed) return;
       for (var i = 0; i < entries.length; i++) if (entries[i].target === container) {
@@ -84,7 +87,9 @@
       if (content) content.dispose();
       if (disposal) disposal.dispose();
     }
-    pending.schedule();
+    // Preserve the components' initial construction-time geometry. Later
+    // resize/content notifications use the frame task instead.
+    fit(true);
     return {request: function () { pending.schedule(); }, dispose: dispose};
   }
 
