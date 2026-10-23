@@ -22,6 +22,15 @@ For optional/review proposals also register `allowProposals: true` and
 ordinary variant identity stays null. The component labels these “Not approved”
 and never gives them “Variant 0”.
 
+`ctm.variants.approval()` reads `ctm-assessment: variants: approval:` as a nested
+leaf across settings levels (default `required`; explicit `optional` warns in
+the native gate). `CTM_VARIANTS=required|optional` overrides that leaf.
+`CTM_VARIANTS=review` selects review rendering while preserving the separate
+approval policy. `ctm.variants.renderMode(explicit)` validates `preview`,
+`review` or `publish`; absent an explicit mode it conservatively uses `publish`.
+Callers supply a verified preview context; this helper does not guess from
+undocumented Quarto environment flags.
+
 Saved hash wins, then stable number, then id. `restored()` exposes the original
 record and `restored`, `changed`, `withdrawn` or `empty` state. Only `restored`
 permits filling old answers: changed/withdrawn records must remain available
