@@ -543,10 +543,10 @@
         // Reuse the pinned AMD factory's bootstrap URL: it preserves CDN Blob
         // baseUrl/importScripts, same-origin COI parameters and the worker label.
         // This exported AMD helper is version-bound, unlike the public hook.
-        root.require(['vs/base/browser/defaultWorkerFactory'], function (factory) {
+        root.require(['require', 'vs/base/browser/defaultWorkerFactory'], function (amdRequire, factory) {
           try {
             if (typeof factory.getWorkerBootstrapUrl !== 'function') throw new Error('Monaco worker bootstrap API is unavailable');
-            var url = factory.getWorkerBootstrapUrl(root.require.toUrl('vs/base/worker/workerMain.js'), label);
+            var url = factory.getWorkerBootstrapUrl(amdRequire.toUrl('vs/base/worker/workerMain.js'), label);
             resolve(construct(url));
           } catch (error) { reject(error); }
         }, reject);

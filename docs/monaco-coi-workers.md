@@ -12,6 +12,9 @@ Existing `getWorker`, `getWorkerUrl` and `createTrustedTypesPolicy` callbacks
 retain their receiver, arguments, results and failures. The default path uses
 Monaco 0.46's exported AMD `vs/base/browser/defaultWorkerFactory` bootstrap helper
 to retain its cross-origin Blob/baseUrl/importScripts and same-origin URL rules.
+The worker entry URL uses the injected AMD `require` dependency: Monaco's global
+loader does not expose `toUrl`. The focused regression executes that actual
+0.46 loader as well as the callback contract checks.
 That helper is a version-bound integration seam, not a stable public API; check
 it when updating the pinned Monaco version.
 
