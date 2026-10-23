@@ -106,7 +106,7 @@ function fakeNet({base = 'https://cdn.example/pyodide/', packages = {}, hold = f
   const sizes = Object.fromEntries(Object.entries(packages).map(([name, spec]) => [name + '-1.0-py3-none-any.whl', spec.size || 1000]));
   function response(status, body, headers = {}) {
     let sent = false;
-    return {status, ok: status >= 200 && status < 300, headers: {get: key => headers[key] || null},
+    return {status, type: "basic", ok: status >= 200 && status < 300, headers: {get: key => headers[key] || null},
       json: async () => JSON.parse(body),
       arrayBuffer: async () => new Uint8Array(body.length).buffer,
       body: {getReader: () => ({read: async () => { if (sent) return {done: true}; sent = true; return {done: false, value: new Uint8Array(body.length)}; }})}};
@@ -115,12 +115,13 @@ function fakeNet({base = 'https://cdn.example/pyodide/', packages = {}, hold = f
     url = String(url);
     const file = url.slice(base.length);
     const range = init.headers && init.headers.Range;
-    const entry = {url, file, range, cache: init.cache, at: performance.now(), done: false};
+    const entry = {url, file, range, method: init.method || "GET", cache: init.cache, at: performance.now(), done: false};
     log.push(entry);
     if (file === 'pyodide-lock.json') {
       if (!lock) return response(404, '');
       return response(200, JSON.stringify(lockJSON));
     }
+    if (init.method === 'HEAD') { entry.done = true; return response(200, ''); }
     if (stall.some(name => file.startsWith(name + '-'))) {
       return new Promise((resolve, reject) => init.signal.addEventListener('abort', () => { entry.aborted = true; reject(Object.assign(new Error('aborted'), {name: 'AbortError'})); }));
     }
