@@ -5,10 +5,14 @@
   function identity(variant) { return {n: variant.n, id: variant.id, hash: variant.hash}; }
   function choiceKey(variant) { return variant.proposal === true ? 'proposal:' + variant.id : variant.n; }
   function score(text) {
-    // Stable 64-bit FNV-1a over UTF-8; selection is not a security boundary.
+    // FNV-1a over UTF-8, then SplitMix64's final avalanche. Raw FNV scores
+    // correlate for short numbered suffixes and bias rendezvous selection.
+    // Selection is deterministic, not a security boundary.
     var value = 14695981039346656037n;
     for (var byte of new TextEncoder().encode(text)) value = BigInt.asUintN(64, (value ^ BigInt(byte)) * 1099511628211n);
-    return value;
+    value = BigInt.asUintN(64, (value ^ (value >> 30n)) * 13787848793156543929n);
+    value = BigInt.asUintN(64, (value ^ (value >> 27n)) * 10723151780598845931n);
+    return value ^ (value >> 31n);
   }
   function create(options) {
     options = options || {};
@@ -86,5 +90,5 @@
       }
     };
   }
-  root.CTMVariants = {version: 1, create: create};
+  root.CTMVariants = {version: 1, rankingVersion: 2, create: create};
 })(globalThis);

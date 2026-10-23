@@ -74,3 +74,16 @@ test('explicit review proposals keep null variant identity and proposal keys unt
   assert.equal(approved.current().n,8);assert.equal(approved.state().proposal,undefined);
   assert.throws(()=>api().create({...options,variants:[{n:0,id:'x',hash:'h',proposal:true}],allowProposals:true}),/positive/);
 });
+test('learner assignment avoids suffix-length bias and adding one record only remaps its own winners', () => {
+  const chooser=api(), counts={2:0,7:0,31:0};let moved=0;
+  const extra={n:140,id:'id-140',hash:'hash-140'};
+  for(let i=0;i<10000;i++) {
+    const base={...options,seed:String(i)},before=chooser.create(base).current().n;
+    const after=chooser.create({...base,variants:records.concat(extra)}).current().n;
+    counts[before]++;
+    if(before!==after){moved++;assert.equal(after,140,'existing relative rankings never change');}
+  }
+  for(const count of Object.values(counts))assert.ok(count>2700&&count<4000,JSON.stringify(counts));
+  assert.ok(moved>1800&&moved<3200,'new winner cohort should be about one quarter: '+moved);
+  assert.equal(chooser.rankingVersion,2);
+});

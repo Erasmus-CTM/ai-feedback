@@ -38,6 +38,11 @@ as an offer, before the component overwrites the saved selection. Without a
 matching saved choice, `?variant=<label>:<n>` wins over rendezvous selection.
 Ranking and seen cycles use `n`, so renaming a variable cannot reshuffle learners.
 Adding a record preserves the relative ranking of every existing record.
+The WIP ranking algorithm is version2 (`CTMVariants.rankingVersion`): a final
+64-bit avalanche removes measured FNV suffix-length bias. This changes seed-only
+engineering assignments from the earlier unpublished-to-students version1;
+saved identities still take precedence and restore unchanged. No live chooser
+release or learner migration is implied.
 
 `next()` selects an unseen record; after all deployed records have appeared,
 it starts a fresh cycle without an immediate repeat when another record exists.
