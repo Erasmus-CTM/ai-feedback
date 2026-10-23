@@ -57,3 +57,21 @@ silent missing package fails required startup before plugin hooks or optional
 background setup run. Stage-2 failure remains a separate degradation path.
 Range-stall retries and idle-install admission do not provide an end-to-end
 deadline for lock loading, interpreter bootstrap or Python package execution.
+
+Encoded wheels require complete representations. A measured jsDelivr response
+advertised a range of Brotli bytes, while Fetch exposed decoded bytes. Advancing
+by the decoded length then requested the wrong compressed offset and eventually
+failed decoding. Before prefetching each wheel, a bounded HEAD is consumed to
+completion. Visible identity metadata retains range prefetch; encoded, hidden or
+unsupported metadata selects a complete GET. This is still prefetch, with the
+same final lock-file SHA verification and cache/install admission rules. A server
+changing to encoding after HEAD triggers a consumed partial attempt followed by
+whole GET; decoder warnings and browser request failures remain observable.
+
+Exposed Content-Range boundaries, total size and received length must agree.
+Changed totals retry the same offset; a whole response to a later range replaces
+the earlier partial chunks. CORS-hidden range headers retain the existing short
+range/416 fallback. The COI service-worker bytes remain unchanged: controlled
+Chromium identity/Brotli transport checks confirmed complete verified bytes both
+with and without that worker. These focused transport checks do not replace
+actual first-visit CI or prove Python/bootstrap readiness.
