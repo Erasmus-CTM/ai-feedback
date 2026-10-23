@@ -125,8 +125,11 @@ test('local worker receives an absolute page URL and loads only subset packages 
   await started;
   const network=W.fakeNet({packages:{numpy:{imports:['numpy']}}});
   const calls=[];
-  const local=W.workerContext({globals:{fetch:network.fetch},pyodide:()=>({
-    loadPackage:async names=>calls.push(Array.from(names)),
+  const local=W.workerContext({globals:{fetch:network.fetch},pyodide:(_context,fake)=>({
+    loadPackage:async names=>{
+      calls.push(Array.from(names));
+      for (const name of names) fake.loadedPackages[name] = 'default channel';
+    },
     pyimport:()=>{throw new Error('local mode must not call micropip');}
   })});
   await local.init({assetsMode:'local',packages:['numpy']});
