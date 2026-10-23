@@ -10,7 +10,7 @@ function environment(noObserver=false){
   const document={readyState:'loading',getElementById:id=>nodes[id]||null,addEventListener:(name,fn)=>{events[name]=fn;}};
   const root={queueMicrotask:fn=>microtasks.push(fn),requestAnimationFrame:fn=>{const id=next++;frames.set(id,fn);return id;},cancelAnimationFrame:id=>frames.delete(id),
     addEventListener:(name,fn)=>{events[name]=fn;},removeEventListener:(name,fn)=>{if(events[name]===fn)delete events[name];},
-    MutationObserver:class{constructor(callback){this.callback=callback;mutations.push(this);}observe(){this.active=true;}disconnect(){this.active=false;}}};
+    MutationObserver:class{constructor(callback){this.callback=callback;mutations.push(this);}observe(target,options){this.active=true;this.options=options;}disconnect(){this.active=false;}}};
   if(!noObserver)root.ResizeObserver=class{constructor(callback){this.callback=callback;observers.push(this);}observe(target){this.target=target;}disconnect(){this.disconnected=true;}};
   vm.runInNewContext(source,{window:root,document});
   return {api:root.CTMLayout,root,document,events,nodes,frames,microtasks,mutations,observers,
@@ -26,6 +26,7 @@ function editor(){
 }
 test('shared UI initializes once after complete parsed content and before DOMContentLoaded',()=>{
   const e=environment(),calls=[];e.api.ready(()=>calls.push('store'));e.api.ready(()=>calls.push('progress'));
+  assert.equal(e.mutations[0].options.characterData,true,'streamed text may append to an existing parser text node');
   assert.deepEqual(calls,[]);e.nodes['ctm-store-manifest']={textContent:'{'};e.mutate();e.microtask();assert.deepEqual(calls,[]);
   e.nodes['ctm-store-manifest'].textContent='{"v":1}';e.mutate();e.microtask();assert.deepEqual(calls,['store','progress']);
   assert.equal(e.document.readyState,'loading');assert.ok(e.mutations.every(observer=>!observer.active));

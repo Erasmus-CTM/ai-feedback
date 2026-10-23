@@ -3,8 +3,7 @@
   'use strict';
   if (root.CTMLayout) return;
 
-  // Shared UI may initialize once its build-time content has been parsed.
-  // Do this before deferred modules install DOMContentLoaded observers.
+  // Shared UI may initialize once its complete build-time content is parsed.
   var parsed = false, waiting = [], parserObserver = null;
   function contentParsed() {
     if (document.getElementById('ctm-layout-ready')) return true;
@@ -24,7 +23,8 @@
     waiting.push(callback);
     if (!parserObserver && typeof root.MutationObserver === 'function') {
       parserObserver = new root.MutationObserver(function () { release(false); });
-      parserObserver.observe(document, {childList: true, subtree: true});
+      // The HTML parser can append streamed script text to an existing node.
+      parserObserver.observe(document, {childList: true, characterData: true, subtree: true});
     }
     release(false);
   }
