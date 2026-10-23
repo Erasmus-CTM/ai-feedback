@@ -3,7 +3,7 @@ const {JSDOM} = require('jsdom');
 const fs = require('node:fs'), path = require('node:path');
 const file = name => fs.readFileSync(path.join(__dirname, '../_extensions/ctm-libs/ui/', name), 'utf8');
 const records = [2, 7, 31].map(n => ({n, id: 'id-' + n, hash: 'hash-' + n}));
-function page({saved, session, save = true, blocked = false} = {}) {
+function page({saved, session, save = true, blocked = false, deployed = records, allowProposals = false} = {}) {
   const dom = new JSDOM('<meta name="quarto:offset" content="../"><script id="ctm-store-manifest" type="application/json">' +
     JSON.stringify({course: '/course/', save, exercises: [{id: 'sum', component: 'math-exercise', save}]}) + '</script>',
     {url: 'https://example.test/course/chapter/x.html', runScripts: 'outside-only'});
@@ -15,8 +15,9 @@ function page({saved, session, save = true, blocked = false} = {}) {
   let chooser, inputs = {answer: '4'};
   const handle = w.CTMStore.register({component: 'math-exercise', id: 'sum', source: 'source', save,
     read: () => inputs, write() {},
-    variant: () => chooser.current(), seen: () => chooser.seen(), variants: () => records});
-  chooser = w.CTMVariants.create({label: 'sum', variants: records, saved: handle.restoreChoice()});
+    allowProposals, variant: () => chooser.state().variant, proposal: () => chooser.state().proposal,
+    seen: () => chooser.seen(), variants: () => deployed});
+  chooser = w.CTMVariants.create({label: 'sum', variants: deployed, allowProposals, saved: handle.restoreChoice()});
   return {w, dom, handle, chooser, key: w.CTMStore.key('sum'), input: value => {inputs = value;}};
 }
 const storage = target => Object.fromEntries(Object.keys(target).map(key => [key,target.getItem(key)]));
@@ -68,4 +69,18 @@ test('page/course clear remove session choices; blocked local storage retains sa
   }
   const p=page({blocked:true});p.handle.choice(p.chooser.state());
   assert.equal(p.handle.restoreChoice().variant.n,p.chooser.current().n);p.dom.window.close();
+});
+test('optional proposal P17 record has null variant and separate sidecar through choice/save/reopen', () => {
+  const deployed=[{n:null,id:'p-a',hash:'ha',proposal:true},{n:null,id:'p-b',hash:'hb',proposal:true}];
+  let p=page({deployed,allowProposals:true});p.handle.choice(p.chooser.state());p.handle.flush();
+  const record=JSON.parse(p.w.localStorage.getItem(p.key));
+  assert.equal(record.variant,null);assert.deepEqual(record.proposal,{id:p.chooser.current().id,hash:p.chooser.current().hash});
+  assert.ok(record.seen.every(key=>key.startsWith('proposal:')));assert.deepEqual(record.inputs,{answer:'4'});
+  const saved=storage(p.w.localStorage);p.dom.window.close();p=page({deployed,allowProposals:true,saved});
+  assert.equal(p.chooser.current().id,record.proposal.id);assert.equal(p.handle.restore().state,'restored');
+  p.chooser.next();p.handle.choice(p.chooser.state());assert.equal(p.handle.restoreChoice().variant,null);
+  const pending=p.handle.restoreChoice(), promoted=storage(p.w.localStorage);p.dom.window.close();
+  p=page({deployed:[{n:14,id:pending.proposal.id,hash:pending.proposal.hash}],saved:promoted});
+  assert.equal(p.chooser.current().n,14);assert.equal(p.handle.restore().state,'restored');
+  p.handle.choice(p.chooser.state());assert.equal(p.handle.restoreChoice().proposal,undefined);p.dom.window.close();
 });

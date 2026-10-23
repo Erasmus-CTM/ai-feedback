@@ -204,6 +204,7 @@
     updateBar(); emit('ctm:store-enabled', {enabled: value}); return value;
   }
   function current(entry) { return entry.options.variant ? entry.options.variant() : null; }
+  function proposal(entry) { return entry.options.allowProposals === true && entry.options.proposal ? entry.options.proposal() : null; }
   function writable(entry) {
     if (!enabled() || entry.options.save === false || entry.duplicate || !entry.id) return false;
     return !(config.exercises || []).some(function (item) { return item.id === entry.id && item.save === false; });
@@ -212,17 +213,18 @@
     if (!writable(entry)) return false;
     var name = key(entry.id), previous = parse(get(name));
     if (future(previous)) return false;
-    var variant = current(entry);
+    var variant = current(entry), pending = proposal(entry);
     if (inputs === null || inputs === undefined) {
       entry.lastResult = null;
-      if (!variant) return remove(name);
+      if (!variant && !pending) return remove(name);
       inputs = {}; // An untouched answer still retains its selected variant.
     }
     var record = {v: 1, component: entry.options.component, saved: new Date().toISOString(), inputs: inputs};
-    if (variant) {
-      record.variant = {n: variant.n, id: variant.id, hash: variant.hash};
+    if (variant || pending) {
+      record.variant = variant ? {n: variant.n, id: variant.id, hash: variant.hash} : null;
+      if (pending && !variant) record.proposal = {id: pending.id, hash: pending.hash};
       record.seen = Array.from(new Set([].concat(entry.options.seen ? entry.options.seen() : previous && previous.seen || [],
-        variant.n === undefined ? [] : [variant.n])));
+        variant ? [variant.n] : ['proposal:' + pending.id])));
     } else record.source = entry.options.source;
     if (entry.lastResult) record.result = entry.lastResult;
     var serialized;
@@ -270,12 +272,13 @@
       if (!valid(record, options.component)) return {state: 'empty'};
       entry.lastResult = record.result || null; entry.lastChecked = entry.lastResult;
       var state = 'restored', selected = null;
-      if (record.variant) {
+      if (record.variant || record.proposal) {
+        var oldIdentity = record.variant || record.proposal;
         var variants = options.variants ? options.variants() : [current(entry)].filter(Boolean);
-        selected = variants.find(function (variant) { return variant.hash && variant.hash === record.variant.hash; });
+        selected = variants.find(function (variant) { return variant.hash && variant.hash === oldIdentity.hash; });
         if (!selected) {
-          selected = variants.find(function (variant) { return record.variant.n !== undefined && variant.n === record.variant.n; }) ||
-            variants.find(function (variant) { return record.variant.id !== undefined && variant.id === record.variant.id; });
+          selected = variants.find(function (variant) { return Number.isSafeInteger(oldIdentity.n) && variant.n === oldIdentity.n; }) ||
+            variants.find(function (variant) { return oldIdentity.id !== undefined && variant.id === oldIdentity.id; });
           state = selected ? 'changed' : 'withdrawn';
         }
       } else if (current(entry) || record.source !== options.source) state = 'changed';
@@ -319,23 +322,30 @@
       if (!entry.id || entry.duplicate) return null;
       var kind = writable(entry) ? 'localStorage' : 'sessionStorage';
       var record = parse(storage(kind, 'get', key(entry.id)));
-      return valid(record, options.component) && record.variant ? clone(record) : null;
+      return valid(record, options.component) && (record.variant || record.proposal) ? clone(record) : null;
     }
     function choice(state) {
       if (!entry.id || entry.duplicate) return false;
-      var variant = state && state.variant;
-      if (!variant || !Number.isSafeInteger(variant.n) || variant.n < 1 ||
-          typeof variant.id !== 'string' || !variant.id || typeof variant.hash !== 'string' || !variant.hash ||
-          !Array.isArray(state.seen) || state.seen.some(function (n) { return !Number.isSafeInteger(n) || n < 1; })) {
+      var variant = state && state.variant, pending = state && state.proposal;
+      var isProposal = options.allowProposals === true && state && state.variant === null && pending;
+      var chosen = variant || (isProposal && pending);
+      if (!chosen || (!isProposal && (!Number.isSafeInteger(variant.n) || variant.n < 1)) ||
+          typeof chosen.id !== 'string' || !chosen.id || typeof chosen.hash !== 'string' || !chosen.hash ||
+          !Array.isArray(state.seen) || state.seen.some(function (n) {
+            return !(Number.isSafeInteger(n) && n > 0) && !(options.allowProposals === true && typeof n === 'string' && /^proposal:.+/.test(n));
+          })) {
         throw new TypeError('Variant choice needs a positive identity and seen numbers.');
       }
       var kind = writable(entry) ? 'localStorage' : 'sessionStorage', name = key(entry.id);
       var previous = parse(storage(kind, 'get', name));
       if (future(previous)) return false;
-      if (!previous || !previous.variant || previous.variant.hash !== variant.hash) forget(entry);
+      var oldIdentity = previous && (previous.variant || previous.proposal);
+      if (!oldIdentity || oldIdentity.hash !== chosen.hash) forget(entry);
       var record = {v: 1, component: options.component, saved: new Date().toISOString(), inputs: {},
-        variant: {n: variant.n, id: variant.id, hash: variant.hash}, seen: Array.from(new Set(state.seen.concat(variant.n)))};
-      if (kind === 'localStorage' && valid(previous, options.component) && previous.variant && previous.variant.hash === variant.hash) {
+        variant: variant ? {n: variant.n, id: variant.id, hash: variant.hash} : null,
+        seen: Array.from(new Set(state.seen.concat(variant ? variant.n : 'proposal:' + pending.id)))};
+      if (isProposal) record.proposal = {id: pending.id, hash: pending.hash};
+      if (kind === 'localStorage' && valid(previous, options.component) && oldIdentity && oldIdentity.hash === chosen.hash) {
         record.inputs = previous.inputs;
         if (previous.result) record.result = previous.result;
       }

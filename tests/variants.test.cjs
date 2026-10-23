@@ -61,3 +61,16 @@ test('shared course seed/page defaults and single deployed variant work', () => 
   assert.throws(() => api().create({label: 'sum', variants: records}), /learner seed/);
   assert.throws(() => api().create({...options, variants: [{n: 0, id: 'x', hash: 'x'}]}), /positive/);
 });
+test('explicit review proposals keep null variant identity and proposal keys until approved', () => {
+  const proposals = [{n:null,id:'p-a',hash:'ha',proposal:true},{n:null,id:'p-b',hash:'hb',proposal:true}];
+  assert.throws(()=>api().create({...options,variants:proposals}),/positive/);
+  const chooser=api().create({...options,variants:proposals,allowProposals:true});
+  const first=chooser.state();assert.equal(first.variant,null);assert.ok(first.proposal.id);
+  assert.deepEqual(plain(first.seen),['proposal:'+first.proposal.id]);
+  assert.notEqual(chooser.next().id,first.proposal.id);
+  const reopened=api().create({...options,variants:proposals,allowProposals:true,saved:first});
+  assert.equal(reopened.current().id,first.proposal.id);assert.equal(reopened.restored().state,'restored');
+  const approved=api().create({...options,variants:[{n:8,id:first.proposal.id,hash:first.proposal.hash}],saved:first});
+  assert.equal(approved.current().n,8);assert.equal(approved.state().proposal,undefined);
+  assert.throws(()=>api().create({...options,variants:[{n:0,id:'x',hash:'h',proposal:true}],allowProposals:true}),/positive/);
+});

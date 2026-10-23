@@ -3,6 +3,7 @@
   'use strict';
   if (root.CTMVariants) return;
   function identity(variant) { return {n: variant.n, id: variant.id, hash: variant.hash}; }
+  function choiceKey(variant) { return variant.proposal === true ? 'proposal:' + variant.id : variant.n; }
   function score(text) {
     // Stable 64-bit FNV-1a over UTF-8; selection is not a security boundary.
     var value = 14695981039346656037n;
@@ -14,11 +15,13 @@
     var variants = (options.variants || []).slice(), numbers = new Set();
     if (!options.label || !variants.length) throw new TypeError('Variant selection needs a label and deployed variants.');
     variants.forEach(function (variant) {
-      if (!Number.isSafeInteger(variant.n) || variant.n < 1 || numbers.has(variant.n) ||
+      var proposal = options.allowProposals === true && variant.proposal === true && variant.n == null;
+      var key = choiceKey(variant);
+      if ((!proposal && (!Number.isSafeInteger(variant.n) || variant.n < 1 || variant.proposal === true)) || numbers.has(key) ||
           typeof variant.id !== 'string' || !variant.id || typeof variant.hash !== 'string' || !variant.hash) {
         throw new TypeError('Deployed variants need unique positive numbers and nonempty ids and hashes.');
       }
-      numbers.add(variant.n);
+      numbers.add(key);
     });
     var store = root.CTMStore;
     var seed = options.seed !== undefined ? String(options.seed) : store && store.seed();
@@ -27,21 +30,21 @@
     if (page === undefined) throw new Error('Variant selection needs the shared page identity.');
     var ranked = variants.map(function (variant) {
       // B2: a variable rename can change id, but never the student's ranking.
-      return {variant: variant, score: score(JSON.stringify([seed, page, options.label, variant.n]))};
-    }).sort(function (a, b) { return a.score === b.score ? a.variant.n - b.variant.n : a.score > b.score ? -1 : 1; })
+      return {variant: variant, score: score(JSON.stringify([seed, page, options.label, choiceKey(variant)]))};
+    }).sort(function (a, b) { return a.score === b.score ? String(choiceKey(a.variant)).localeCompare(String(choiceKey(b.variant))) : a.score > b.score ? -1 : 1; })
       .map(function (item) { return item.variant; });
     var selected, seen = [], outcome;
     function mergeSeen(values) {
       [].concat(values || []).forEach(function (n) { if (numbers.has(n) && !seen.includes(n)) seen.push(n); });
     }
-    function remember(variant) { selected = variant; mergeSeen([variant.n]); return variant; }
+    function remember(variant) { selected = variant; mergeSeen([choiceKey(variant)]); return variant; }
     function restore(record) {
-      if (!record || !record.variant) return {state: 'empty', record: record || null, variant: null};
-      var old = record.variant;
+      if (!record || !(record.variant || record.proposal)) return {state: 'empty', record: record || null, variant: null};
+      var old = record.variant || record.proposal;
       var match = variants.find(function (variant) { return old.hash && variant.hash === old.hash; });
       var state = match ? 'restored' : 'withdrawn';
       if (!match) {
-        match = variants.find(function (variant) { return variant.n === old.n; }) ||
+        match = variants.find(function (variant) { return Number.isSafeInteger(old.n) && variant.n === old.n; }) ||
           variants.find(function (variant) { return variant.id === old.id; });
         if (match) state = 'changed';
       }
@@ -67,14 +70,17 @@
     return {
       current: function () { return selected; },
       seen: function () { return seen.slice(); },
-      state: function () { return {variant: identity(selected), seen: seen.slice()}; },
+      state: function () {
+        return selected.proposal === true ? {variant: null, proposal: {id: selected.id, hash: selected.hash}, seen: seen.slice()}
+          : {variant: identity(selected), seen: seen.slice()};
+      },
       restored: function () { return outcome; },
       restore: function (record) { outcome = restore(record); return outcome; },
       next: function () {
-        var next = ranked.find(function (variant) { return !seen.includes(variant.n); });
+        var next = ranked.find(function (variant) { return !seen.includes(choiceKey(variant)); });
         if (!next) {
           seen = [];
-          next = ranked.find(function (variant) { return variant.n !== selected.n; }) || selected;
+          next = ranked.find(function (variant) { return choiceKey(variant) !== choiceKey(selected); }) || selected;
         }
         return remember(next);
       }
