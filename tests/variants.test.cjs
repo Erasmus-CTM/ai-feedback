@@ -87,3 +87,14 @@ test('learner assignment avoids suffix-length bias and adding one record only re
   assert.ok(moved>1800&&moved<3200,'new winner cohort should be about one quarter: '+moved);
   assert.equal(chooser.rankingVersion,2);
 });
+test('shared content hashes preserve exact saved identity and never choose an ambiguous remap', () => {
+  const variants=[{n:1,id:'A',hash:'H'},{n:2,id:'B',hash:'H'}];
+  const choose=saved=>api().create({...options,variants,saved:{variant:saved,inputs:{answer:'old'}}});
+  assert.equal(choose(variants[1]).current().n,2,'exact saved n and hash survive duplicate content');
+  assert.equal(choose({n:99,id:'B',hash:'H'}).current().n,2,'id disambiguates matching hash after number migration');
+  const missing=choose({n:99,id:'gone',hash:'H'});
+  assert.equal(missing.restored().state,'withdrawn');assert.equal(missing.restored().variant,null);
+  assert.equal(missing.restored().record.inputs.answer,'old');
+  const changed=api().create({...options,variants:variants.concat({n:99,id:'old',hash:'changed'}),saved:{variant:{n:99,id:'gone',hash:'H'}}});
+  assert.equal(changed.restored().state,'changed');assert.equal(changed.current().n,99);
+});

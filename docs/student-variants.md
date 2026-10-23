@@ -38,6 +38,11 @@ as an offer, before the component overwrites the saved selection. Without a
 matching saved choice, `?variant=<label>:<n>` wins over rendezvous selection.
 Ranking and seen cycles use `n`, so renaming a variable cannot reshuffle learners.
 Adding a record preserves the relative ranking of every existing record.
+When distinct note identities share one content hash, an exact saved number
+or id disambiguates the hash match. Hash-only remapping is allowed only when
+one deployed record matches; ambiguous matches retain changed/withdrawn answer
+offers. Switching between distinct identities clears old grade caches even
+when their mathematical content hashes agree.
 The WIP ranking algorithm is version2 (`CTMVariants.rankingVersion`): a final
 64-bit avalanche removes measured FNV suffix-length bias. This changes seed-only
 engineering assignments from the earlier unpublished-to-students version1;

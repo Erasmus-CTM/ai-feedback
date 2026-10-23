@@ -275,7 +275,10 @@
       if (record.variant || record.proposal) {
         var oldIdentity = record.variant || record.proposal;
         var variants = options.variants ? options.variants() : [current(entry)].filter(Boolean);
-        selected = variants.find(function (variant) { return variant.hash && variant.hash === oldIdentity.hash; });
+        var sameHash = variants.filter(function (variant) { return variant.hash && variant.hash === oldIdentity.hash; });
+        selected = sameHash.find(function (variant) { return Number.isSafeInteger(oldIdentity.n) && variant.n === oldIdentity.n; }) ||
+          sameHash.find(function (variant) { return variant.id === oldIdentity.id; }) ||
+          (sameHash.length === 1 ? sameHash[0] : null);
         if (!selected) {
           selected = variants.find(function (variant) { return Number.isSafeInteger(oldIdentity.n) && variant.n === oldIdentity.n; }) ||
             variants.find(function (variant) { return oldIdentity.id !== undefined && variant.id === oldIdentity.id; });
@@ -284,7 +287,7 @@
       } else if (current(entry) || record.source !== options.source) state = 'changed';
       entry.outdated = state !== 'restored';
       if (entry.outdated) entry.lastResult = null;
-      var outcome = {state: state, record: clone(record), variant: selected, outdated: entry.outdated};
+      var outcome = {state: state, record: clone(record), variant: selected || null, outdated: entry.outdated};
       if (state === 'restored') options.write(clone(record.inputs), outcome);
       emit('ctm:store-restore', {component: options.component, id: entry.id, runtimeId: entry.runtimeId, state: state, result: record.result || null, outdated: outcome.outdated});
       return outcome;
@@ -340,12 +343,19 @@
       var previous = parse(storage(kind, 'get', name));
       if (future(previous)) return false;
       var oldIdentity = previous && (previous.variant || previous.proposal);
-      if (!oldIdentity || oldIdentity.hash !== chosen.hash) forget(entry);
+      var matchingContent = options.variants ? options.variants().filter(function (item) { return item.hash === chosen.hash; }) : [];
+      var unambiguousContent = matchingContent.length === 1 &&
+        (matchingContent[0].n === chosen.n || matchingContent[0].id === chosen.id);
+      // Equal mathematical content can belong to distinct note identities.
+      // A deliberate switch must discard its old answer/result cache too.
+      var sameIdentity = oldIdentity && oldIdentity.hash === chosen.hash &&
+        (unambiguousContent || ((Number.isSafeInteger(oldIdentity.n) && Number.isSafeInteger(chosen.n)) ? oldIdentity.n === chosen.n : oldIdentity.id === chosen.id));
+      if (!sameIdentity) forget(entry);
       var record = {v: 1, component: options.component, saved: new Date().toISOString(), inputs: {},
         variant: variant ? {n: variant.n, id: variant.id, hash: variant.hash} : null,
         seen: Array.from(new Set(state.seen.concat(variant ? variant.n : 'proposal:' + pending.id)))};
       if (isProposal) record.proposal = {id: pending.id, hash: pending.hash};
-      if (kind === 'localStorage' && valid(previous, options.component) && oldIdentity && oldIdentity.hash === chosen.hash) {
+      if (kind === 'localStorage' && valid(previous, options.component) && sameIdentity) {
         record.inputs = previous.inputs;
         if (previous.result) record.result = previous.result;
       }

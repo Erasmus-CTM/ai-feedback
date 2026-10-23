@@ -84,3 +84,22 @@ test('optional proposal P17 record has null variant and separate sidecar through
   assert.equal(p.chooser.current().n,14);assert.equal(p.handle.restore().state,'restored');
   p.handle.choice(p.chooser.state());assert.equal(p.handle.restoreChoice().proposal,undefined);p.dom.window.close();
 });
+test('duplicate content restores exact identity and a deliberate same-hash switch clears old grades', () => {
+  const deployed=[{n:1,id:'A',hash:'H'},{n:2,id:'B',hash:'H'}];
+  let p=page({deployed});p.chooser.restore({variant:deployed[1]});p.handle.choice(p.chooser.state());p.handle.result({status:'correct',score:1});
+  const saved=storage(p.w.localStorage);p.dom.window.close();p=page({deployed,saved});
+  assert.equal(p.chooser.current().n,2);assert.equal(p.handle.restore().variant.n,2);
+  p.chooser.restore({variant:deployed[0]});p.handle.choice(p.chooser.state());p.handle.flush();
+  assert.equal(p.handle.restoreChoice().result,undefined,'equal hash is not permission to reuse a different identity grade');
+  p.w.localStorage.setItem(p.key,JSON.stringify({v:1,component:'math-exercise',variant:{n:99,id:'gone',hash:'H'},inputs:{answer:'keep'}}));
+  const outcome=p.handle.restore();assert.equal(outcome.state,'withdrawn');assert.equal(outcome.variant,null);
+  assert.deepEqual(JSON.parse(JSON.stringify(outcome.record.inputs)),{answer:'keep'});p.dom.window.close();
+});
+test('unambiguous content remapping preserves restored answers when identity changes', () => {
+  const deployed=[{n:9,id:'new',hash:'same'}];
+  let p=page({deployed});
+  p.w.localStorage.setItem(p.key,JSON.stringify({v:1,component:'math-exercise',variant:{n:4,id:'old',hash:'same'},inputs:{answer:'preserve'}}));
+  const saved=storage(p.w.localStorage);p.dom.window.close();p=page({deployed,saved});
+  assert.equal(p.chooser.current().n,9);p.handle.choice(p.chooser.state());
+  assert.equal(p.handle.restoreChoice().inputs.answer,'preserve');p.dom.window.close();
+});

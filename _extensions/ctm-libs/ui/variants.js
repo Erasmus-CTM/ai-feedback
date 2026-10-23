@@ -45,7 +45,10 @@
     function restore(record) {
       if (!record || !(record.variant || record.proposal)) return {state: 'empty', record: record || null, variant: null};
       var old = record.variant || record.proposal;
-      var match = variants.find(function (variant) { return old.hash && variant.hash === old.hash; });
+      var sameHash = variants.filter(function (variant) { return old.hash && variant.hash === old.hash; });
+      var match = sameHash.find(function (variant) { return Number.isSafeInteger(old.n) && variant.n === old.n; }) ||
+        sameHash.find(function (variant) { return variant.id === old.id; }) ||
+        (sameHash.length === 1 ? sameHash[0] : null);
       var state = match ? 'restored' : 'withdrawn';
       if (!match) {
         match = variants.find(function (variant) { return Number.isSafeInteger(old.n) && variant.n === old.n; }) ||
