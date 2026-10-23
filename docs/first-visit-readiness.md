@@ -71,7 +71,7 @@ whole GET; decoder warnings and browser request failures remain observable.
 Exposed Content-Range boundaries, total size and received length must agree.
 Changed totals retry the same offset; a whole response to a later range replaces
 the earlier partial chunks. CORS-hidden range headers retain the existing short
-range/416 fallback. The COI service-worker bytes remain unchanged: controlled
+range/416 fallback. The range-only transport checks used unchanged COI service-worker bytes: controlled
 Chromium identity/Brotli transport checks confirmed complete verified bytes both
 with and without that worker. These focused transport checks do not replace
 actual first-visit CI or prove Python/bootstrap readiness.
