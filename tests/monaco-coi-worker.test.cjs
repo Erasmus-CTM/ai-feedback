@@ -7,8 +7,7 @@ function fixture({gate, environment={}, trustedTypes}={}) {
  const workers=[], amd=[], bootstrap=[];
  const w={document:{},MonacoEnvironment:environment, trustedTypes,
   Worker:function(url, options){this.url=url;this.options=options;workers.push(this);},
-  require(deps,done){amd.push(deps);done({getWorkerBootstrapUrl(url,label){bootstrap.push([url,label]);return 'blob:canonical-bootstrap';}})} };
- w.require.toUrl = name => 'https://cdn.test/monaco/min/'+name;
+  require(deps,done){amd.push(deps);done({toUrl:name=>'https://cdn.test/monaco/min/'+name},{getWorkerBootstrapUrl(url,label){bootstrap.push([url,label]);return 'blob:canonical-bootstrap';}})} };
  if(gate)w.qpyodideCoiSettled=gate;
  vm.createContext(w);vm.runInContext(source,w);
  return {w,workers,amd,bootstrap,hook:w.MonacoEnvironment.getWorker};
@@ -55,4 +54,24 @@ test('policy and AMD failures remain observable; reloading helper does not wrap 
 test('COI rejection cannot start workers; gate is read at request time after module setup',async()=>{
  const f=fixture(),gate=deferred(),error=new Error('decision failed');f.w.qpyodideCoiSettled=gate.promise;
  const pending=f.hook.call(f.w.MonacoEnvironment,'workerMain.js','editor');gate.reject(error);await assert.rejects(pending,e=>e===error);assert.equal(f.workers.length,0);
+});
+test('actual Monaco 0.46 AMD loader supplies module-local require.toUrl, never a global method',async()=>{
+ const workers=[],gate=deferred(),w={document:{},console,setTimeout,clearTimeout,
+  Worker:function(url,options){this.url=url;this.options=options;workers.push(this);},qpyodideCoiSettled:gate.promise};
+ vm.createContext(w);
+ vm.runInContext(fs.readFileSync(path.join(__dirname,'fixtures/monaco-0.46/loader.js'),'utf8'),w);
+ assert.equal(w.require.toUrl,undefined,'actual global loader deliberately lacks toUrl');
+ w.require.config({paths:{vs:'https://cdn.test/monaco/min/vs'}});
+ w.define('vs/base/browser/defaultWorkerFactory',['require'],function(localRequire){
+  return {getWorkerBootstrapUrl(url,label){
+   assert.equal(typeof localRequire.toUrl,'function');
+   assert.equal(url,localRequire.toUrl('vs/base/worker/workerMain.js'));
+   return url+'#'+label;
+  }};
+ });
+ vm.runInContext(source,w);
+ const pending=w.MonacoEnvironment.getWorker('workerMain.js','editorWorkerService');
+ assert.equal(workers.length,0);gate.resolve();const worker=await pending;
+ assert.equal(worker.url,'https://cdn.test/monaco/min/vs/base/worker/workerMain.js#editorWorkerService');
+ assert.equal(workers.length,1);assert.equal(worker.options.name,'editorWorkerService');
 });
