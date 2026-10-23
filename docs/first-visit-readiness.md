@@ -8,8 +8,8 @@ page. `window.load` alone does not cover those asynchronous component tasks.
 The existing shared runtime now exposes `trackInitialUI(promise)` and
 `whenInitialUIReady()`. Components register initial UI work synchronously in
 module evaluation, before `load`; their promises cover actual editor/question
-construction, including KaTeX's stylesheet and modules. The barrier closes after
-load dispatch, awaits those tasks, existing parent MathJax startup and the
+construction, including KaTeX's stylesheet and modules. Registration closes at
+load even if no reload barrier is requested; the barrier awaits those tasks, existing parent MathJax startup and the
 current `document.fonts.ready`. Duplicate calls share one promise. Late
 registration is a contract error; later user-created IDE editors are outside
 the initial construction batch. An older loaded runtime retains its live
@@ -43,3 +43,10 @@ barriers, late registration, retained old runtime, duplicate COI signals,
 interaction, deadline and recent-record rechecks. Actual first-visit browser
 proof must still retain all raw failures and request lifecycles. This source
 change alone does not clear static/live-course rollout or offline acceptance.
+
+Fatal worker events retain their native error reporting and reject pending
+startup, RPC and package-setup promises instead of leaving them waiting.
+The dead proxy rejects later calls immediately; no runtime is automatically
+replaced. An explicit restart creates one replacement and retains normal
+restart notifications. Failed postMessage calls reject their own operation
+and remove their pending entry. Worker object URLs are released once.

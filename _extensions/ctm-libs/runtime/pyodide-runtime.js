@@ -9,6 +9,10 @@
   // The work must not wait for Python or authored startup cells: the COI
   // decision can hold Python startup until this UI is safe to leave.
   var initialUI = [], initialUIClosed = false, initialUIReady = null;
+  if (typeof document !== 'undefined') {
+    initialUIClosed = document.readyState === 'complete';
+    if (!initialUIClosed) root.addEventListener('load', function () { initialUIClosed = true; }, {once: true});
+  }
   function trackInitialUI(promise) {
     if (initialUIClosed) throw new Error('Initial UI work must be registered before window.load');
     // Observe failures immediately, before load, without an unhandled race.

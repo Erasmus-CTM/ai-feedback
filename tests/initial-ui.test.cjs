@@ -43,3 +43,10 @@ test('adds the UI contract to an older live runtime without replacing its namesp
   assert.equal(p.api,existing); assert.equal(p.api.ensureCheckers,ensureCheckers);
   assert.equal(p.api.liveState.value,42); await p.api.whenInitialUIReady();
 });
+
+test('load seals initial registration even when isolation needed no barrier call',()=>{
+  const p=page();p.load();
+  assert.throws(()=>p.api.trackInitialUI(Promise.resolve()),/registered before window.load/);
+  const late=page({state:'complete'});
+  assert.throws(()=>late.api.trackInitialUI(Promise.resolve()),/registered before window.load/);
+});

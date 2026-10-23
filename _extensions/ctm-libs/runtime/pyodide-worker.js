@@ -610,18 +610,36 @@ self.onmessage = function(event) {
     const blobUrl = URL.createObjectURL(
       new Blob([WORKER_SOURCE + (options.plugin ? "\n" + options.plugin + "\n" : "")], { type: "text/javascript" })
     );
-    const worker = new Worker(blobUrl, { type: "module" });
+    let blobReleased = false;
+    function releaseBlob() {
+      if (blobReleased) return;
+      blobReleased = true;
+      URL.revokeObjectURL(blobUrl);
+    }
+    let worker;
+    try { worker = new Worker(blobUrl, { type: "module" }); }
+    catch (error) { releaseBlob(); return Promise.reject(error); }
 
     // After restart(): the restart's error. The worker is gone, so calls on
     // this proxy reject at once instead of waiting for an answer that never
     // comes.
     let gone = null, replacement = null;
+    function failWorker(error) {
+      if (gone) return;
+      gone = error;
+      worker.terminate();
+      for (const entry of pending.values()) entry.reject(error);
+      pending.clear();
+      setup?.reject(error);
+      releaseBlob();
+    }
     function rpc(type, payload = {}) {
       if (gone) return Promise.reject(gone);
       return new Promise((resolve, reject) => {
         const id = nextId++;
         pending.set(id, { resolve, reject });
-        worker.postMessage({ type, id, ...payload });
+        try { worker.postMessage({ type, id, ...payload }); }
+        catch (error) { pending.delete(id); reject(error); }
       });
     }
 
@@ -638,6 +656,7 @@ self.onmessage = function(event) {
     }
 
     worker.onmessage = (event) => {
+      if (gone) return;
       const msg = event.data;
       if (msg.type === "setup")        { if (msg.ok) setup.resolve(proxy); else setup.reject(new Error(msg.message)); return; }
       if (msg.type === "status")      { options.onStatus?.(msg.text); return; }
@@ -656,6 +675,17 @@ self.onmessage = function(event) {
 
     worker.onerror = (event) => {
       console.error("CTMWorker: error in the Pyodide worker", event);
+      const error = event.error instanceof Error ? event.error
+        : new Error(event.message || "The Python worker failed.");
+      error.workerFailed = true;
+      failWorker(error);
+      // Keep the native error event visible; no preventDefault/true return.
+    };
+    worker.onmessageerror = (event) => {
+      console.error("CTMWorker: invalid message from the Pyodide worker", event);
+      const error = new Error("The Python worker message could not be decoded.");
+      error.workerFailed = true;
+      failWorker(error);
     };
 
     // Proxy object: what `await qpyodideReady` / `mainPyodide` resolves to.
@@ -713,15 +743,13 @@ self.onmessage = function(event) {
        * proxy reject at once; restarting it again returns the same new start.
        */
       restart(reason) {
-        if (gone) return replacement;
+        if (replacement) return replacement;
         window.dispatchEvent(new Event("qpyodide-runtime-restart"));
-        worker.terminate();
-        const error = new Error(reason || "Python was restarted.");
-        error.restarted = true;
-        gone = error;
-        for (const entry of pending.values()) entry.reject(error);
-        pending.clear();
-        setup.reject(error);   // whoever waits for stage 2 stops waiting
+        if (!gone) {
+          const error = new Error(reason || "Python was restarted.");
+          error.restarted = true;
+          failWorker(error);
+        }
 
         const again = bootPyodideWorker(options);
         replacement = again;
@@ -734,7 +762,10 @@ self.onmessage = function(event) {
       retrySetup() {
         const promise = expectSetup();
         if (gone) setup.reject(gone);
-        else worker.postMessage({ type: "setupRetry" });
+        else {
+          try { worker.postMessage({ type: "setupRetry" }); }
+          catch (error) { setup.reject(error); }
+        }
         return promise;
       }
     };
@@ -761,7 +792,7 @@ self.onmessage = function(event) {
           }
         });
       } finally {
-        URL.revokeObjectURL(blobUrl);
+        releaseBlob();
       }
 
       // Enable the shared buffer if the page is cross-origin isolated.
@@ -786,6 +817,7 @@ self.onmessage = function(event) {
         }
       }
 
+      if (gone) throw gone;
       if (options.publish && globalThis.qpyodideReady === started) globalThis.mainPyodide = proxy;
 
       return proxy;
