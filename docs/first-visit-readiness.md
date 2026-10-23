@@ -75,3 +75,7 @@ range/416 fallback. The COI service-worker bytes remain unchanged: controlled
 Chromium identity/Brotli transport checks confirmed complete verified bytes both
 with and without that worker. These focused transport checks do not replace
 actual first-visit CI or prove Python/bootstrap readiness.
+
+### Native HEAD transport through COI
+
+The service worker returns native HEAD responses without reconstructing them. In the actual canonical Blob module worker diagnostic against the public CDN, reconstruction canceled the upstream HEAD request; native pass-through completed it, with identical subsequent wheel GET bytes and no pending requests. Other response handling is unchanged. This is a transport fix; full first-visit browser acceptance remains a separate check.
