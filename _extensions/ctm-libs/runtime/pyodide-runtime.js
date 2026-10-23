@@ -507,3 +507,54 @@
     whenSlow: whenSlow
   };
 })(globalThis);
+
+// Monaco 0.46 supports Promise<Worker> from its public getWorker hook. Keep
+// editor construction independent of COI: only the lazy worker must wait for
+// the document's stay/reload decision (a retired document never resolves it).
+(function (root) {
+  'use strict';
+  if (!root.document || typeof root.Worker !== 'function') return;
+  var environment = root.MonacoEnvironment || (root.MonacoEnvironment = {});
+  if (environment.getWorker && environment.getWorker.ctmCoiGate) return;
+  var authoredWorker = environment.getWorker;
+  var authoredURL = environment.getWorkerUrl;
+  var authoredPolicy = environment.createTrustedTypesPolicy;
+  var workerPolicy;
+
+  // Capture Monaco's own policy, without creating a second policy or changing
+  // its names, options or error handling. The shared runtime runs in the head,
+  // before either CTM component loads editor.main and its default factory.
+  environment.createTrustedTypesPolicy = function () {
+    var policy = authoredPolicy ? authoredPolicy.apply(this, arguments)
+      : root.trustedTypes && root.trustedTypes.createPolicy.apply(root.trustedTypes, arguments);
+    if (arguments[0] === 'defaultWorkerFactory') workerPolicy = policy;
+    return policy;
+  };
+
+  function gatedWorker(workerId, label) {
+    var receiver = this, args = arguments;
+    function createWorker() {
+      if (typeof authoredWorker === 'function') return authoredWorker.apply(receiver, args);
+      function construct(url) {
+        return new root.Worker(workerPolicy ? workerPolicy.createScriptURL(url) : url, {name: label});
+      }
+      if (typeof authoredURL === 'function') return construct(authoredURL.apply(receiver, args));
+      return new Promise(function (resolve, reject) {
+        // Reuse the pinned AMD factory's bootstrap URL: it preserves CDN Blob
+        // baseUrl/importScripts, same-origin COI parameters and the worker label.
+        // This exported AMD helper is version-bound, unlike the public hook.
+        root.require(['vs/base/browser/defaultWorkerFactory'], function (factory) {
+          try {
+            if (typeof factory.getWorkerBootstrapUrl !== 'function') throw new Error('Monaco worker bootstrap API is unavailable');
+            var url = factory.getWorkerBootstrapUrl(root.require.toUrl('vs/base/worker/workerMain.js'), label);
+            resolve(construct(url));
+          } catch (error) { reject(error); }
+        }, reject);
+      });
+    }
+    var decision = root.qpyodideCoiSettled;
+    return decision ? Promise.resolve(decision).then(createWorker) : createWorker();
+  }
+  gatedWorker.ctmCoiGate = true;
+  environment.getWorker = gatedWorker;
+})(globalThis);
