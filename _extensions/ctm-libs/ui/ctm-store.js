@@ -139,7 +139,10 @@
         if (entry.id !== command.id || !componentMatches({component: entry.options.component})) return;
         if (ambiguous && command.runtimeId && entry.runtimeExplicit && entry.runtimeId !== command.runtimeId) return;
       }
-      if (entry.id) { delete memory.localStorage[key(entry.id)]; delete dirty.localStorage[key(entry.id)]; }
+      if (entry.id) {
+        delete memory.localStorage[key(entry.id)]; delete dirty.localStorage[key(entry.id)];
+        storage('sessionStorage', 'remove', key(entry.id));
+      }
       forget(entry);
       if (command.reset === true && entry.options.clear) entry.options.clear();
       if (command.scope === 'exercise') emit('ctm:store-clear', {
@@ -161,6 +164,7 @@
   }
   function clearPage() {
     configure(); var durable = erase(pagePrefix); resetEntries();
+    storage('sessionStorage', 'keys').forEach(function (name) { if (name.startsWith(pagePrefix)) storage('sessionStorage', 'remove', name); });
     if (!sendClear('page', undefined, undefined, undefined, true)) durable = false;
     if (!durable) clearFailure();
     emit('ctm:store-clear', {course: course, page: page, durable: durable});
@@ -171,7 +175,7 @@
     storage('localStorage', 'keys').forEach(function (name) {
       if (name.startsWith(prefix) && name !== prefsKey && name !== prefix + '~mode' && !remove(name)) durable = false;
     });
-    storage('sessionStorage', 'remove', seedKey);
+    storage('sessionStorage', 'keys').forEach(function (name) { if (name.startsWith(prefix)) storage('sessionStorage', 'remove', name); });
     if (reset) resetEntries();
     else entries.forEach(forget);
     if (!sendClear('course', undefined, undefined, undefined, reset)) durable = false;
@@ -208,12 +212,16 @@
     if (!writable(entry)) return false;
     var name = key(entry.id), previous = parse(get(name));
     if (future(previous)) return false;
-    if (inputs === null || inputs === undefined) { entry.lastResult = null; return remove(name); }
-    var record = {v: 1, component: entry.options.component, saved: new Date().toISOString(), inputs: inputs};
     var variant = current(entry);
+    if (inputs === null || inputs === undefined) {
+      entry.lastResult = null;
+      if (!variant) return remove(name);
+      inputs = {}; // An untouched answer still retains its selected variant.
+    }
+    var record = {v: 1, component: entry.options.component, saved: new Date().toISOString(), inputs: inputs};
     if (variant) {
       record.variant = {n: variant.n, id: variant.id, hash: variant.hash};
-      record.seen = Array.from(new Set([].concat(previous && previous.seen || [], entry.options.seen ? entry.options.seen() : [],
+      record.seen = Array.from(new Set([].concat(entry.options.seen ? entry.options.seen() : previous && previous.seen || [],
         variant.n === undefined ? [] : [variant.n])));
     } else record.source = entry.options.source;
     if (entry.lastResult) record.result = entry.lastResult;
@@ -297,6 +305,7 @@
     }
     function clear() {
       var durable = entry.id ? remove(key(entry.id)) : true;
+      if (entry.id) storage('sessionStorage', 'remove', key(entry.id));
       forget(entry);
       if (options.clear) options.clear();
       if (entry.id && !sendClear('exercise', entry.id, entry.runtimeExplicit ? entry.runtimeId : undefined, options.component, true)) durable = false;
@@ -304,8 +313,36 @@
       emit('ctm:store-clear', {course: course, page: page, id: entry.id, runtimeId: entry.runtimeId, durable: durable});
       return durable;
     }
+    // Choice-only state shares the P17 exercise key, even before any answer.
+    // Saving off keeps only identity/seen in session storage, never answers.
+    function restoreChoice() {
+      if (!entry.id || entry.duplicate) return null;
+      var kind = writable(entry) ? 'localStorage' : 'sessionStorage';
+      var record = parse(storage(kind, 'get', key(entry.id)));
+      return valid(record, options.component) && record.variant ? clone(record) : null;
+    }
+    function choice(state) {
+      if (!entry.id || entry.duplicate) return false;
+      var variant = state && state.variant;
+      if (!variant || !Number.isSafeInteger(variant.n) || variant.n < 1 ||
+          typeof variant.id !== 'string' || !variant.id || typeof variant.hash !== 'string' || !variant.hash ||
+          !Array.isArray(state.seen) || state.seen.some(function (n) { return !Number.isSafeInteger(n) || n < 1; })) {
+        throw new TypeError('Variant choice needs a positive identity and seen numbers.');
+      }
+      var kind = writable(entry) ? 'localStorage' : 'sessionStorage', name = key(entry.id);
+      var previous = parse(storage(kind, 'get', name));
+      if (future(previous)) return false;
+      if (!previous || !previous.variant || previous.variant.hash !== variant.hash) forget(entry);
+      var record = {v: 1, component: options.component, saved: new Date().toISOString(), inputs: {},
+        variant: {n: variant.n, id: variant.id, hash: variant.hash}, seen: Array.from(new Set(state.seen.concat(variant.n)))};
+      if (kind === 'localStorage' && valid(previous, options.component) && previous.variant && previous.variant.hash === variant.hash) {
+        record.inputs = previous.inputs;
+        if (previous.result) record.result = previous.result;
+      }
+      return storage(kind, 'set', name, JSON.stringify(record));
+    }
     entry.flush = flush;
-    return {restore: restore, changed: changed, result: result, clear: clear, flush: flush, cancel: function () { cancel(entry); }};
+    return {restore: restore, restoreChoice: restoreChoice, choice: choice, changed: changed, result: result, clear: clear, flush: flush, cancel: function () { cancel(entry); }};
   }
   function cleanup() {
     if (!enabled() || !Array.isArray(config.exercises)) return;
