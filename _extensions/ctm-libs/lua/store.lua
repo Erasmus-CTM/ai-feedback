@@ -9,6 +9,7 @@ return function(ctm)
   local function isHTML() return quarto.doc.is_format("html:js") end
   local function dependencies()
     if not isHTML() then return end
+    ctm.layout.use()
     ctm.locale.use("ui")
     ctm.deps.html({name = "ctm-ui", stylesheets = {"ui/ctm-ui.css"}})
     ctm.deps.html({name = "ctm-copy", scripts = {"ui/ctm-copy.js"}})

@@ -392,5 +392,5 @@
     }
   };
   Object.defineProperties(window.CTMStore, {course: {get: function () { configure(); return course; }}, page: {get: function () { configure(); return page; }}});
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+  window.CTMLayout.ready(start);
 })();

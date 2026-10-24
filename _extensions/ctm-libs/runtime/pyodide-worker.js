@@ -143,7 +143,19 @@ async function init(cfg) {
           throw new Error("Package is outside the local Pyodide subset: " + name);
         }
       }
-      await pyodide.loadPackage(names);
+      const errors = [];
+      await pyodide.loadPackage(names, {
+        checkIntegrity: true,
+        errorCallback: text => { errors.push(String(text)); }
+      });
+      // loadPackage can report a failed download without rejecting. Required
+      // stage-1 packages must actually be loaded before publishing readiness.
+      const missing = names.filter(name => !isLoaded(name));
+      if (missing.length) {
+        console.warn("CTMWorker: stage 1 could not install " + missing.join(", ") + ": " + (errors.join("\n") || "not loaded"));
+        const reason = errors.find(text => !/^The following error occurred/.test(text)) || "not installed";
+        throw new Error(missing.join(", ") + ": " + shortReason(reason));
+      }
     } else {
       await pyodide.loadPackage("micropip");
       postStatus(msg.extraPackages || "Installing additional packages ...");
@@ -338,15 +350,40 @@ function joined(chunks, length) {
 // One byte range; a request without a byte for STALL ms counts as failed.
 // Returns the bytes received and the file's size when the server names it.
 // Errors are short (the status line shows them); the URL goes to the console.
-async function fetchRange(url, start) {
+async function fetchRange(url, start, method = "GET") {
   const controller = new AbortController();
   let timer = null, stalled = false;
   const arm = () => { clearTimeout(timer); timer = setTimeout(() => { stalled = true; controller.abort(); }, STALL); };
   arm();
   try {
-    const response = await networkFetch(url, { headers: { Range: "bytes=" + start + "-" + (start + RANGE - 1) }, ...(keepsWheels() ? { cache: "no-store" } : {}), signal: controller.signal });
-    if (response.status === 416) return { received: 0, total: start, chunks: [] };
+    const response = await networkFetch(url, { ...(method === "HEAD" ? {method} : {}), headers: method === "HEAD" || start === null ? {} : { Range: "bytes=" + start + "-" + (start + RANGE - 1) }, ...(keepsWheels() ? { cache: "no-store" } : {}), signal: controller.signal });
+    const encoding = (response.headers.get("Content-Encoding") || "identity").trim().toLowerCase();
+    if (method === "HEAD") {
+      await response.arrayBuffer();
+      if (response.status < 200 || response.status >= 300) return {encoded: true};
+      const exposed = (response.headers.get("Access-Control-Expose-Headers") || "").toLowerCase().split(",").map(value => value.trim());
+      const encodingVisible = response.type === "basic" || response.type === "default" ||
+        exposed.includes("*") || exposed.includes("content-encoding");
+      return {encoded: !encodingVisible || encoding !== "identity"};
+    }
+    if (response.status === 416) {
+      await response.arrayBuffer();
+      const total = /^bytes \*\/(\d+)$/.exec(response.headers.get("Content-Range") || "");
+      if (start === null || (total && Number(total[1]) !== start)) throw new Error("Invalid unsatisfied byte range");
+      return { received: 0, total: start, chunks: [] };
+    }
     if (response.status !== 206 && response.status !== 200) throw new Error("HTTP " + response.status);
+    if (response.status === 206 && start === null) {
+      await response.arrayBuffer();
+      throw new Error("Unexpected partial response to a whole-file request");
+    }
+    if (response.status === 206 && encoding !== "identity") {
+      // The representation can change after HEAD. Consume the attempted
+      // response, retaining decoder failures, then fetch the whole file once.
+      try { await response.arrayBuffer(); }
+      catch (error) { console.warn("CTMWorker: encoded partial response could not finish", error); }
+      return {encoded: true};
+    }
     const reader = response.body.getReader();
     let received = 0;
     const chunks = [];
@@ -358,8 +395,24 @@ async function fetchRange(url, start) {
       arm();
     }
     if (response.status === 200) return { received, total: received, chunks, whole: true };
-    const range = /\/(\d+)\s*$/.exec(response.headers.get("Content-Range") || "");
-    return { received, total: range ? Number(range[1]) : (received < RANGE ? start + received : null), chunks };
+    // Content-Range addresses the identity representation validated above.
+    const header = response.headers.get("Content-Range");
+    if (header) {
+      const range = /^bytes (\d+)-(\d+)\/(\d+|\*)$/.exec(header.trim());
+      if (!range) throw new Error("Invalid Content-Range");
+      const from = Number(range[1]), to = Number(range[2]);
+      const total = range[3] === "*" ? null : Number(range[3]);
+      if (![from, to, ...(total === null ? [] : [total])].every(Number.isSafeInteger) ||
+          from !== start || to < from || to >= start + RANGE ||
+          (total !== null && to >= total) || received !== to - from + 1) {
+        throw new Error("Byte range does not match its requested offset or received length");
+      }
+      return {received, total, chunks};
+    }
+    // Legacy CORS servers may hide Content-Range. A short range still ends
+    // the file; a full range is followed until a short range or HTTP 416.
+    if (received > RANGE) throw new Error("Byte range exceeds its requested length");
+    return {received, total: received < RANGE ? start + received : null, chunks};
   } catch (err) {
     throw stalled ? new Error("no data for " + (STALL < 1000 ? STALL + " ms" : Math.round(STALL / 1000) + " s")) : err;
   } finally {
@@ -372,7 +425,11 @@ async function fetchRangeWithRetries(file, start) {
   for (let attempt = 0; ; attempt++) {
     await quiet();
     try {
-      return await fetchRange(file.url, start);
+      const result = await fetchRange(file.url, start);
+      if (!result.whole && result.total != null && file.total != null && result.total !== file.total) {
+        throw new Error("Byte range total changed during download");
+      }
+      return result;
     } catch (err) {
       if (attempt < RETRY_AFTER.length) { await sleep(RETRY_AFTER[attempt]); continue; }
       const reason = String((err && err.message) || err);
@@ -397,7 +454,15 @@ async function prefetch(names) {
   for (const file of files) {
     const kept = await cachedWheel(file.url);
     if (kept && await holdVerified(file.url, kept, file.sha256)) continue;
-    const got = await fetchRangeWithRetries(file, 0);
+    // HEAD negotiates the same representation without asking a decoder to
+    // consume an incomplete gzip/Brotli stream. Unsupported HEAD falls back
+    // to whole-file prefetch, which retains the same lock-file verification.
+    await quiet();
+    let encoded = true;
+    try { encoded = (await fetchRange(file.url, 0, "HEAD")).encoded; }
+    catch (error) { /* the ordinary whole-file GET remains authoritative */ }
+    let got = await fetchRangeWithRetries(file, encoded ? null : 0);
+    if (got.encoded) got = await fetchRangeWithRetries(file, null);
     file.next = got.received;
     file.total = got.total;
     file.chunks.push(...got.chunks);
@@ -408,7 +473,12 @@ async function prefetch(names) {
   open.sort((a, b) => (a.total === null ? Infinity : a.total) - (b.total === null ? Infinity : b.total));
   for (const file of open) {
     while (file.total === null || file.next < file.total) {
-      const got = await fetchRangeWithRetries(file, file.next);
+      let got = await fetchRangeWithRetries(file, file.next);
+      if (got.encoded) got = await fetchRangeWithRetries(file, null);
+      if (got.whole) {
+        file.next = got.received; file.total = got.total; file.chunks = got.chunks;
+        break;
+      }
       if (got.received === 0) break;
       file.next += got.received;
       file.chunks.push(...got.chunks);
@@ -610,18 +680,36 @@ self.onmessage = function(event) {
     const blobUrl = URL.createObjectURL(
       new Blob([WORKER_SOURCE + (options.plugin ? "\n" + options.plugin + "\n" : "")], { type: "text/javascript" })
     );
-    const worker = new Worker(blobUrl, { type: "module" });
+    let blobReleased = false;
+    function releaseBlob() {
+      if (blobReleased) return;
+      blobReleased = true;
+      URL.revokeObjectURL(blobUrl);
+    }
+    let worker;
+    try { worker = new Worker(blobUrl, { type: "module" }); }
+    catch (error) { releaseBlob(); return Promise.reject(error); }
 
     // After restart(): the restart's error. The worker is gone, so calls on
     // this proxy reject at once instead of waiting for an answer that never
     // comes.
     let gone = null, replacement = null;
+    function failWorker(error) {
+      if (gone) return;
+      gone = error;
+      worker.terminate();
+      for (const entry of pending.values()) entry.reject(error);
+      pending.clear();
+      setup?.reject(error);
+      releaseBlob();
+    }
     function rpc(type, payload = {}) {
       if (gone) return Promise.reject(gone);
       return new Promise((resolve, reject) => {
         const id = nextId++;
         pending.set(id, { resolve, reject });
-        worker.postMessage({ type, id, ...payload });
+        try { worker.postMessage({ type, id, ...payload }); }
+        catch (error) { pending.delete(id); reject(error); }
       });
     }
 
@@ -638,6 +726,7 @@ self.onmessage = function(event) {
     }
 
     worker.onmessage = (event) => {
+      if (gone) return;
       const msg = event.data;
       if (msg.type === "setup")        { if (msg.ok) setup.resolve(proxy); else setup.reject(new Error(msg.message)); return; }
       if (msg.type === "status")      { options.onStatus?.(msg.text); return; }
@@ -656,6 +745,17 @@ self.onmessage = function(event) {
 
     worker.onerror = (event) => {
       console.error("CTMWorker: error in the Pyodide worker", event);
+      const error = event.error instanceof Error ? event.error
+        : new Error(event.message || "The Python worker failed.");
+      error.workerFailed = true;
+      failWorker(error);
+      // Keep the native error event visible; no preventDefault/true return.
+    };
+    worker.onmessageerror = (event) => {
+      console.error("CTMWorker: invalid message from the Pyodide worker", event);
+      const error = new Error("The Python worker message could not be decoded.");
+      error.workerFailed = true;
+      failWorker(error);
     };
 
     // Proxy object: what `await qpyodideReady` / `mainPyodide` resolves to.
@@ -713,15 +813,13 @@ self.onmessage = function(event) {
        * proxy reject at once; restarting it again returns the same new start.
        */
       restart(reason) {
-        if (gone) return replacement;
+        if (replacement) return replacement;
         window.dispatchEvent(new Event("qpyodide-runtime-restart"));
-        worker.terminate();
-        const error = new Error(reason || "Python was restarted.");
-        error.restarted = true;
-        gone = error;
-        for (const entry of pending.values()) entry.reject(error);
-        pending.clear();
-        setup.reject(error);   // whoever waits for stage 2 stops waiting
+        if (!gone) {
+          const error = new Error(reason || "Python was restarted.");
+          error.restarted = true;
+          failWorker(error);
+        }
 
         const again = bootPyodideWorker(options);
         replacement = again;
@@ -734,7 +832,10 @@ self.onmessage = function(event) {
       retrySetup() {
         const promise = expectSetup();
         if (gone) setup.reject(gone);
-        else worker.postMessage({ type: "setupRetry" });
+        else {
+          try { worker.postMessage({ type: "setupRetry" }); }
+          catch (error) { setup.reject(error); }
+        }
         return promise;
       }
     };
@@ -761,7 +862,7 @@ self.onmessage = function(event) {
           }
         });
       } finally {
-        URL.revokeObjectURL(blobUrl);
+        releaseBlob();
       }
 
       // Enable the shared buffer if the page is cross-origin isolated.
@@ -786,6 +887,7 @@ self.onmessage = function(event) {
         }
       }
 
+      if (gone) throw gone;
       if (options.publish && globalThis.qpyodideReady === started) globalThis.mainPyodide = proxy;
 
       return proxy;

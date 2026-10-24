@@ -15,6 +15,7 @@ async function load({progress = true, early = [], extraExercises = [], messages 
   const w = new JSDOM('<!doctype html><html lang="en"><body><main><div class="ctm-progress-slot" data-ctm-quiz="q"></div><details><summary>Closed</summary><div id="a"></div></details><div id="b"></div><div id="outside"></div></main><script id="ctm-store-manifest" type="application/json"></script></body></html>', {runScripts:'outside-only',pretendToBeVisual:true}).window;
   configure(manifest,w);
   w.document.getElementById('ctm-store-manifest').textContent = JSON.stringify(manifest);
+  w.eval(fs.readFileSync(path.join(C.library, 'ui', 'ctm-layout.js'), 'utf8'));
   w.eval(source);
   for (const [type,detail] of early) w.document.dispatchEvent(new w.CustomEvent(type,{detail}));
   if (w.document.readyState === 'loading') await new Promise(resolve => w.document.addEventListener('DOMContentLoaded',resolve));

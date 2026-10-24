@@ -5,9 +5,57 @@
 (function (root) {
   'use strict';
 
-  // An older copy (another component's release) may have loaded first; a
-  // copy with the current interface replaces it (shared state lives on root).
-  if (root.MathExerciseRuntime && typeof root.MathExerciseRuntime.ensureCheckers === 'function') return;
+  // Register initial component UI work synchronously, before window.load.
+  // The work must not wait for Python or authored startup cells: the COI
+  // decision can hold Python startup until this UI is safe to leave.
+  var initialUI = [], initialUIClosed = false, initialUIReady = null;
+  if (typeof document !== 'undefined') {
+    initialUIClosed = document.readyState === 'complete';
+    if (!initialUIClosed) root.addEventListener('load', function () { initialUIClosed = true; }, {once: true});
+  }
+  function trackInitialUI(promise) {
+    if (initialUIClosed) throw new Error('Initial UI work must be registered before window.load');
+    // Observe failures immediately, before load, without an unhandled race.
+    // Keep them visible even when no COI reload is needed, and make the
+    // barrier reject with the original error rather than call failed UI ready.
+    initialUI.push(Promise.resolve(promise).then(function () { return null; }, function (error) {
+      console.error('CTM: initial UI failed', error);
+      return {error: error};
+    }));
+    return promise;
+  }
+  function whenInitialUIReady() {
+    if (initialUIReady) return initialUIReady;
+    initialUIReady = (async function () {
+      if (typeof document === 'undefined') return;
+      if (document.readyState !== 'complete') {
+        await new Promise(function (resolve) { root.addEventListener('load', resolve, {once: true}); });
+      }
+      // load dispatch finishes before this continuation. Initial component
+      // modules have registered all their asynchronous UI work by then.
+      initialUIClosed = true;
+      var results = await Promise.all(initialUI);
+      var failed = results.find(function (result) { return result; });
+      if (failed) throw failed.error;
+      if (root.MathJax && root.MathJax.startup && root.MathJax.startup.promise) {
+        await root.MathJax.startup.promise;
+      }
+      // Typesetting/editor construction can discover fonts after load.
+      if (document.fonts) await document.fonts.ready;
+    })();
+    return initialUIReady;
+  }
+
+  // Preserve an already-loaded runtime's live state; add only the readiness
+  // contract when an older component copy did not provide it.
+  if (root.MathExerciseRuntime && typeof root.MathExerciseRuntime.ensureCheckers === 'function') {
+    if (typeof root.MathExerciseRuntime.trackInitialUI !== 'function' ||
+        typeof root.MathExerciseRuntime.whenInitialUIReady !== 'function') {
+      root.MathExerciseRuntime.trackInitialUI = trackInitialUI;
+      root.MathExerciseRuntime.whenInitialUIReady = whenInitialUIReady;
+    }
+    return;
+  }
 
   // This script's own URL (on a page), for workers that load the runtime
   // themselves with importScripts.
@@ -445,6 +493,8 @@
     loadTimeout: LOAD_TIMEOUT,
     loadScript: loadScript,
     ensurePyodide: ensurePyodide,
+    trackInitialUI: trackInitialUI,
+    whenInitialUIReady: whenInitialUIReady,
     scriptURL: scriptURL,
     installModule: installModule,
     forgetModules: forgetModules,
@@ -456,4 +506,55 @@
     stopCount: stopCount,
     whenSlow: whenSlow
   };
+})(globalThis);
+
+// Monaco 0.46 supports Promise<Worker> from its public getWorker hook. Keep
+// editor construction independent of COI: only the lazy worker must wait for
+// the document's stay/reload decision (a retired document never resolves it).
+(function (root) {
+  'use strict';
+  if (!root.document || typeof root.Worker !== 'function') return;
+  var environment = root.MonacoEnvironment || (root.MonacoEnvironment = {});
+  if (environment.getWorker && environment.getWorker.ctmCoiGate) return;
+  var authoredWorker = environment.getWorker;
+  var authoredURL = environment.getWorkerUrl;
+  var authoredPolicy = environment.createTrustedTypesPolicy;
+  var workerPolicy;
+
+  // Capture Monaco's own policy, without creating a second policy or changing
+  // its names, options or error handling. The shared runtime runs in the head,
+  // before either CTM component loads editor.main and its default factory.
+  environment.createTrustedTypesPolicy = function () {
+    var policy = authoredPolicy ? authoredPolicy.apply(this, arguments)
+      : root.trustedTypes && root.trustedTypes.createPolicy.apply(root.trustedTypes, arguments);
+    if (arguments[0] === 'defaultWorkerFactory') workerPolicy = policy;
+    return policy;
+  };
+
+  function gatedWorker(workerId, label) {
+    var receiver = this, args = arguments;
+    function createWorker() {
+      if (typeof authoredWorker === 'function') return authoredWorker.apply(receiver, args);
+      function construct(url) {
+        return new root.Worker(workerPolicy ? workerPolicy.createScriptURL(url) : url, {name: label});
+      }
+      if (typeof authoredURL === 'function') return construct(authoredURL.apply(receiver, args));
+      return new Promise(function (resolve, reject) {
+        // Reuse the pinned AMD factory's bootstrap URL: it preserves CDN Blob
+        // baseUrl/importScripts, same-origin COI parameters and the worker label.
+        // This exported AMD helper is version-bound, unlike the public hook.
+        root.require(['require', 'vs/base/browser/defaultWorkerFactory'], function (amdRequire, factory) {
+          try {
+            if (typeof factory.getWorkerBootstrapUrl !== 'function') throw new Error('Monaco worker bootstrap API is unavailable');
+            var url = factory.getWorkerBootstrapUrl(amdRequire.toUrl('vs/base/worker/workerMain.js'), label);
+            resolve(construct(url));
+          } catch (error) { reject(error); }
+        }, reject);
+      });
+    }
+    var decision = root.qpyodideCoiSettled;
+    return decision ? Promise.resolve(decision).then(createWorker) : createWorker();
+  }
+  gatedWorker.ctmCoiGate = true;
+  environment.getWorker = gatedWorker;
 })(globalThis);
