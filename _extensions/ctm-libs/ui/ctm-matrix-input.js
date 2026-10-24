@@ -3,7 +3,7 @@
 (function (root) {
   'use strict';
   function escHtml(value) { return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
-  var defaults = { matrixAddRow: 'Add row', matrixRemoveRow: 'Remove row', matrixAddColumn: 'Add column', matrixRemoveColumn: 'Remove column', matrixRows: 'Rows', matrixColumns: 'Columns', emptyMatrix: 'Empty matrix' };
+  var defaults = { matrixAddRow: 'Add row', matrixRemoveRow: 'Remove row', matrixAddColumn: 'Add column', matrixRemoveColumn: 'Remove column', matrixRows: 'Rows', matrixColumns: 'Columns', emptyMatrix: 'Empty matrix', matrixSizeControls: 'Matrix size controls' };
   function factory(options) {
     options = options || {};
     var exerciseId = options.idPrefix || 'matrix', vars = options.vars || '';
@@ -12,6 +12,7 @@
     if (zero !== 'reject' && zero !== 'canonical') throw new Error('matrix-input: invalid zeroDimensions policy');
     function validateSpec(spec) {
       if (!spec || !/^[A-Za-z][A-Za-z0-9_-]*$/.test(spec.name)) throw new Error('matrix-input: invalid name');
+      if (spec.label !== undefined && typeof spec.label !== 'string') throw new Error('matrix-input: invalid display label');
       ['rows', 'cols'].forEach(function (key) {
         var axis = spec[key];
         if (!axis || typeof axis.auto !== 'boolean') throw new Error('matrix-input: invalid axis');
@@ -33,7 +34,7 @@
           + ' data-dynamic-matrix-name="' + escHtml(spec.name) + '"'
           + ' data-matrix-row="' + row + '" data-matrix-column="' + column + '"'
           + ' data-structural-label="' + escHtml(label) + '"'
-          + ' aria-label="' + escHtml(spec.name + ', ' + L.matrixRows + ' ' + row + ', ' + L.matrixColumns + ' ' + column) + '"'
+          + ' aria-label="' + escHtml((spec.label || spec.name) + ', ' + L.matrixRows + ' ' + row + ', ' + L.matrixColumns + ' ' + column) + '"'
           + ' autocomplete="off" autocorrect="off" spellcheck="false"'
           + ' class="math-input math-mat-cell">',
     };
@@ -52,13 +53,14 @@
       }
     }
     var matrix = '<span class="math-mat math-dynamic-mat" style="--cols:' + Math.max(cols, 1) + '"'
-      + ' data-matrix-name="' + escHtml(spec.name) + '" data-rows="' + rows + '" data-cols="' + cols + '"'
+      + ' data-matrix-name="' + escHtml(spec.name) + '"'
+      + (spec.label === undefined ? '' : ' data-matrix-label="' + escHtml(spec.label) + '"') + ' data-rows="' + rows + '" data-cols="' + cols + '"'
       + ' data-auto-rows="' + spec.rows.auto + '" data-auto-cols="' + spec.cols.auto + '"'
       + ' data-min-rows="' + spec.rows.min + '" data-max-rows="' + spec.rows.max + '"'
       + ' data-min-cols="' + spec.cols.min + '" data-max-cols="' + spec.cols.max + '"'
       + ' data-last-rows="' + configuredRows + '" data-last-cols="' + configuredCols + '">'
       + cells.join('') + '</span>';
-    var controls = '<span class="math-dynamic-matrix-controls" aria-label="Matrix size controls">'
+    var controls = '<span class="math-dynamic-matrix-controls" aria-label="' + escHtml(L.matrixSizeControls) + '">'
       + '<span class="math-dynamic-axis" data-dynamic-axis="row"><span class="math-dynamic-axis-label"></span>'
       + '<button type="button" data-dynamic-action="remove-row">−</button><output></output>'
       + '<button type="button" data-dynamic-action="add-row">+</button></span>'
@@ -77,6 +79,7 @@
   function dynamicSpecFromElement(matrix) {
     return {
       name: matrix.dataset.matrixName,
+      label: matrix.dataset.matrixLabel,
       rows: {
         auto: matrix.dataset.autoRows === 'true',
         initial: Number(matrix.dataset.lastRows),
@@ -190,7 +193,7 @@
         });
         controls.querySelectorAll('button').forEach(function (button) {
           var action=button.dataset.dynamicAction, row=action.indexOf('row')!==-1, axis=row?spec.rows:spec.cols, value=row?rows:cols;
-          button.setAttribute('aria-label',labels[action]+' '+spec.name);
+          button.setAttribute('aria-label',labels[action]+' '+(spec.label || spec.name));
           var opposite = row ? spec.cols : spec.rows;
           button.disabled=!axis.auto || (action.indexOf('add')===0?(value>=axis.max || opposite.max===0):value<=axis.min);
         });
