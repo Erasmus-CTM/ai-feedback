@@ -784,6 +784,13 @@ self.onmessage = function(event) {
       onInputRequired: null,    // Callback() – Python is waiting for input
       whenSetup: null,          // Promise: stage 2 done (see above)
       whenIdle: () => pending.size ? new Promise(resolve => idleWaiters.add(resolve)) : Promise.resolve(),
+      // Release a private runtime whose page-side backend startup failed.
+      // Unlike restart(), this never creates a replacement worker or event.
+      terminate(reason) {
+        if (options.publish) throw new Error('A published runtime must be stopped or restarted, not terminated privately.');
+        const error = reason instanceof Error ? reason : new Error(reason || 'Python worker was terminated.');
+        failWorker(error);
+      },
 
       runPythonAsync: (code) => rpc("runPython", { code }),
       loadPackagesFromImports: (code) => rpc("loadPackagesFromImports", { code }),

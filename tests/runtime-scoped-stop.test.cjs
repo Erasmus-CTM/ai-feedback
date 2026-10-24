@@ -31,6 +31,20 @@ test('an unpublished worker restart never announces a published runtime restart'
   assert.equal(events, 0); assert.equal(p.mainPyodide, published);
 });
 
+test('failed page-side backend startup can release its worker without spawning a replacement', async () => {
+  const {p} = page(), {proxy, worker} = await ready(p);
+  const cause = new Error('SymPy startup deadline');
+  let events = 0;
+  p.addEventListener('qpyodide-runtime-restart', () => events++);
+  const loading = proxy.loadPackage('sympy');
+  const rejected = assert.rejects(loading, error => error === cause);
+  proxy.terminate(cause); await rejected;
+  assert.equal(worker.terminated, true); assert.equal(p.workers.length, 1);
+  assert.equal(events, 0);
+  await assert.rejects(proxy.runPythonAsync('late'), error => error === cause);
+  proxy.terminate('again'); assert.equal(p.workers.length, 1);
+});
+
 test('published restart identifies exactly the old proxy before replacing it', async () => {
   const {p} = page(), {proxy} = await ready(p, {publish: true});
   let detail;
@@ -41,6 +55,15 @@ test('published restart identifies exactly the old proxy before replacing it', a
   const replacementProxy = await replacement;
   assert.equal(p.mainPyodide, replacementProxy);
   assert.equal(replacementProxy, await p.qpyodideReady);
+});
+
+test('private cleanup cannot invalidate a published runtime or its pending calls', async () => {
+  const {p} = page(), {proxy, worker} = await ready(p, {publish: true});
+  const call = proxy.runPythonAsync('working');
+  assert.throws(() => proxy.terminate('wrong cleanup'), /published runtime/);
+  assert.equal(worker.terminated, false); assert.equal(p.mainPyodide, proxy);
+  worker.reply({type: 'result', id: worker.posted.at(-1).id, value: 4});
+  assert.equal(await call, 4);
 });
 
 test('a private Stop restarts only its own non-isolated worker and leaves the default stop count unchanged', async () => {

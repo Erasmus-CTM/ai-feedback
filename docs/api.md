@@ -586,6 +586,14 @@ component never enters another's captured output. `MathExerciseRuntime`'s
 `ensurePyodide`, `installModule`, `ensureCheckers`/`callCheckers`, `canStop`
 and `stop` use this subset.
 
+For an unpublished proxy, `proxy.terminate(reason)` releases the worker, rejecting its pending/setup and
+future calls with that error. It emits no page event and starts no replacement.
+A page-side backend adapter uses this to clean up a failed or timed-out startup
+after the initial proxy is ready (for example, while loading SymPy). The adapter
+must bound its entire readiness phase separately from `CTMWorker` initialization.
+Published proxies reject this operation before changing state; use their normal
+Stop or restart path so page consumers receive the scoped restart notification.
+
 **Plugins.** `registerPlugin(factory)` runs in the worker; `factory(api)`
 returns `{commands, stage1}`. `api.pyodide()` is the interpreter;
 `api.capture.start()`, `push(entry)` and `entries()` hold the stdout/stderr
