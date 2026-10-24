@@ -32,3 +32,26 @@ WebKit blob-worker controls still failed and stalled conversion. That experiment
 used a diagnostic loader wrapper; this canonical pre-loader requires its own
 actual-browser check before activation. It does not clear combined course/store
 or offline-board acceptance.
+
+## First-visit COI coordination
+
+The assessment producer's default pre-loader embeds an explicit
+`CTM_COI_FRAME_STARTUP` capability and emits the matching synchronous head
+`coi-frame-startup.js` dependency in the same nil-only metadata branch. Custom,
+blank and false pre-loader overrides retain their existing behavior; loading the
+standalone adaptor without that capability never waits for a parent.
+
+A flagged opaque child requests permission with a fresh nonce. The parent accepts
+only a live direct iframe's WindowProxy and replies only to that source and nonce;
+the child accepts only its parent with the matching protocol version and nonce.
+The parent waits until DOMContentLoaded to read the deferred COI module's actual
+`qpyodideCoiSettled` promise. A retired document never releases the worker; a
+retained document or a page without the COI component does. Removed/replaced
+frames do not receive an acknowledgement.
+
+Only the adaptor's optional `createWorker` call waits. The coordinator imports no
+Python or MathJax and registers no speech readiness in the parent's initial UI
+barrier. Worker or speech failure remains separate from ordinary Check and Python.
+The capability depends on the producer's synchronous-head ordering, not a timeout
+probe or a global Worker replacement. Real first-visit browser lifecycle evidence
+is still required for the combined package.

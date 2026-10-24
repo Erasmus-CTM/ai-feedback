@@ -13,7 +13,12 @@ const source = fs.readFileSync(path.join(ctmLibs.library, 'runtime', 'pyodide-ru
 const cdn = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE}/full/`;
 
 function runtime(globals = {}) {
-  const context = vm.createContext({ ...globals });
+  const events = new EventTarget();
+  const context = vm.createContext({
+    addEventListener: events.addEventListener.bind(events),
+    dispatchEvent: events.dispatchEvent.bind(events),
+    ...globals
+  });
   vm.runInContext(source, context);
   return context;
 }
@@ -22,6 +27,7 @@ function documentStub(onAppend) {
   const scripts = [];
   return {
     scripts,
+    readyState: 'loading',
     querySelector(selector) {
       return scripts.find((script) => selector === `script[src="${script.src}"]`) ?? null;
     },

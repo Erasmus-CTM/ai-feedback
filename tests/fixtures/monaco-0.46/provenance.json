@@ -1,0 +1,15 @@
+{
+  "package": "monaco-editor",
+  "version": "0.46.0",
+  "files": {
+    "loader.js": {
+      "url": "https://cdn.jsdelivr.net/npm/monaco-editor@0.46.0/min/vs/loader.js",
+      "sha256": "a5cb5f7bc02d3948f8cc801503cb0893b8f0ea5fc51366a6d15eb1ea4cc09119"
+    },
+    "LICENSE.txt": {
+      "url": "https://cdn.jsdelivr.net/npm/monaco-editor@0.46.0/LICENSE",
+      "sha256": "33e4ff1a06ef62ba21788ea162564ee8165269a24a9ce6ef301837447eab0ac6"
+    }
+  },
+  "scope": "Unmodified actual AMD loader, test-only fixture; worker factory module is defined locally to observe injected require binding without network"
+}
