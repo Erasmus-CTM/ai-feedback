@@ -922,7 +922,10 @@ self.onmessage = function(event) {
 
       return proxy;
     })();
-    started.then(() => clearTimeout(loadTimer), () => clearTimeout(loadTimer));
+    started.then(() => clearTimeout(loadTimer), error => {
+      clearTimeout(loadTimer);
+      failWorker(error);
+    });
     return started;
   }
 

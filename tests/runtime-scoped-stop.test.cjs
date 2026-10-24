@@ -132,6 +132,16 @@ test('the selected worker loading deadline terminates a stalled initialization w
   assert.equal(p.mainPyodide, undefined);
 });
 
+test('a rejected initialization releases its private worker before any proxy reaches the adapter', async () => {
+  const {p, clock} = page();
+  const started = p.CTMWorker.start({loadTimeout: 20}), worker = p.workers[0];
+  const rejected = assert.rejects(started, /initialization rejected/);
+  worker.reply({type: 'error', id: worker.posted[0].id, message: 'initialization rejected'});
+  await rejected; assert.equal(worker.terminated, true);
+  await clock.advance(40);
+  assert.equal(p.workers.length, 1); assert.equal(worker.terminated, true);
+});
+
 test('invalid loading deadlines reject before a Worker is created', async () => {
   const {p} = page();
   for (const loadTimeout of [0, -1, NaN, Infinity, 2147483648, '25']) {
