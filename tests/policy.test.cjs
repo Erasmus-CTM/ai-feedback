@@ -8,7 +8,7 @@ const config=(defaults={},integrations={})=>{
  return {layers:[{policies}],projectPolicy};
 };
 test('shipped policies preserve review modes, four math steps and three Python hints',()=>{
-  for(const [name,count] of [['plain-text',0],['py-exercise',0],['math-exercise',4],['pyodide-interaktiv',3]]){
+  for(const [name,count] of [['plain-text',0],['py-exercise',0],['math-exercise',4],['stack',4],['pyodide-interaktiv',3]]){
     const p=F.resolvePolicy(name,'nb',{},config());assert.equal(p.steps.length,count);assert.equal(p.language,'nb');assert.equal(p['reset-on-run'],true);
   }
   const p=F.resolvePolicy('math-exercise','de',{},config());assert.equal(p['max-words'],120);assert.equal(p.steps[3]['allow-full-solution'],true);
@@ -23,7 +23,7 @@ test('loading definitions has no effect until selected; steps replace completely
 });
 test('all integrations can use new steps with step-specific limits and solution permission',()=>{
   globalThis.__aiFeedbackPolicies=config({steps:[{'step-prompt':'Nudge'},{'step-prompt':'Explain fully','allow-full-solution':true,'max-words':400}],language:'es'});
-  for(const name of ['plain-text','py-exercise','math-exercise','pyodide-interaktiv']){
+  for(const name of ['plain-text','py-exercise','math-exercise','pyodide-interaktiv','stack']){
     const first=F.applyPolicy(name,request,1);assert.equal(first.feedback.allowFullRewrite,false);
     const last=F.applyPolicy(name,request,99);assert.equal(last.feedback.level,2);assert.equal(last.feedback.maxWords,400);assert.equal(last.feedback.allowFullRewrite,true);assert.equal(last.feedback.language,'es');assert.ok(last.criteria.includes('Do not import math.'));
     assert.match(F.buildPrompt(last),/CURRENT HINT LEVEL: 2 OF 2/);
@@ -94,7 +94,7 @@ test('explicit project/page selection, matching exercise and selected policy win
 });
 test('named policies are reusable across all integrations and empty steps disable progression',()=>{
  const c={layers:[{policies:{review:{steps:[],'reset-on-run':false,'max-words':80}}}]};
- for(const integration of ['plain-text','math-exercise','py-exercise','pyodide-interaktiv']){
+ for(const integration of ['plain-text','math-exercise','py-exercise','pyodide-interaktiv','stack']){
   const p=F.resolvePolicy(integration,'en',{},c,{name:'review'});assert.equal(p.steps.length,0);assert.equal(p['max-words'],80);assert.equal(p['reset-on-run'],false);
  }
 });

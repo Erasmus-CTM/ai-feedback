@@ -367,7 +367,7 @@ function policies() {
   if (!errors.length) {
     const feedback = (globalThis as any).AIFeedback;
     try {
-      for (const integration of ['plain-text', 'py-exercise', 'math-exercise', 'pyodide-interaktiv']) feedback.resolvePolicy(integration, 'en', {}, config);
+      for (const integration of ['plain-text', 'py-exercise', 'math-exercise', 'pyodide-interaktiv', 'stack']) feedback.resolvePolicy(integration, 'en', {}, config);
     } catch (error) {
       errors.push('ai-feedback: ' + (error as Error).message);
     }
