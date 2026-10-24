@@ -15,10 +15,15 @@
     ? document.currentScript.src : undefined;
 
   var indexURL = 'https://cdn.jsdelivr.net/pyodide/v0.28.3/full/';
+  // Keep the line above as the single version source for Lua and the builder.
+  // Resolve lazily: Quarto can emit the page configuration after dependency tags.
+  function selectedIndexURL() {
+    return root.CTMAssets && typeof root.CTMAssets.url === 'function' ? root.CTMAssets.url('pyodide') : indexURL;
+  }
   var LOAD_TIMEOUT = root.__qExercisePyodideTimeout || 180000; // override for tests
 
   function loadScript(src) {
-    if (src === indexURL + 'pyodide.js' && typeof root.loadPyodide === 'function') {
+    if (src === selectedIndexURL() + 'pyodide.js' && typeof root.loadPyodide === 'function') {
       return Promise.resolve();
     }
 
@@ -98,10 +103,11 @@
     // worker. Install the promise before either extension can start another.
     if (!root.__qExercisePyodide) {
       root.__qExercisePyodide = (async function () {
-        await loadScript(indexURL + 'pyodide.js');
+        var selected = selectedIndexURL();
+        await loadScript(selected + 'pyodide.js');
         // A failed WebAssembly download leaves loadPyodide() pending forever;
         // give up after LOAD_TIMEOUT so that a later attempt can start again.
-        return withLoadLimit(root.loadPyodide({ indexURL: indexURL }));
+        return withLoadLimit(root.loadPyodide({ indexURL: selected }));
       })();
     }
     var pending = root.__qExercisePyodide;
@@ -435,7 +441,7 @@
   }
 
   root.MathExerciseRuntime = {
-    indexURL: indexURL,
+    get indexURL() { return selectedIndexURL(); },
     loadTimeout: LOAD_TIMEOUT,
     loadScript: loadScript,
     ensurePyodide: ensurePyodide,

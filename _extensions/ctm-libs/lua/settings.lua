@@ -29,6 +29,7 @@ return function(ctm)
 
   -- Metadata value -> JSON value. Text keeps its mathematics as \(...\) / \[...\].
   local function plain(value)
+    if value == nil then return nil end
     local kind = pandoc.utils.type(value)
     if kind == "boolean" or kind == "number" or kind == "string" then return value end
     if kind == "Inlines" or kind == "Blocks" then
@@ -82,7 +83,9 @@ return function(ctm)
       if pageMeta[section] ~= nil then documentMeta[section] = plain(pageMeta[section]) end
     end
     local input = {projectDirectory = quarto.project.directory, inputFile = quarto.doc.input_file,
-      profiles = quarto.project.profile, sections = M.SECTIONS, documentMeta = documentMeta}
+      profiles = quarto.project.profile, sections = M.SECTIONS, documentMeta = documentMeta,
+      assetsMeta = {theme = plain(pageMeta.theme), project = plain(pageMeta.project), format = plain(pageMeta.format),
+        jsxgraph = plain(pageMeta.jsxgraph), defaults = plain(pageMeta["_ctm-assessment-pin-defaults"])}}
     -- Use the running Quarto, which need not be on PATH (IDE-bundled installations).
     local cli = (quarto.config and quarto.config.cli_path and quarto.config.cli_path()) or "quarto"
     -- The input travels on stdin: it can hold credentials an author put in

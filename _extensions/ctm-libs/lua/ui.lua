@@ -359,9 +359,15 @@ return function(ctm)
     return doc
   end
 
-  -- The two passes of ctm.filters().
+  -- Components call these after parsing their labelled exercise block.
+  function M.exercise(spec) return ctm.store.exercise(spec) end
+  function M.finalize(doc) return ctm.store.finalize(doc) end
+  function M.exercises() return ctm.store.exercises() end
+
+  -- Prepare quiz scopes before reveal conversion.
   function M.passes()
     return {
+      {Pandoc = function(doc) return ctm.progress.prepare(doc) end},
       {Div = M.Div, Proof = M.Proof, Tabset = M.Tabset},
       {Pandoc = M.page},
     }

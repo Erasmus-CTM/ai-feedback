@@ -29,6 +29,7 @@ test('each ctm-libs file is one script or stylesheet of the head, loaded once', 
   const ours = [...head.matchAll(/<(?:script src|link href)="([^"]*quarto-contrib\/[^"]*)"/g)].map(m => m[1].replace(/^.*quarto-contrib\//, ''));
   // In registration order; Quarto keeps one dependency per name.
   assert.deepEqual(ours, [
+    `ctm-assets-${v}/assets.js`,
     `ai-feedback-${v}/feedback-core.js`, `ai-feedback-${v}/feedback-dom.js`, `ai-feedback-${v}/ai-feedback.js`, `ai-feedback-${v}/ai-feedback.css`,
     `ctm-runtime-${v}/pyodide-runtime.js`,
     `ctm-locale-${v}/ctm-locale.js`, `ctm-locale-${v}/common.js`,

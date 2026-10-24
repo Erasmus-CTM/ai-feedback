@@ -123,3 +123,28 @@ details.ctm-reveal.details[open] > summary::before { transform: rotate(45deg); }
 @media print {
   .ctm-modes { display: none !important; }
 }
+
+/* Saved answers, progress, export and shared copy. */
+.ctm-save-bar, .ctm-progress, .ctm-export-view {
+  margin:1rem 0;padding:.85rem 1rem;border:1px solid var(--ctm-modes-border);border-radius:.4rem;background:var(--ctm-modes-background);
+}
+.ctm-save-bar[hidden] {display:none;}
+.ctm-save-bar p {margin:0 0 .5rem;}
+.ctm-save-actions, .ctm-export-view>div {display:flex;flex-wrap:wrap;gap:.5rem;}
+.ctm-save-bar button, .ctm-export-view button, .ctm-copy-dialog button, .ctm-progress button {
+  padding:.4rem .65rem;border:1px solid var(--ctm-modes-button-border);border-radius:.3rem;
+  background:var(--ctm-modes-button-background);color:var(--ctm-modes-button-color);
+}
+.ctm-save-bar button:focus-visible, .ctm-export-view button:focus-visible, .ctm-progress button:focus-visible {
+  outline:3px solid var(--ctm-reveal-focus);outline-offset:2px;
+}
+.ctm-save-status {display:block;margin-top:.5rem;}
+.ctm-save-status:empty {margin:0;}
+.ctm-progress ol {display:flex;flex-wrap:wrap;gap:.5rem;list-style:none;padding-left:0;}
+.ctm-progress-outdated, .ctm-saved-result {opacity:.65;}
+.ctm-export-view textarea, .ctm-copy-dialog textarea {display:block;box-sizing:border-box;width:100%;margin-top:1rem;font-family:monospace;}
+.ctm-copy-dialog {width:min(90vw,55rem);}
+.ctm-copy-status {position:fixed;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);}
+@media print {
+  .ctm-save-bar,.ctm-progress,.ctm-export-view,.ctm-copy-dialog,.ctm-copy-status {display:none !important;}
+}

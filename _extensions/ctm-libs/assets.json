@@ -1,0 +1,35 @@
+{
+  "v": 1,
+  "assets": {
+    "monaco-editor": {
+      "npm": "monaco-editor",
+      "version": "0.46.0",
+      "cdn": "https://cdn.jsdelivr.net/npm/monaco-editor@{version}/",
+      "local": "npm/monaco-editor@{version}/"
+    },
+    "katex": {
+      "npm": "katex",
+      "version": "0.16.47",
+      "cdn": "https://cdn.jsdelivr.net/npm/katex@{version}/",
+      "local": "npm/katex@{version}/"
+    },
+    "font-awesome": {
+      "npm": "@fortawesome/fontawesome-free",
+      "version": "6.5.1",
+      "cdn": "https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@{version}/",
+      "local": "npm/@fortawesome/fontawesome-free@{version}/"
+    },
+    "mathjax3": {
+      "npm": "mathjax",
+      "version": "3.2.2",
+      "cdn": "https://cdn.jsdelivr.net/npm/mathjax@{version}/",
+      "local": "npm/mathjax@{version}/"
+    },
+    "source-sans-pro": {
+      "npm": "@fontsource/source-sans-pro",
+      "version": "5.3.0",
+      "cdn": "https://cdn.jsdelivr.net/npm/@fontsource/source-sans-pro@{version}/",
+      "local": "npm/@fontsource/source-sans-pro@{version}/"
+    }
+  }
+}
