@@ -199,7 +199,10 @@ test('cross-origin isolated pages get the interrupt and input buffers; a failure
   }
 });
 
-test('coi-serviceworker.js is pyodide-interaktiv 1.8\'s file, byte for byte (no service-worker update for learners)', () => {
-  const bytes = fs.readFileSync(path.join(C.library, 'runtime', 'coi-serviceworker.js'));
+test('coi-serviceworker.js retains the original file except native HEAD response pass-through', () => {
+  const current = fs.readFileSync(path.join(C.library, 'runtime', 'coi-serviceworker.js'), 'utf8');
+  const patch = 'if (resp.status === 0 || request.method === "HEAD") return resp;';
+  assert.equal(current.split(patch).length, 2);
+  const bytes = current.replace(patch, 'if (resp.status === 0) return resp;');
   assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'), '36a89bee3a89a96d6f8540713bfb74543db77e658d27738972b430b438d54a5e');
 });

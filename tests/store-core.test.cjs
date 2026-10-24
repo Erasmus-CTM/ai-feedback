@@ -261,6 +261,6 @@ function checkStore(source, assert) {
   return count;
 }
 test('shared store contracts and durable quota recovery',()=>{
- const source=fs.readFileSync(path.join(__dirname,'../_extensions/ctm-libs/ui/ctm-store.js'),'utf8');
+ const source=['ctm-layout.js','ctm-store.js'].map(name=>fs.readFileSync(path.join(__dirname,'../_extensions/ctm-libs/ui',name),'utf8')).join('\n');
  assert.equal(checkStore(source,assert.ok),85);
 });

@@ -42,7 +42,7 @@ function stages({net = {}, pyodide = () => ({}), background = BACKGROUND, packag
   const setupMessage = () => w.messages.find(m => m.type === 'setup');
   return {w, network, events, warnings, setupMessage, init: () => w.init({background, packages, timing: {...TIMING, ...timing}})};
 }
-const wheels = log => log.filter(entry => entry.file.endsWith('.whl'));
+const wheels = log => log.filter(entry => entry.file.endsWith('.whl') && entry.method !== 'HEAD');
 
 test('stage 1 is ready before any background download; stage 2 prefetches every range, then installs in dependency order', async () => {
   const s = stages();
@@ -125,7 +125,7 @@ test('a stalled download is tried three times; then stage 2 fails, commands keep
   assert.equal(s.setupMessage().message, 'matplotlib: no data for 100 ms');
   assert.equal(s.warnings.length, 1);
   assert.match(s.warnings[0], /could not download https:\/\/cdn\.example\/pyodide\/matplotlib-1\.0-py3-none-any\.whl .*3 tries/);
-  const tries = s.network.log.filter(entry => entry.file.startsWith('matplotlib'));
+  const tries = wheels(s.network.log).filter(entry => entry.file.startsWith('matplotlib'));
   assert.equal(tries.length, 3);
   assert.ok(tries.every(entry => entry.aborted));
   assert.deepEqual(s.events, [], 'nothing installed before every file is fetched');
@@ -279,7 +279,7 @@ test('m2: an HTTP error ends stage 2 with the package and the status only; the U
   await s.init();
   await W.waitFor(s.setupMessage, 5000, 'setup failure');
   assert.deepEqual(s.setupMessage(), {type: 'setup', ok: false, message: 'matplotlib: HTTP 404'});
-  assert.equal(s.network.log.filter(entry => entry.file.startsWith('matplotlib')).length, 3, 'three tries');
+  assert.equal(wheels(s.network.log).filter(entry => entry.file.startsWith('matplotlib')).length, 3, 'three tries');
   assert.match(s.warnings.join('\n'), /https:\/\/cdn\.example\/pyodide\/matplotlib-1\.0-py3-none-any\.whl.*HTTP 404/);
 });
 
@@ -394,7 +394,7 @@ test('installs take the verified prefetched bytes (no request); a wheel that doe
   await s.init();
   await W.waitFor(s.setupMessage, 5000, 'setup');
   assert.deepEqual(s.setupMessage(), {type: 'setup', ok: true});
-  const full = s.network.log.filter(entry => entry.file.endsWith('.whl') && !entry.range).map(entry => entry.file);
+  const full = s.network.log.filter(entry => entry.file.endsWith('.whl') && entry.method !== 'HEAD' && !entry.range).map(entry => entry.file);
   assert.deepEqual(full, ['matplotlib-1.0-py3-none-any.whl'], 'only the wheel that did not verify was requested again');
   assert.ok(s.events.includes('install numpy 2600'), s.events.join(', '));
   assert.ok(s.network.log.filter(entry => entry.range).every(entry => entry.cache === 'no-store'), 'the prefetch bypasses the HTTP cache');

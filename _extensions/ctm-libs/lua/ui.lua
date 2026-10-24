@@ -353,7 +353,10 @@ return function(ctm)
       if page.reveals > 0 or page.embeds > 0 or nav then
         ctm.deps.html({name = "ctm-ui", stylesheets = {"ui/ctm-ui.css"}})
       end
-      if scripts and page.reveals > 0 then ctm.deps.html({name = "ctm-reveal", scripts = {"ui/ctm-reveal.js"}}) end
+      if scripts and page.reveals > 0 then
+        ctm.layout.use()
+        ctm.deps.html({name = "ctm-reveal", scripts = {"ui/ctm-reveal.js"}})
+      end
       if nav then ctm.deps.html({name = "ctm-nav", scripts = {"ui/ctm-nav.js"}}) end
     end
     return doc
@@ -361,7 +364,10 @@ return function(ctm)
 
   -- Components call these after parsing their labelled exercise block.
   function M.exercise(spec) return ctm.store.exercise(spec) end
-  function M.finalize(doc) return ctm.store.finalize(doc) end
+  function M.finalize(doc)
+    doc = ctm.store.finalize(doc)
+    return ctm.layout.finalize(doc)
+  end
   function M.exercises() return ctm.store.exercises() end
 
   -- Prepare quiz scopes before reveal conversion.

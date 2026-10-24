@@ -116,6 +116,5 @@
     select: function (next) { select(next, true); },
     course: course
   };
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
-  else start();
+  window.CTMLayout.ready(start);
 })();

@@ -572,9 +572,14 @@ line-buffered). `stage1` is Python run once the interpreter is ready.
 **The two stages (D2).** Stage 1: the interpreter, the plugins' `stage1`,
 and with `packages` micropip and those packages; then the proxy is ready.
 Stage 2 fetches the files of the background packages (their closure in
-Pyodide's lock file, minus what is loaded) in 512 KB byte ranges, one
-request at a time, from the URLs `loadPackage` will request, outside
-Pyodide's package lock and past the browser's HTTP cache; before each range it waits while a
+Pyodide's lock file, minus what is loaded) from the URLs `loadPackage` will
+request, outside Pyodide's package lock. Each wheel's HEAD response is consumed
+to completion first. Visible identity representations use 512 KB byte ranges;
+encoded, hidden or unsupported encoding metadata uses a complete GET instead,
+because Fetch decodes bytes while range offsets address the wire representation.
+Both paths retain final lock-file SHA-256 verification. Requests are sequential
+and bypass the HTTP cache when verified wheels can be kept; before each request
+it waits while a
 command that may download is queued or running (`loadPackage`, or
 `loadPackagesFromImports` of a package not yet loaded) and 2 s after the last
 one. Then it installs one package at a time, dependencies first, each only
@@ -594,9 +599,11 @@ before. Commands that never pause for 300 ms cannot hold an
 install off for longer than 5 s: after waiting that long, it takes the next
 moment nothing is queued or running. Each install's 5 s count from the end
 of the one before, so installs under a stream of commands are at least 5 s
-apart. A check therefore shares the line with at most the rest of one range,
-and a check shorter than 5 s meets at most one install in progress (numpy is
-the largest). A range without a byte for 30 s is requested again after 5 s,
+apart. A check can share the connection with the remainder of one identity
+range or, for the whole-representation fallback, the remainder of that complete
+download; the latter has no 512 KB bandwidth bound. A check shorter than 5 s
+meets at most one install in progress (numpy is the largest). A download without
+a byte for 30 s is requested again after 5 s,
 then after 30 s; a third failure rejects `whenSetup` with a short reason
 that names the package once (`matplotlib: HTTP 404`); the console has the
 URL. So does an install that Pyodide reports as failed (`loadPackage` does

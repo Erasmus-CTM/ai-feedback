@@ -138,4 +138,3 @@ test('a replacement browser adaptor factory remains in control', () => {
   assert.equal(config.startup.ready(), 31);
   assert.equal(readyCalls, 1);
 });
-
