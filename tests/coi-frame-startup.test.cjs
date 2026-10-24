@@ -51,3 +51,13 @@ test('decision failure stays visible and rejects only the requesting optional wo
  const f=pair(),gate=defer(),error=new Error('decision failed');f.parent.qpyodideCoiSettled=gate.promise;const pending=f.start();const rejected=assert.rejects(pending,/startup decision failed/);f.parentListeners.DOMContentLoaded();gate.reject(error);await rejected;
  assert.equal(f.workers.length,0);assert.equal(f.errors.length,1);assert.equal(f.errors[0][1],error);assert.equal(f.replies[0].type,'error');
 });
+test('generic document decision holds a flagged worker until retention',async()=>{
+ const f=pair(),gate=defer();f.parent.CTMCoiSettled=gate.promise;const pending=f.start();f.parentListeners.DOMContentLoaded();await tick();assert.equal(f.workers.length,0);assert.equal(f.replies.length,0);
+ gate.resolve();await pending;assert.equal(f.workers.length,1);assert.equal(f.replies.length,1);
+});
+test('generic retirement takes precedence over an already settled IDE fallback',async()=>{
+ const f=pair();f.parent.CTMCoiSettled=new Promise(()=>{});f.parent.qpyodideCoiSettled=Promise.resolve();f.start();f.parentListeners.DOMContentLoaded();await tick();assert.equal(f.workers.length,0);assert.equal(f.replies.length,0);
+});
+test('generic decision failure remains visible despite a resolved IDE fallback',async()=>{
+ const f=pair(),gate=defer(),error=new Error('generic decision failed');f.parent.CTMCoiSettled=gate.promise;f.parent.qpyodideCoiSettled=Promise.resolve();const rejected=assert.rejects(f.start(),/startup decision failed/);f.parentListeners.DOMContentLoaded();gate.reject(error);await rejected;assert.equal(f.workers.length,0);assert.equal(f.errors[0][1],error);
+});

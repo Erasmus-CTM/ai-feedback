@@ -31,7 +31,7 @@
       if (!liveFrame(source)) return;
       source.postMessage({protocol, version, type, nonce: request.nonce}, '*');
     }
-    parsed.then(() => root.qpyodideCoiSettled).then(() => reply('allow'), (error) => {
+    parsed.then(() => root.CTMCoiSettled || root.qpyodideCoiSettled).then(() => reply('allow'), (error) => {
       console.error('CTM: frame worker startup decision failed', error);
       reply('error');
     });
