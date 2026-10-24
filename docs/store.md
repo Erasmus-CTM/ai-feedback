@@ -12,6 +12,7 @@ Components require API level 3. After parsing a block, call
 - restore() synchronously returns {state,record?,variant?,outdated?}; states are empty, disabled, restored, changed, withdrawn. Changed/withdrawn old answers belong in a read-only view.
 - changed() schedules a 250 ms save; clear() cancels it, deletes the record and calls the adapter clear callback.
 - result({score,status,variant?}) emits ctm:result. Score is 0–1; status is correct, partial, wrong or invalid. Invalid does not update saved progress.
+- By default the result event's `variant` remains the identity descriptor (or the explicit result override), preserving existing adapters. Shared chooser adapters may explicitly register `numberedVariantResults: true`: the event then carries `variant: n` and a separate `variantIdentity: {n,id,hash}`. Unnumbered proposals emit both fields as `null`, never zero. This only changes the public event projection; P17 continues storing the complete approved identity and any proposal sidecar. Progress still consumes status/score and the exercise identity.
 - legacy is an array of {read,remove?}; read returns {inputs,keys?} or null. Legacy inputs:null deletes an old starter record. A durable shared write precedes deleting legacy keys. A legacy record wins an existing new record. Disabled saving never reads or removes legacy data.
 - exportItem() returns {title,parts:[{kind:'answer'|'code'|'output'|'image',label,text|dataURL}]}. It reads live page state, including code/output, without running it.
 

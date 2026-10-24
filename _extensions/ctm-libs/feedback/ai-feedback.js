@@ -132,6 +132,7 @@
           return request;
         }
         const request = await collect();
+        if (controller.signal.aborted || disposed) throw new F.FeedbackError('ABORTED', L.cancelled);
         const snapshot = signature(request);
         const cfg = loadConfig();
         let reply;
@@ -194,7 +195,7 @@
     const label = node('label', L.response);
     const input = node('textarea'); input.rows = 7; input.id = data.id + '-response'; input.value = data.starter || ''; label.htmlFor = input.id; input.lang = data.responseLanguage || '';
     el.append(label, input);
-    let attachments = [], loadingImages = null;
+    let attachments = [], loadingImages = null, resetImages = () => {};
     if (data.imageUpload) {
       const imageLabel = node('label', L.images); const upload = node('input'); upload.type = 'file'; upload.accept = 'image/png,image/jpeg,image/webp'; upload.multiple = true; imageLabel.append(upload);
       const preview = node('div', undefined, 'ai-feedback-images');
@@ -210,12 +211,13 @@
         })().catch(e => { if (version === selectionVersion) preview.textContent = e.message; throw e; });
         loadingImages.catch(() => {});
       };
-      const clear = button(L.clear); clear.onclick = () => { selectionVersion++; attachments = []; loadingImages = null; upload.value = ''; preview.replaceChildren(); };
+      resetImages = () => { selectionVersion++; attachments = []; loadingImages = null; upload.value = ''; preview.replaceChildren(); };
+      const clear = button(L.clear); clear.onclick = resetImages;
       el.append(imageLabel, node('p', L.imageNote, 'ai-feedback-notice'), preview, clear);
     }
     const trigger = button(L.button); const output = node('div', undefined, 'ai-feedback-output'); output.setAttribute('aria-live', 'polite');
     el.append(trigger, settingsButton(data.uiLanguage), output);
-    attach({ integration: 'plain-text', contextRefs: () => data.contextMode === 'none' ? '' : data.contextRefs, policySelection: data.policySelection, id: data.id, button: trigger, output, uiLanguage: data.uiLanguage, getRequest: async () => {
+    const handle = attach({ integration: 'plain-text', contextRefs: () => data.contextMode === 'none' ? '' : data.contextRefs, policySelection: data.policySelection, id: data.id, button: trigger, output, uiLanguage: data.uiLanguage, getRequest: async () => {
       if (loadingImages) await loadingImages;
       let materials = (data.materials || []).slice();
       materials.push(...F.contextMaterials({mode:data.contextMode, refs:data.contextRefs, text:data.context}));
@@ -228,6 +230,18 @@
         learner: { level: data.learnerLevel || '' }, criteria: data.criteria,
         feedback: { language: data.feedbackLanguage, mode: 'review', maxIssues: data.maxIssues, allowFullRewrite: false } };
     } });
+    if (typeof data.resetOnVariant === 'string' && data.resetOnVariant.trim()) {
+      // Initial choice hydration and cancelled requests do not emit this event.
+      // The activity owns its response and cancellation; the math component
+      // needs no access to another component's DOM or private grading context.
+      document.addEventListener('math-exercise:variant-accepted', event => {
+        if (!el.isConnected || event.detail?.label !== data.resetOnVariant) return;
+        handle.reset();
+        input.value = '';
+        resetImages();
+        input.dispatchEvent(new Event('input', {bubbles: true}));
+      });
+    }
   }
   function renderPolicySummaries() {
     for (const el of document.querySelectorAll('.ai-feedback-policy-summary')) {

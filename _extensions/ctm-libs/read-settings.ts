@@ -135,6 +135,24 @@ function resolveKey(section: string, key: string, accept: (value: unknown) => bo
   }
   return file;
 }
+// Nested variants options obey the same leaf-by-leaf precedence as section
+// keys. A page setting variants.target must not erase project approval.
+function variantApproval(): Entry | undefined {
+  let file: Entry | undefined, fromPage = false;
+  const leaf = (section: Record<string, unknown> | undefined, origin: string): unknown => {
+    if (!section || !Object.hasOwn(section, 'variants')) return undefined;
+    const group = section.variants;
+    if (!isMap(group)) { errors.push('ctm-assessment: variants must be a mapping (' + origin + ')'); return undefined; }
+    return Object.hasOwn(group, 'approval') ? (group as Record<string, unknown>).approval : undefined;
+  };
+  for (const level of levels) {
+    const value = leaf(level.sections['ctm-assessment'], level.origin);
+    if (value !== undefined) { file = {value, origin: level.origin}; fromPage = level.page; }
+  }
+  const meta = leaf(documentMeta['ctm-assessment'], 'document metadata');
+  if (!fromPage && meta !== undefined && !(file && same(file.value, meta))) return {value: meta, origin: 'document metadata'};
+  return file;
+}
 // Every key of a section at any level or in the merged metadata, with where it was set.
 function keysOf(section: string) {
   const found = new Map<string, string>();
@@ -370,7 +388,7 @@ const OWN_KEYS: Record<string, 'boolean' | 'string' | 'assets'> = {'tab-links': 
 const show = (value: unknown) => typeof value === 'object' ? JSON.stringify(value) : String(value);
 function sectionSettings(section: string) {
   const out: Record<string, Entry> = {};
-  const known = [...SHARED_KEYS, ...Object.keys(OWN_KEYS)];
+  const known = [...SHARED_KEYS, ...Object.keys(OWN_KEYS), 'variants'];
   for (const [key, origin] of keysOf(section)) {
     if (CREDENTIAL.test(key)) continue;
     if (section === 'ctm-assessment' && !known.includes(key)) {
@@ -394,6 +412,14 @@ function sectionSettings(section: string) {
       continue;
     }
     out[key] = entry;
+  }
+  if (section === 'ctm-assessment') {
+    const approval = variantApproval();
+    if (approval) {
+      if (!['required', 'optional'].includes(approval.value as string)) {
+        errors.push('ctm-assessment: variants.approval must be required or optional (' + approval.origin + ')');
+      } else out['variants.approval'] = approval;
+    }
   }
   return out;
 }
