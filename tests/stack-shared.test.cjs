@@ -25,6 +25,8 @@ test('STACK catalogue resolves every supported language without missing-key fall
   assert.equal(english.checkButton, 'Check answer');
   assert.equal(english.showSource, 'Show source');
   assert.equal(english.showStackSource, 'Show STACK source');
+  assert.equal(english.retryButton, 'Retry');
+  assert.equal(english.authorError('Missing data'), 'This question has an error: Missing data');
   assert.equal(english.interpretedAs('x^2'), 'Interpreted as \\(x^2\\)');
   assert.equal(english.checking('SymPy'), 'Checking with SymPy…');
   assert.deepEqual(warnings, []);

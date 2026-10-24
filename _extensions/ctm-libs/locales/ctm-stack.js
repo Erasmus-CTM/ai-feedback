@@ -146,7 +146,14 @@ CTMLocales.add("ctm-stack",
       ]
     },
     "showSource": "Show source",
-    "showStackSource": "Show STACK source"
+    "showStackSource": "Show STACK source",
+    "retryButton": "Retry",
+    "authorError": {
+      "$t": "This question has an error: {reason}",
+      "$args": [
+        "reason"
+      ]
+    }
   },
   "nb": {
     "variantLabel": "Variant ",
@@ -283,7 +290,14 @@ CTMLocales.add("ctm-stack",
       ]
     },
     "showSource": "Vis kilde",
-    "showStackSource": "Vis STACK-kilde"
+    "showStackSource": "Vis STACK-kilde",
+    "retryButton": "Prøv igjen",
+    "authorError": {
+      "$t": "Denne oppgaven har en feil: {reason}",
+      "$args": [
+        "reason"
+      ]
+    }
   },
   "nn": {
     "variantLabel": "Variant ",
@@ -420,7 +434,14 @@ CTMLocales.add("ctm-stack",
       ]
     },
     "showSource": "Vis kjelde",
-    "showStackSource": "Vis STACK-kjelde"
+    "showStackSource": "Vis STACK-kjelde",
+    "retryButton": "Prøv igjen",
+    "authorError": {
+      "$t": "Denne oppgåva har ein feil: {reason}",
+      "$args": [
+        "reason"
+      ]
+    }
   },
   "de": {
     "variantLabel": "Variante ",
@@ -557,7 +578,14 @@ CTMLocales.add("ctm-stack",
       ]
     },
     "showSource": "Quelltext anzeigen",
-    "showStackSource": "STACK-Quelltext anzeigen"
+    "showStackSource": "STACK-Quelltext anzeigen",
+    "retryButton": "Erneut versuchen",
+    "authorError": {
+      "$t": "Diese Aufgabe enthält einen Fehler: {reason}",
+      "$args": [
+        "reason"
+      ]
+    }
   },
   "sv": {
     "variantLabel": "Variant ",
@@ -694,7 +722,14 @@ CTMLocales.add("ctm-stack",
       ]
     },
     "showSource": "Visa källa",
-    "showStackSource": "Visa STACK-källa"
+    "showStackSource": "Visa STACK-källa",
+    "retryButton": "Försök igen",
+    "authorError": {
+      "$t": "Den här uppgiften innehåller ett fel: {reason}",
+      "$args": [
+        "reason"
+      ]
+    }
   },
   "da": {
     "variantLabel": "Variant ",
@@ -831,7 +866,14 @@ CTMLocales.add("ctm-stack",
       ]
     },
     "showSource": "Vis kilde",
-    "showStackSource": "Vis STACK-kilde"
+    "showStackSource": "Vis STACK-kilde",
+    "retryButton": "Prøv igen",
+    "authorError": {
+      "$t": "Denne opgave har en fejl: {reason}",
+      "$args": [
+        "reason"
+      ]
+    }
   }
 }
 /*END-JSON*/
