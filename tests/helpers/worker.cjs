@@ -8,7 +8,7 @@ const FILE = path.join(C.library, 'runtime', 'pyodide-worker.js');
 // The proxy's documented keys (docs/api.md), without a plugin's commands.
 const PROXY_KEYS = ['isWorkerProxy', 'interruptBuffer', 'inputStatusBuf', 'inputDataBuf', 'onStream', 'onInputRequired',
   'runPythonAsync', 'loadPackagesFromImports', 'loadPackage', 'toPy', 'globals', 'interrupt', 'clearInterrupt',
-  'abortInput', 'provideInput', 'restart', 'whenSetup', 'retrySetup'];
+  'abortInput', 'provideInput', 'restart', 'whenSetup', 'retrySetup', 'whenIdle', 'terminate'];
 
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
@@ -27,6 +27,7 @@ function pageContext({crossOriginIsolated = false} = {}) {
   }
   const context = {
     console, Blob, Promise, Map, Error, Object, Uint8Array, Int32Array, SharedArrayBuffer, Atomics, TextEncoder, TextDecoder,
+    setTimeout: (fn, ms) => { const timer = setTimeout(fn, ms); timer.unref(); return timer; }, clearTimeout,
     URL: {createObjectURL: () => 'blob:worker', revokeObjectURL() {}},
     Worker: FakeWorker, Event,
     addEventListener: target.addEventListener.bind(target), dispatchEvent: target.dispatchEvent.bind(target),

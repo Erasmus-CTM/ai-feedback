@@ -642,6 +642,7 @@ self.onmessage = function(event) {
   //   messages      {loading, initPackages, extraPackages}: status texts
   //   onStatus(text)        a status text from the worker
   //   onRestart(started)    after restart(): the new start's promise
+  //   loadTimeout   initialization ceiling in milliseconds (default 180000)
   //   publish       true: qpyodideReady, qpyodideInstance, _qpyodideGetInstance
   //                 and mainPyodide (the globals other components use)
   // Test-only: globalThis.__ctmWorkerNoBackground = true skips stage 2 (the
@@ -675,7 +676,17 @@ self.onmessage = function(event) {
 
   function bootPyodideWorker(options) {
     const pending = new Map();
+    const idleWaiters = new Set();
     let nextId = 1;
+    const loadTimeout = options.loadTimeout ?? root.MathExerciseRuntime?.loadTimeout ?? 180000;
+    if (!Number.isFinite(loadTimeout) || loadTimeout <= 0 || loadTimeout > 2147483647) {
+      return Promise.reject(new TypeError('loadTimeout must be a positive finite number of milliseconds up to 2147483647'));
+    }
+    function notifyIdle() {
+      if (pending.size) return;
+      for (const resolve of idleWaiters) resolve();
+      idleWaiters.clear();
+    }
 
     const blobUrl = URL.createObjectURL(
       new Blob([WORKER_SOURCE + (options.plugin ? "\n" + options.plugin + "\n" : "")], { type: "text/javascript" })
@@ -700,6 +711,7 @@ self.onmessage = function(event) {
       worker.terminate();
       for (const entry of pending.values()) entry.reject(error);
       pending.clear();
+      notifyIdle();
       setup?.reject(error);
       releaseBlob();
     }
@@ -709,7 +721,7 @@ self.onmessage = function(event) {
         const id = nextId++;
         pending.set(id, { resolve, reject });
         try { worker.postMessage({ type, id, ...payload }); }
-        catch (error) { pending.delete(id); reject(error); }
+        catch (error) { pending.delete(id); reject(error); notifyIdle(); }
       });
     }
 
@@ -741,6 +753,7 @@ self.onmessage = function(event) {
       } else {
         entry.resolve(msg.value);
       }
+      notifyIdle();
     };
 
     worker.onerror = (event) => {
@@ -770,6 +783,14 @@ self.onmessage = function(event) {
       onStream: null,           // Callback(text, type) – streamed stdout/stderr
       onInputRequired: null,    // Callback() – Python is waiting for input
       whenSetup: null,          // Promise: stage 2 done (see above)
+      whenIdle: () => pending.size ? new Promise(resolve => idleWaiters.add(resolve)) : Promise.resolve(),
+      // Release a private runtime whose page-side backend startup failed.
+      // Unlike restart(), this never creates a replacement worker or event.
+      terminate(reason) {
+        if (options.publish) throw new Error('A published runtime must be stopped or restarted, not terminated privately.');
+        const error = reason instanceof Error ? reason : new Error(reason || 'Python worker was terminated.');
+        failWorker(error);
+      },
 
       runPythonAsync: (code) => rpc("runPython", { code }),
       loadPackagesFromImports: (code) => rpc("loadPackagesFromImports", { code }),
@@ -814,7 +835,11 @@ self.onmessage = function(event) {
        */
       restart(reason) {
         if (replacement) return replacement;
-        window.dispatchEvent(new Event("qpyodide-runtime-restart"));
+        if (options.publish) {
+          const event = new Event("qpyodide-runtime-restart");
+          event.detail = {proxy};
+          root.dispatchEvent(event);
+        }
         if (!gone) {
           const error = new Error(reason || "Python was restarted.");
           error.restarted = true;
@@ -846,6 +871,11 @@ self.onmessage = function(event) {
     }
     expectSetup();
 
+    const loadTimer = setTimeout(() => {
+      const error = new Error('Python did not finish loading within ' + loadTimeout / 1000 + ' s');
+      error.code = 'pyodide-timeout';
+      failWorker(error);
+    }, loadTimeout);
     const started = (async () => {
       if (options.messages?.loading) options.onStatus?.(options.messages.loading);
 
@@ -892,6 +922,10 @@ self.onmessage = function(event) {
 
       return proxy;
     })();
+    started.then(() => clearTimeout(loadTimer), error => {
+      clearTimeout(loadTimer);
+      failWorker(error);
+    });
     return started;
   }
 

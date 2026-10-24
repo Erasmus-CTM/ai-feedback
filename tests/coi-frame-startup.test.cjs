@@ -72,3 +72,13 @@ test('CORS transport does not fetch for retired documents or rejected parent dec
  failed.parentListeners.DOMContentLoaded();other.reject(new Error('decision failed'));await rejected;
  assert.equal(failed.fetches.length,0);assert.equal(failed.workers.length,0);
 });
+test('generic document decision holds a flagged worker until retention',async()=>{
+ const f=pair(),gate=defer();f.parent.CTMCoiSettled=gate.promise;const pending=f.start();f.parentListeners.DOMContentLoaded();await tick();assert.equal(f.workers.length,0);assert.equal(f.replies.length,0);
+ gate.resolve();await pending;assert.equal(f.workers.length,1);assert.equal(f.replies.length,1);
+});
+test('generic retirement takes precedence over an already settled IDE fallback',async()=>{
+ const f=pair();f.parent.CTMCoiSettled=new Promise(()=>{});f.parent.qpyodideCoiSettled=Promise.resolve();f.start();f.parentListeners.DOMContentLoaded();await tick();assert.equal(f.workers.length,0);assert.equal(f.replies.length,0);
+});
+test('generic decision failure remains visible despite a resolved IDE fallback',async()=>{
+ const f=pair(),gate=defer(),error=new Error('generic decision failed');f.parent.CTMCoiSettled=gate.promise;f.parent.qpyodideCoiSettled=Promise.resolve();const rejected=assert.rejects(f.start(),/startup decision failed/);f.parentListeners.DOMContentLoaded();gate.reject(error);await rejected;assert.equal(f.workers.length,0);assert.equal(f.errors[0][1],error);
+});

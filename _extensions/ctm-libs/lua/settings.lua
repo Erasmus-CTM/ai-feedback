@@ -1,5 +1,5 @@
 -- CTM settings, key by key (F-79): every CTM section (ai-feedback,
--- ctm-assessment, math-exercise, py-exercise, pyodide) is read by read-settings.ts
+-- ctm-assessment, math-exercise, py-exercise, pyodide, stack) is read by read-settings.ts
 -- from _quarto.yml, the profiles, _quarto.yml.local, the _metadata.yml files
 -- and the page, plus Quarto's merged metadata, so a page that sets one key of
 -- a section keeps the project's other keys.
@@ -21,7 +21,7 @@ return function(ctm)
 
   -- pyodide: pyodide-interaktiv's options (step 3); it reads them on HTML
   -- pages only, and `meta.pyodide` as before in other formats.
-  M.SECTIONS = {"ai-feedback", "ctm-assessment", "math-exercise", "py-exercise", "pyodide"}
+  M.SECTIONS = {"ai-feedback", "ctm-assessment", "math-exercise", "py-exercise", "pyodide", "stack"}
   local EMPTY_POLICIES = '{"layers":[],"pageLayers":[]}'
 
   local pageMeta = nil

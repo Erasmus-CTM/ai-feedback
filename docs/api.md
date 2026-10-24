@@ -408,9 +408,18 @@ before the body: `window.__aiFeedbackConfig`, `window.__aiFeedbackPolicies`.
 CTMLocales.add(namespace, catalogue)        // what each locales/<namespace>.js does
 CTMLocales.table('math-exercise', 'nb')     // compiled messages: strings, data and functions (L.resPartial(50))
 CTMLocales.t('py-exercise', 'allPassed', 'de', 3)
+CTMLocales.format('ctm-stack', 'partial', 'nb', {pct: 50}) // named arguments in catalogue $args order
 CTMLocales.resolve('py-exercise', 'nn')     // 'nb'
 CTMLocales.normalize('nb-NO'); CTMLocales.chain('nn'); CTMLocales.languages('feedback')
 ```
+
+`format(namespace, key, tag, args)` uses the same compiled messages, language
+fallbacks, references, plurals and lookups as `t`. Named argument insertion order
+does not matter. An unknown message key returns `undefined`, allowing a producer's
+English text to be used as a fallback. As with `t`, the caller owns escaping and
+typesetting and must normalize structured argument values before interpolation;
+the library has no backend-specific message rules. `t` and `table` retain their
+positional interfaces.
 
 A key a language lacks falls back to English, with one console warning per
 table. Catalogue entries: a string (may hold HTML), data (arrays, objects
@@ -443,6 +452,19 @@ await MathExerciseRuntime.ensureCheckers(py);          // ctm-checkers from the 
 const text = await MathExerciseRuntime.callCheckers(py, 'math_exercise.check', request);   // JSON text
 MathExerciseRuntime.forgetModules(py);                 // the next ensure* installs again
 ```
+
+`canStop({runtime})`, `whenSlow(ms, callback, {runtime})` and
+`stop(reason, {runtime})` select that worker proxy, including an unpublished
+STACK runtime. Omitting the options keeps selecting `mainPyodide`.
+`stopCount({runtime})` counts only that runtime's stops; the no-argument count
+remains the default-runtime UI's counter. Stopping one proxy does not prevent
+another runtime's checker retry or cleanup.
+
+On an isolated page with the proxy's interrupt buffer, Stop sends SIGINT first.
+If its active RPCs settle within two seconds, the session is retained and the
+interrupt buffer is cleared. Otherwise only that worker restarts. Without a
+shared interrupt buffer Stop restarts immediately. `stop` returns the selected
+operation's promise when asynchronous; callers can observe restart failures.
 
 `py` is a runtime or an object with `globals.set` and `runPythonAsync`
 (pyodide-interaktiv's worker proxy); nothing else is used.
@@ -496,14 +518,18 @@ MathExerciseRuntime.forgetModules(py);                 // the next ensure* insta
   (`sys.tracebacklimit = 0`). The second failure reaches the caller, as
   does an error that `call` raised itself (the answer to the request, such
   as the admission rule's `ValueError`).
-- A runtime that was stopped or restarted gets nothing more, since
+- A runtime that was restarted gets nothing more, since
   pyodide-interaktiv's terminated worker never answers. The evidence is a
-  stop on the page (`stop()`) or pyodide-interaktiv's
-  `qpyodide-runtime-restart` event, which `restart()` sends before it
-  rejects the pending calls; an error never counts, whatever its text. The
+  Stop that actually restarts the proxy, or pyodide-interaktiv's
+  `qpyodide-runtime-restart` event with `detail.proxy` equal to the published
+  runtime, which `restart()` sends before it
+  rejects the pending calls. Ordinary runtime errors do not count; the exact
+  legacy restart signal `Python was restarted.` is retained. The
   failed call reaches the caller at once with no cleanup or repeat, and the
   caller moves to the new runtime. Every later call or install for that
   runtime, including one waiting behind the failed call, fails at once.
+  An interrupted session that settles in time remains available; its stopped
+  checker call is not retried or cleaned up through additional Python calls.
 - `_ctm_guard`'s snapshot keeps the modules named `_ctm_…` and
   `ctm_checkers…`: a checker that removes them is undone after its call.
 - `scriptURL` is the runtime script's own URL on a page (for a worker that
@@ -533,6 +559,7 @@ const started = CTMWorker.start({
   messages: {loading, initPackages, extraPackages},   // status texts, in the page's language
   onStatus(text) {},            // a status text from the worker
   onRestart(started) {},        // after proxy.restart(): the new start
+  loadTimeout: 180000,          // initialization ceiling in milliseconds, excluding background setup
   publish: true,                // qpyodideReady, qpyodideInstance, _qpyodideGetInstance, mainPyodide
 });
 const proxy = await started;    // after stage 1
@@ -543,6 +570,9 @@ await proxy.whenSetup;          // after stage 2 (rejects with the reason; proxy
 In local mode `CTMWorker.start` resolves the absolute Pyodide base through
 `CTMAssets` on the page. Explicit packages are checked against the served
 subset lock and loaded by Pyodide, without a micropip/PyPI request.
+`loadTimeout` defaults to `MathExerciseRuntime.loadTimeout`, or 180000 ms.
+It must be positive, finite and at most 2147483647 ms. A loading deadline
+terminates only this worker and rejects with `code: 'pyodide-timeout'`.
 
 **The proxy** (`await qpyodideReady`, `mainPyodide`; a test pins its keys):
 `runPythonAsync(code)` (the result through `toJs({dict_converter:
@@ -550,17 +580,28 @@ Object.fromEntries, create_pyproxies: false})`), `loadPackagesFromImports(code)`
 `loadPackage(name)`, `globals.set(name, value)`, `toPy(value)` (identity: the
 conversion happens in the worker), `isWorkerProxy`; control: `interrupt()`,
 `clearInterrupt()`, `abortInput()`, `provideInput(text)`, `restart(reason)`
-(fires `qpyodide-runtime-restart` on `window`, rejects pending calls and
+(for `publish: true` fires `qpyodide-runtime-restart` with `detail.proxy`
+identifying the old proxy; unpublished workers emit no page restart event;
+rejects pending calls and
 `whenSetup` with an error whose `restarted` is true, starts again and
 publishes the new start; afterwards every call on the old proxy rejects at
 once with that error, and `restart` on it again returns the same new start),
 `interruptBuffer`, `inputStatusBuf`,
 `inputDataBuf`, `onStream(text, "stdout"|"stderr")`, `onInputRequired(prompt)`;
-stage 2: `whenSetup`, `retrySetup()`; and the plugin's commands. Calls are
+stage 2: `whenSetup`, `retrySetup()`; `whenIdle()` settles after outstanding
+RPCs finish (background setup is separate); and the plugin's commands. Calls are
 answered in order (one interpreter, one output capture): a check from one
 component never enters another's captured output. `MathExerciseRuntime`'s
 `ensurePyodide`, `installModule`, `ensureCheckers`/`callCheckers`, `canStop`
 and `stop` use this subset.
+
+For an unpublished proxy, `proxy.terminate(reason)` releases the worker, rejecting its pending/setup and
+future calls with that error. It emits no page event and starts no replacement.
+A page-side backend adapter uses this to clean up a failed or timed-out startup
+after the initial proxy is ready (for example, while loading SymPy). The adapter
+must bound its entire readiness phase separately from `CTMWorker` initialization.
+Published proxies reject this operation before changing state; use their normal
+Stop or restart path so page consumers receive the scoped restart notification.
 
 **Plugins.** `registerPlugin(factory)` runs in the worker; `factory(api)`
 returns `{commands, stage1}`. `api.pyodide()` is the interpreter;

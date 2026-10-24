@@ -302,7 +302,9 @@
     }
   }
   if (typeof root.addEventListener === 'function') {
-    root.addEventListener('qpyodide-runtime-restart', function () { markGone(root.mainPyodide); });
+    root.addEventListener('qpyodide-runtime-restart', function (event) {
+      if (event.detail && event.detail.proxy === root.mainPyodide) markGone(event.detail.proxy);
+    });
   }
 
   // Installs ctm-checkers, the Python checker library, into the runtime `py`,
@@ -427,7 +429,7 @@
   // this one, fail at once.
   function callCheckers(py, name, request, payload) {
     var text = typeof request === 'string' ? request : JSON.stringify(request);
-    var epoch = stops;
+    var epoch = stopCount({runtime: py});
     async function run() {
       var checkers = checkersPayload(payload);
       for (var tries = 0; ; tries++) {
@@ -440,7 +442,7 @@
           failure = error || new Error('ctm-checkers call failed');
           if (failure.message === RESTARTED) markGone(py, RESTARTED);
         }
-        if (stops !== epoch || (gone && gone.has(py))) {
+        if (stopCount({runtime: py}) !== epoch || (gone && gone.has(py))) {
           if (failure) throw failure;
           return result;
         }
@@ -459,29 +461,51 @@
 
   // A runtime that can be stopped while it runs (pyodide-interaktiv's worker):
   // Python on the page itself cannot be interrupted, only reloaded.
-  function canStop() {
-    var py = root.mainPyodide;
+  function selectedRuntime(options) {
+    return options && Object.prototype.hasOwnProperty.call(options, 'runtime') ? options.runtime : root.mainPyodide;
+  }
+  function canStop(options) {
+    var py = selectedRuntime(options);
     return !!(py && typeof py.restart === 'function');
   }
-  // Stops are page-wide: every component compares `stops` before and after a
-  // run, so a check stopped from any button is neither repeated nor shown as
-  // an unexpected error.
   var stops = 0;
-  function stop(reason) {
-    if (!canStop()) return;
-    stops++;
-    markGone(root.mainPyodide, reason || 'Stopped by the learner');
-    root.mainPyodide.restart(reason || 'Stopped by the learner');
+  var runtimeStops = new WeakMap(), stopping = new WeakMap();
+  function stop(reason, options) {
+    var py = selectedRuntime(options);
+    if (!canStop({runtime: py})) return;
+    if (stopping.has(py)) return stopping.get(py);
+    if (!options || !Object.prototype.hasOwnProperty.call(options, 'runtime')) stops++;
+    runtimeStops.set(py, (runtimeStops.get(py) || 0) + 1);
+    var message = reason || 'Stopped by the learner';
+    function restart() { markGone(py, message); return py.restart(message); }
+    if (!root.crossOriginIsolated || !py.interruptBuffer || typeof py.interrupt !== 'function' || typeof py.whenIdle !== 'function') {
+      return restart();
+    }
+    // An interrupt is scoped to this proxy. Keep its session if the active
+    // RPCs settle within two seconds; otherwise replace only this worker.
+    py.interrupt();
+    var timer;
+    var done = new Promise(function (resolve) {
+      timer = setTimeout(function () { resolve(false); }, 2000);
+      Promise.resolve(py.whenIdle()).then(function () { resolve(true); }, function () { resolve(false); });
+    }).then(function (idle) {
+      clearTimeout(timer);
+      if (!idle) return restart();
+      if (typeof py.clearInterrupt === 'function') py.clearInterrupt();
+    });
+    stopping.set(py, done);
+    done.then(function () { stopping.delete(py); }, function () { stopping.delete(py); });
+    return done;
   }
-  function stopCount() { return stops; }
+  function stopCount(options) { return options ? (runtimeStops.get(selectedRuntime(options)) || 0) : stops; }
   // Calls onSlow once when a run has taken `ms` and the runtime can be
   // stopped (a worker that is still starting becomes stoppable later).
   // Returns a function that cancels it.
-  function whenSlow(ms, onSlow) {
+  function whenSlow(ms, onSlow, options) {
     var timer = null, cancelled = false;
     function check() {
       if (cancelled) return;
-      if (canStop()) { onSlow(); return; }
+      if (canStop(options)) { onSlow(); return; }
       timer = setTimeout(check, 1000);
     }
     timer = setTimeout(check, Math.min(ms, 2147483647));  // larger delays overflow to 0
