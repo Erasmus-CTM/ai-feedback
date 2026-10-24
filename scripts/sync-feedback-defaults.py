@@ -64,7 +64,9 @@ def expected_files(version):
                         lambda m: m[1] + '  const shippedPolicies = ' + json.dumps(defaults, ensure_ascii=False) + ';' + m[2],
                         text, path, re.S)
         text = sub_once(r"const VERSION = '[^']*';", f"const VERSION = '{version}';", text, path)
-        return sub_once(r'^/\* AI Feedback v[\w.-]+', f'/* AI Feedback v{version}', text, path)
+        text = sub_once(r'^/\* AI Feedback v[\w.-]+', f'/* AI Feedback v{version}', text, path)
+        return sub_once(r"const policyNames = \[.*?\];",
+                        'const policyNames = ' + json.dumps(list(defaults['integrations'])) + ';', text, path)
 
     update(FEEDBACK / 'feedback-core.js', core)
 

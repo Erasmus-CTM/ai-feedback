@@ -7,7 +7,7 @@ const test = require('node:test'), assert = require('node:assert/strict'), fs = 
 const C = require('./helpers/ctm-libs.cjs');
 const F = require('../_extensions/ctm-libs/feedback/feedback-core.js');
 const skip = C.hasQuarto ? false : 'Quarto required';
-const INTEGRATIONS = ['plain-text', 'py-exercise', 'math-exercise', 'pyodide-interaktiv'];
+const INTEGRATIONS = ['plain-text', 'py-exercise', 'math-exercise', 'pyodide-interaktiv', 'stack'];
 
 function withProject(files, run) {
   const dir = C.tempdir('ctm-policy-keys-');

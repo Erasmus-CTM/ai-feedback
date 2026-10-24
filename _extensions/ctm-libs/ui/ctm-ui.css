@@ -8,6 +8,12 @@
  * where Quarto sets no .quarto-dark) they stay dark, and the theme's text
  * reads as on the page itself. */
 :root {
+  /* Shared control dimensions; existing feedback defaults stay identical. */
+  --ctm-button-font-size: .875rem;
+  --ctm-button-padding-y: .375rem;
+  --ctm-button-padding-x: .75rem;
+  --ctm-button-line-height: 1.5;
+  --ctm-button-radius: var(--bs-border-radius, .375rem);
   --ctm-reveal-border: #7899ac;
   --ctm-reveal-background: rgba(75, 115, 155, 0.05);
   --ctm-reveal-solution-border: #4f7d57;
