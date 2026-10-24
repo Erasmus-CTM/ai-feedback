@@ -408,9 +408,18 @@ before the body: `window.__aiFeedbackConfig`, `window.__aiFeedbackPolicies`.
 CTMLocales.add(namespace, catalogue)        // what each locales/<namespace>.js does
 CTMLocales.table('math-exercise', 'nb')     // compiled messages: strings, data and functions (L.resPartial(50))
 CTMLocales.t('py-exercise', 'allPassed', 'de', 3)
+CTMLocales.format('ctm-stack', 'partial', 'nb', {pct: 50}) // named arguments in catalogue $args order
 CTMLocales.resolve('py-exercise', 'nn')     // 'nb'
 CTMLocales.normalize('nb-NO'); CTMLocales.chain('nn'); CTMLocales.languages('feedback')
 ```
+
+`format(namespace, key, tag, args)` uses the same compiled messages, language
+fallbacks, references, plurals and lookups as `t`. Named argument insertion order
+does not matter. An unknown message key returns `undefined`, allowing a producer's
+English text to be used as a fallback. As with `t`, the caller owns escaping and
+typesetting and must normalize structured argument values before interpolation;
+the library has no backend-specific message rules. `t` and `table` retain their
+positional interfaces.
 
 A key a language lacks falls back to English, with one console warning per
 table. Catalogue entries: a string (may hold HTML), data (arrays, objects

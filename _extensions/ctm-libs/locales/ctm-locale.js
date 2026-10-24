@@ -15,6 +15,8 @@
 
   var catalogues = Object.create(null);
   var tables = Object.create(null);
+  // Private metadata of compiled templates; the positional API stays unchanged.
+  var argumentNames = new WeakMap();
   var has = function (object, key) { return Object.prototype.hasOwnProperty.call(object, key); };
 
   function add(namespace, catalogue) {
@@ -78,7 +80,7 @@
     }
     var names = entry.$args || [];
     var lookups = entry.$lookup || {};
-    return function () {
+    var compiled = function () {
       var values = Object.create(null);
       for (var i = 0; i < names.length; i++) values[names[i]] = arguments[i];
       for (var name in lookups) {
@@ -88,6 +90,8 @@
       if (has(entry, '$plural')) return fill(values[entry.$plural] === 1 ? entry.one : entry.other, values);
       return fill(entry.$t, values);
     };
+    argumentNames.set(compiled, names);
+    return compiled;
   }
 
   // The namespace's messages in the tag's language: strings, data and
@@ -117,5 +121,21 @@
     return typeof value === 'function' ? value.apply(null, Array.prototype.slice.call(arguments, 3)) : value;
   }
 
-  root.CTMLocales = {add: add, normalize: normalize, chain: chain, languages: languages, resolve: resolve, table: table, t: t};
+  // Named message arguments follow the catalogue's $args, never object key order.
+  // Callers normalize structured values and own escaping/typesetting, just as
+  // with t(). Missing message keys return undefined for a producer's fallback.
+  function format(namespace, key, tag, args) {
+    var messages = table(namespace, tag);
+    if (!has(messages, key)) return undefined;
+    var value = messages[key];
+    if (typeof value !== 'function') return value;
+    args = args == null ? {} : args;
+    if (typeof args !== 'object' || Array.isArray(args)) {
+      throw new TypeError('CTMLocales.format: args must be a named argument object');
+    }
+    var names = argumentNames.get(value) || [];
+    return value.apply(null, names.map(function (name) { return has(args, name) ? args[name] : undefined; }));
+  }
+
+  root.CTMLocales = {add: add, normalize: normalize, chain: chain, languages: languages, resolve: resolve, table: table, t: t, format: format};
 })(globalThis);
