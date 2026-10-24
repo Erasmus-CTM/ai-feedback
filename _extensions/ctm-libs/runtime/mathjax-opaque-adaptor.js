@@ -10,6 +10,25 @@
   // their configuration intact rather than silently replacing that behavior.
   if (startup.ready !== undefined ||
       (startup.adaptor != null && startup.adaptor !== 'browserAdaptor')) return;
+  // Static hosts such as GitHub Pages expose CORS but cannot supply CORP.
+  // This explicit consumer option adds CORS requests; the default transport
+  // and authored loaders keep their existing ownership.
+  const cors = document.currentScript?.getAttribute('data-ctm-mathjax-transport') === 'cors';
+  if (cors && config.loader?.require == null) {
+    config.loader = Object.assign({}, config.loader, {
+      require(file) {
+        return new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = file;
+          script.charset = 'UTF-8';
+          script.crossOrigin = 'anonymous';
+          script.onload = resolve;
+          script.onerror = () => reject(new Error('Cannot load MathJax component: ' + file));
+          document.head.appendChild(script);
+        });
+      }
+    });
+  }
   config.startup = Object.assign({}, startup, {
     ready() {
       // Another component can select an adaptor after this pre-loader ran.
@@ -27,8 +46,16 @@
           const file = options.path + '/' + options.worker;
           // Serialize configuration as data: no supplied value is executable
           // source. This runs MathJax's original SRE worker and mathmaps.
+          let workerSource = file;
+          if (cors) {
+            const response = await fetch(file, {mode: 'cors', credentials: 'omit'});
+            if (!response.ok) throw new Error('Cannot load MathJax worker: ' + response.status + ' ' + file);
+            // Import the unchanged official worker bytes. Its absolute maps
+            // URL still belongs to MathJax; fetch and worker errors propagate.
+            workerSource = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(await response.text());
+          }
           const source = 'self.maps = ' + JSON.stringify(options.maps) +
-            '; importScripts(' + JSON.stringify(file) + ');';
+            '; importScripts(' + JSON.stringify(workerSource) + ');';
           const worker = new Worker('data:text/javascript;charset=utf-8,' + encodeURIComponent(source));
           worker.onmessage = listener;
           return worker;
@@ -41,3 +68,4 @@
   });
   window.MathJax = config;
 })();
+
