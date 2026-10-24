@@ -144,7 +144,9 @@ CTMLocales.add("ctm-stack",
       "$args": [
         "elements"
       ]
-    }
+    },
+    "showSource": "Show source",
+    "showStackSource": "Show STACK source"
   },
   "nb": {
     "variantLabel": "Variant ",
@@ -279,7 +281,9 @@ CTMLocales.add("ctm-stack",
       "$args": [
         "elements"
       ]
-    }
+    },
+    "showSource": "Vis kilde",
+    "showStackSource": "Vis STACK-kilde"
   },
   "nn": {
     "variantLabel": "Variant ",
@@ -414,7 +418,9 @@ CTMLocales.add("ctm-stack",
       "$args": [
         "elements"
       ]
-    }
+    },
+    "showSource": "Vis kjelde",
+    "showStackSource": "Vis STACK-kjelde"
   },
   "de": {
     "variantLabel": "Variante ",
@@ -549,7 +555,9 @@ CTMLocales.add("ctm-stack",
       "$args": [
         "elements"
       ]
-    }
+    },
+    "showSource": "Quelltext anzeigen",
+    "showStackSource": "STACK-Quelltext anzeigen"
   },
   "sv": {
     "variantLabel": "Variant ",
@@ -684,7 +692,9 @@ CTMLocales.add("ctm-stack",
       "$args": [
         "elements"
       ]
-    }
+    },
+    "showSource": "Visa källa",
+    "showStackSource": "Visa STACK-källa"
   },
   "da": {
     "variantLabel": "Variant ",
@@ -819,7 +829,9 @@ CTMLocales.add("ctm-stack",
       "$args": [
         "elements"
       ]
-    }
+    },
+    "showSource": "Vis kilde",
+    "showStackSource": "Vis STACK-kilde"
   }
 }
 /*END-JSON*/

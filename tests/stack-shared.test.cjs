@@ -23,6 +23,8 @@ test('STACK catalogue resolves every supported language without missing-key fall
   assert.equal(L.resolve('ctm-stack', 'no'), 'nb');
   assert.equal(english.validateButton, 'Validate answers');
   assert.equal(english.checkButton, 'Check answer');
+  assert.equal(english.showSource, 'Show source');
+  assert.equal(english.showStackSource, 'Show STACK source');
   assert.equal(english.interpretedAs('x^2'), 'Interpreted as \\(x^2\\)');
   assert.equal(english.checking('SymPy'), 'Checking with SymPy…');
   assert.deepEqual(warnings, []);
