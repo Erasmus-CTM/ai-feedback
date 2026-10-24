@@ -252,7 +252,7 @@
       if (el.matches(
         'script, style, noscript, template, button, select, ' +
         '.hidden, .ai-feedback, .feedback-criteria, .feedback-starter, .example-author-notes, .ai-feedback-ignore, [class*="cell-output"], .ai-feedback-activity, .ai-feedback-output, .ai-feedback-settings, .math-exercise-cell, .math-exercise-controls, .math-feedback-area, ' +
-        '.py-exercise-cell, .qpyodide-interactive-area, .qpyodide-non-interactive-area, ' +
+        '.py-exercise-cell, .qpyodide-interactive-area, .qpyodide-non-interactive-area, .ctm-stack, ' +
         '.math-legend-panel, .math-dynamic-matrix-controls, [hidden], [aria-hidden="true"]'
       )) return;
 

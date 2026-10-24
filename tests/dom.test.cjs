@@ -17,6 +17,21 @@ test('canonical and legacy contexts deduplicate and preserve LaTeX source', () =
   assert.equal(contexts.length, 2); assert.match(contexts[0].content, /\\\(r\^2\\\)/); assert.doesNotMatch(contexts[0].content, /garbled|secret|draft/);
   w.close();
 });
+test('mixed lesson context excludes STACK cards while preserving prose and each component own task', () => {
+  const {w, F} = page('<section id="lesson"><p>Before the exercises: <span data-ai-feedback-tex="x^2">rendered glyphs</span>.</p>'
+    + '<section class="ctm-stack"><div class="stack-prompt">STACK task only.</div>'
+    + '<input value="typed answer"><div class="stack-result">Private grading evidence.</div>'
+    + '<button>Check answer</button><script type="application/json">{"teacher":"hidden payload"}</script></section>'
+    + '<div class="math-exercise-cell">Math task only.</div><div class="py-exercise-cell">Python task only.</div>'
+    + '<div class="qpyodide-interactive-area">Python code only.</div><p>After the exercises.</p></section>');
+  try {
+    const context = F.contextText(w.document.getElementById('lesson'));
+    assert.equal(context, 'Before the exercises: \\(x^2\\).\nAfter the exercises.');
+    assert.doesNotMatch(context, /STACK|Private|Check answer|teacher|hidden payload|typed answer|Math task|Python task|Python code|rendered glyphs/);
+    // A component explicitly reads its prompt, rather than the whole card.
+    assert.equal(F.contextText(w.document.querySelector('.stack-prompt')), 'STACK task only.');
+  } finally { w.close(); }
+});
 test('Markdown rendering never activates model HTML', () => {
   const { F, w } = page();
   const el = w.document.createElement('div'); el.innerHTML = F.renderMarkdown('<img src=x onerror=alert(1)> **word**');
