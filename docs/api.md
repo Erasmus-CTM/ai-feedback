@@ -444,6 +444,19 @@ const text = await MathExerciseRuntime.callCheckers(py, 'math_exercise.check', r
 MathExerciseRuntime.forgetModules(py);                 // the next ensure* installs again
 ```
 
+`canStop({runtime})`, `whenSlow(ms, callback, {runtime})` and
+`stop(reason, {runtime})` select that worker proxy, including an unpublished
+STACK runtime. Omitting the options keeps selecting `mainPyodide`.
+`stopCount({runtime})` counts only that runtime's stops; the no-argument count
+remains the default-runtime UI's counter. Stopping one proxy does not prevent
+another runtime's checker retry or cleanup.
+
+On an isolated page with the proxy's interrupt buffer, Stop sends SIGINT first.
+If its active RPCs settle within two seconds, the session is retained and the
+interrupt buffer is cleared. Otherwise only that worker restarts. Without a
+shared interrupt buffer Stop restarts immediately. `stop` returns the selected
+operation's promise when asynchronous; callers can observe restart failures.
+
 `py` is a runtime or an object with `globals.set` and `runPythonAsync`
 (pyodide-interaktiv's worker proxy); nothing else is used.
 
@@ -496,14 +509,18 @@ MathExerciseRuntime.forgetModules(py);                 // the next ensure* insta
   (`sys.tracebacklimit = 0`). The second failure reaches the caller, as
   does an error that `call` raised itself (the answer to the request, such
   as the admission rule's `ValueError`).
-- A runtime that was stopped or restarted gets nothing more, since
+- A runtime that was restarted gets nothing more, since
   pyodide-interaktiv's terminated worker never answers. The evidence is a
-  stop on the page (`stop()`) or pyodide-interaktiv's
-  `qpyodide-runtime-restart` event, which `restart()` sends before it
-  rejects the pending calls; an error never counts, whatever its text. The
+  Stop that actually restarts the proxy, or pyodide-interaktiv's
+  `qpyodide-runtime-restart` event with `detail.proxy` equal to the published
+  runtime, which `restart()` sends before it
+  rejects the pending calls. Ordinary runtime errors do not count; the exact
+  legacy restart signal `Python was restarted.` is retained. The
   failed call reaches the caller at once with no cleanup or repeat, and the
   caller moves to the new runtime. Every later call or install for that
   runtime, including one waiting behind the failed call, fails at once.
+  An interrupted session that settles in time remains available; its stopped
+  checker call is not retried or cleaned up through additional Python calls.
 - `_ctm_guard`'s snapshot keeps the modules named `_ctm_…` and
   `ctm_checkers…`: a checker that removes them is undone after its call.
 - `scriptURL` is the runtime script's own URL on a page (for a worker that
@@ -533,6 +550,7 @@ const started = CTMWorker.start({
   messages: {loading, initPackages, extraPackages},   // status texts, in the page's language
   onStatus(text) {},            // a status text from the worker
   onRestart(started) {},        // after proxy.restart(): the new start
+  loadTimeout: 180000,          // initialization ceiling in milliseconds, excluding background setup
   publish: true,                // qpyodideReady, qpyodideInstance, _qpyodideGetInstance, mainPyodide
 });
 const proxy = await started;    // after stage 1
@@ -543,6 +561,9 @@ await proxy.whenSetup;          // after stage 2 (rejects with the reason; proxy
 In local mode `CTMWorker.start` resolves the absolute Pyodide base through
 `CTMAssets` on the page. Explicit packages are checked against the served
 subset lock and loaded by Pyodide, without a micropip/PyPI request.
+`loadTimeout` defaults to `MathExerciseRuntime.loadTimeout`, or 180000 ms.
+It must be positive, finite and at most 2147483647 ms. A loading deadline
+terminates only this worker and rejects with `code: 'pyodide-timeout'`.
 
 **The proxy** (`await qpyodideReady`, `mainPyodide`; a test pins its keys):
 `runPythonAsync(code)` (the result through `toJs({dict_converter:
@@ -550,13 +571,16 @@ Object.fromEntries, create_pyproxies: false})`), `loadPackagesFromImports(code)`
 `loadPackage(name)`, `globals.set(name, value)`, `toPy(value)` (identity: the
 conversion happens in the worker), `isWorkerProxy`; control: `interrupt()`,
 `clearInterrupt()`, `abortInput()`, `provideInput(text)`, `restart(reason)`
-(fires `qpyodide-runtime-restart` on `window`, rejects pending calls and
+(for `publish: true` fires `qpyodide-runtime-restart` with `detail.proxy`
+identifying the old proxy; unpublished workers emit no page restart event;
+rejects pending calls and
 `whenSetup` with an error whose `restarted` is true, starts again and
 publishes the new start; afterwards every call on the old proxy rejects at
 once with that error, and `restart` on it again returns the same new start),
 `interruptBuffer`, `inputStatusBuf`,
 `inputDataBuf`, `onStream(text, "stdout"|"stderr")`, `onInputRequired(prompt)`;
-stage 2: `whenSetup`, `retrySetup()`; and the plugin's commands. Calls are
+stage 2: `whenSetup`, `retrySetup()`; `whenIdle()` settles after outstanding
+RPCs finish (background setup is separate); and the plugin's commands. Calls are
 answered in order (one interpreter, one output capture): a check from one
 component never enters another's captured output. `MathExerciseRuntime`'s
 `ensurePyodide`, `installModule`, `ensureCheckers`/`callCheckers`, `canStop`

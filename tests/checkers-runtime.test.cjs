@@ -243,11 +243,61 @@ test('callCheckers does not repeat a call that the learner stopped', async () =>
   const R = context.MathExerciseRuntime;
   const checkers = payload();
   context.CTMCheckers = checkers;
-  context.mainPyodide = { restart() {} };
   const py = fakePy((code) => { if (code.includes('.call(')) { R.stop('Stopped by the learner'); return true; } return false; });
+  py.restart = () => {};
+  context.mainPyodide = py;
   await assert.rejects(R.callCheckers(py, 'math_exercise.check', {}), /No module named/);
   assert.equal(py.runs.filter((code) => code.includes('.call(')).length, 1);
   assert.equal(checkers.installs.length, 1);
+});
+
+test('a private interrupt during concurrent checks leaves the published runtime retry and next check intact', async () => {
+  const context = runtime({crossOriginIsolated: true});
+  const R = context.MathExerciseRuntime;
+  const checkers = payload();
+  context.CTMCheckers = checkers;
+  let publishedCalls = 0, releasePublished, releasePrivate, privateIdle;
+  const publishedGate = new Promise(resolve => { releasePublished = resolve; });
+  const privateGate = new Promise(resolve => { releasePrivate = resolve; });
+  const idle = new Promise(resolve => { privateIdle = resolve; });
+  const published = fakePy(code => code.includes('.call(') && ++publishedCalls === 1);
+  const privateRuntime = fakePy(code => code.includes('.call('));
+  const publishedRun = published.runPythonAsync, privateRun = privateRuntime.runPythonAsync;
+  let publishedStarted = false, privateStarted = false;
+  published.runPythonAsync = async code => {
+    if (code.includes('.call(') && !publishedStarted) { publishedStarted = true; await publishedGate; }
+    return publishedRun(code);
+  };
+  privateRuntime.runPythonAsync = async code => {
+    if (!code.includes('.call(')) return privateRun(code);
+    privateStarted = true;
+    await privateGate;
+    try { return await privateRun(code); } finally { privateIdle(); }
+  };
+  privateRuntime.interruptBuffer = new Uint8Array(new SharedArrayBuffer(1));
+  privateRuntime.interrupt = () => { privateRuntime.interruptBuffer[0] = 2; releasePrivate(); };
+  privateRuntime.clearInterrupt = () => { privateRuntime.interruptBuffer[0] = 0; };
+  privateRuntime.whenIdle = () => idle;
+  privateRuntime.restart = () => { throw new Error('responsive private session must not restart'); };
+  published.restart = () => { throw new Error('published session must not restart'); };
+  context.mainPyodide = published;
+
+  const checkingPublished = R.callCheckers(published, 'math_exercise.check', { n: 1 });
+  const checkingPrivate = assert.rejects(R.callCheckers(privateRuntime, 'stack.grade', {}), /No module named/);
+  await until(() => publishedStarted && privateStarted);
+  const stopped = R.stop('stop private', {runtime: privateRuntime});
+  assert.equal(privateRuntime.interruptBuffer[0], 2);
+  await checkingPrivate; await stopped;
+  assert.equal(privateRuntime.interruptBuffer[0], 0);
+  assert.equal(R.stopCount(), 0); assert.equal(R.stopCount({runtime: published}), 0);
+  assert.equal(R.stopCount({runtime: privateRuntime}), 1);
+  releasePublished();
+  assert.equal(JSON.parse(JSON.parse(await checkingPublished).request).n, 1);
+  assert.equal(publishedCalls, 2, 'published pre-call failure still gets its one repair and retry');
+  assert.equal(privateRuntime.runs.filter(code => code.includes('.call(')).length, 1);
+  assert.equal(checkers.installs.filter(py => py === published).length, 2);
+  assert.equal(context.mainPyodide, published);
+  assert.equal(JSON.parse(JSON.parse(await R.callCheckers(published, 'math_exercise.check', { n: 2 })).request).n, 2);
 });
 
 test('a call rejected with exactly the error of restart() without a reason: that runtime gets nothing more, also without the event', async () => {
@@ -275,7 +325,9 @@ test('callCheckers sends nothing more to a runtime that pyodide-interaktiv resta
   // As pyodide-interaktiv's restart(): the event first (mainPyodide is still this runtime), then the pending call is rejected.
   const py = fakePy((code) => {
     if (!code.includes('.call(')) return false;
-    context.dispatchEvent(new Event('qpyodide-runtime-restart'));
+    const event = new Event('qpyodide-runtime-restart');
+    event.detail = {proxy: py};
+    context.dispatchEvent(event);
     return 'Python was restarted.';
   });
   context.mainPyodide = py;
@@ -314,7 +366,9 @@ function workerProxy(page, answer) {
     globals: { set: (name) => rpc('set ' + name, () => undefined) },
     runPythonAsync: (code) => rpc(code, () => answer(code)),
     restart(reason) {
-      page.dispatchEvent(new Event('qpyodide-runtime-restart'));
+      const event = new Event('qpyodide-runtime-restart');
+      event.detail = {proxy: this};
+      page.dispatchEvent(event);
       terminated = true;
       const error = new Error(reason || 'Python was restarted.');
       for (const entry of pending) entry.reject(error);
